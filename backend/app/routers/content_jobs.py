@@ -18,6 +18,7 @@ from app.schemas.content_job import ContentJobCreate, ContentJobOut, RenderVersi
 from app.services.ai import ai_service
 from app.services.tts import tts_service
 from app.services.video import video_service
+from app.services.kling import kling_service
 
 router = APIRouter(prefix="/jobs", tags=["content-jobs"])
 
@@ -241,6 +242,101 @@ async def render_video(
         "size_bytes": render_result["size_bytes"],
         "status": "completed",
     }
+
+
+@router.post("/{job_id}/kling-render", response_model=dict)
+async def kling_render(
+    job_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    prompt: str = "",
+    duration: str = "5",
+    aspect_ratio: str = "9:16",
+):
+    result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    product_result = await db.execute(select(Product).where(Product.id == job.product_id))
+    product = product_result.scalar_one_or_none()
+
+    if not prompt:
+        script_result = await db.execute(
+            select(Script).where(Script.content_job_id == job_id).order_by(Script.version.desc())
+        )
+        script = script_result.scalar_one_or_none()
+        prompt = script.hook if script and script.hook else (product.name if product else "")
+
+    image_urls = list(product.media_urls or []) if product else []
+
+    if image_urls:
+        kling_result = await kling_service.image_to_video(
+            image_url=image_urls[0],
+            prompt=prompt,
+            duration=duration,
+            aspect_ratio=aspect_ratio,
+        )
+        task_type = "image2video"
+    else:
+        kling_result = await kling_service.text_to_video(
+            prompt=prompt,
+            duration=duration,
+            aspect_ratio=aspect_ratio,
+        )
+        task_type = "text2video"
+
+    render = RenderVersion(
+        content_job_id=job_id,
+        version_label="kling-v1",
+        kling_task_id=kling_result["task_id"],
+        kling_status="processing",
+        status="processing",
+        ffmpeg_config={"task_type": task_type, "prompt": prompt},
+    )
+    db.add(render)
+    await db.commit()
+    await db.refresh(render)
+
+    return {
+        "render_id": str(render.id),
+        "job_id": str(job_id),
+        "task_id": kling_result["task_id"],
+        "status": "processing",
+        "message": "Kling AI กำลังสร้างวิดีโอ ใช้ /kling-status เพื่อเช็คผล",
+    }
+
+
+@router.get("/{job_id}/kling-status/{task_id}", response_model=dict)
+async def kling_status(
+    job_id: UUID,
+    task_id: str,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    task_type: str = "image2video",
+):
+    status_result = await kling_service.get_task_status(task_id, task_type)
+
+    if status_result["status"] == "succeed" and status_result["video_url"]:
+        render_result = await db.execute(
+            select(RenderVersion).where(
+                RenderVersion.content_job_id == job_id,
+                RenderVersion.kling_task_id == task_id,
+            )
+        )
+        render = render_result.scalar_one_or_none()
+        if render:
+            render.kling_status = "succeed"
+            render.final_video_url = status_result["video_url"]
+            render.status = "completed"
+            job_result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+            job = job_result.scalar_one_or_none()
+            if job:
+                job.status = "completed"
+                job.review_status = "review_needed"
+            await db.commit()
+
+    return status_result
 
 
 @router.patch("/{job_id}/approve")
