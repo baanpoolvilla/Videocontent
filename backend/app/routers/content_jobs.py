@@ -17,6 +17,7 @@ from app.models.product import Product
 from app.schemas.content_job import ContentJobCreate, ContentJobOut, RenderVersionOut, ScriptOut
 from app.services.ai import ai_service
 from app.services.tts import tts_service
+from app.services.video import video_service
 
 router = APIRouter(prefix="/jobs", tags=["content-jobs"])
 
@@ -192,6 +193,53 @@ async def generate_voiceover(
         "characters_used": tts_result["characters_used"],
         "voice_id": tts_result["voice_id"],
         "model_id": tts_result["model_id"],
+    }
+
+
+@router.post("/{job_id}/render", response_model=dict)
+async def render_video(
+    job_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    voiceover_url: str = "",
+    duration_sec: int = 30,
+):
+    result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    product_result = await db.execute(select(Product).where(Product.id == job.product_id))
+    product = product_result.scalar_one_or_none()
+
+    image_urls = list(product.media_urls or []) if product else []
+
+    render_result = await video_service.render_video(
+        job_id=str(job_id),
+        voiceover_url=voiceover_url,
+        image_urls=image_urls,
+        duration_sec=duration_sec,
+    )
+
+    render = RenderVersion(
+        content_job_id=job_id,
+        version_label="v1",
+        final_video_url=render_result["url"],
+        status="completed",
+        ffmpeg_config={"duration_sec": duration_sec, "images": len(image_urls)},
+    )
+    db.add(render)
+    job.status = "completed"
+    job.review_status = "review_needed"
+    await db.commit()
+    await db.refresh(render)
+
+    return {
+        "render_id": str(render.id),
+        "job_id": str(job_id),
+        "video_url": render_result["url"],
+        "size_bytes": render_result["size_bytes"],
+        "status": "completed",
     }
 
 
