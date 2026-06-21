@@ -1,0 +1,194 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Content Studio v15.3 Design System ── */
+:root {
+  --cs-bg:          #0E0F11;
+  --cs-panel:       #16181B;
+  --cs-panel2:      #1E2024;
+  --cs-line:        #2B2E33;
+  --cs-text:        #F1F2F4;
+  --cs-dim:         #9A9DA6;
+  --cs-faint:       #62656C;
+  --cs-teal:        #00D9C0;
+  --cs-blue:        #5B8CFF;
+  --cs-teal-soft:   rgba(0,217,192,.12);
+  --cs-teal-glow:   rgba(0,217,192,.22);
+  --cs-teal-text:   #1FE9D0;
+  --cs-green:       #34D399;
+  --cs-yellow:      #F5C04E;
+  --cs-red:         #F36464;
+  --cs-pink:        #FF6FA5;
+
+  /* ShadCN/Radix variables — forced dark */
+  --background:            220 13% 7%;
+  --foreground:            210 15% 95%;
+  --card:                  220 12% 9%;
+  --card-foreground:       210 15% 95%;
+  --popover:               220 13% 9%;
+  --popover-foreground:    210 15% 95%;
+  --primary:               174 100% 43%;
+  --primary-foreground:    200 40% 6%;
+  --secondary:             215 14% 13%;
+  --secondary-foreground:  210 15% 95%;
+  --muted:                 215 14% 12%;
+  --muted-foreground:      220 8% 55%;
+  --accent:                215 14% 13%;
+  --accent-foreground:     210 15% 95%;
+  --destructive:           0 70% 55%;
+  --destructive-foreground:210 15% 95%;
+  --border:                215 12% 17%;
+  --input:                 215 12% 17%;
+  --ring:                  174 100% 43%;
+  --radius:                0.75rem;
+  --chart-1:               174 100% 43%;
+  --chart-2:               220 70% 65%;
+  --chart-3:               43 80% 60%;
+  --chart-4:               280 65% 65%;
+  --chart-5:               340 75% 60%;
+}
+
+@layer base {
+  * { @apply border-border; }
+  body {
+    background: var(--cs-bg);
+    color: var(--cs-text);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* ── Sidebar nav component styles ── */
+@layer components {
+
+  /* Grouped workflow nav items */
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 10px;
+    border-radius: 10px;
+    margin-bottom: 1px;
+    text-decoration: none;
+    border-left: 2px solid transparent;
+    color: var(--cs-dim);
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+    cursor: pointer;
+    background: transparent;
+  }
+
+  .nav-item:hover {
+    background: var(--cs-panel2);
+    color: var(--cs-text);
+  }
+
+  .nav-item.active {
+    background: var(--cs-teal-soft);
+    color: var(--cs-teal-text);
+    font-weight: 700;
+    border-left-color: var(--cs-teal);
+  }
+
+  .nav-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--cs-panel2);
+    transition: background 0.12s;
+    font-size: 13px;
+    color: var(--cs-dim);
+  }
+
+  .nav-item.active .nav-icon {
+    background: rgba(0,217,192,.2);
+    color: var(--cs-teal-text);
+  }
+
+  .nav-step {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--cs-faint);
+    background: var(--cs-panel2);
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    letter-spacing: 0;
+    transition: background 0.12s, color 0.12s;
+  }
+
+  .nav-item.active .nav-step {
+    color: var(--cs-teal-text);
+    background: var(--cs-teal-glow);
+  }
+
+  /* Nav label — single-line with ellipsis, never wraps */
+  .nav-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Hide scrollbar but keep scroll */
+  .nav-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .nav-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Quick-access nav items (Home, Dashboard) */
+  .qnav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 11px;
+    margin-bottom: 2px;
+    text-decoration: none;
+    color: var(--cs-dim);
+    font-size: 13.5px;
+    font-weight: 600;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+
+  .qnav-item:hover {
+    background: var(--cs-panel2);
+    color: var(--cs-text);
+  }
+
+  .qnav-item.active {
+    background: var(--cs-teal-soft);
+    color: var(--cs-teal-text);
+  }
+
+  .qnav-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--cs-panel2);
+    transition: background 0.12s;
+    font-size: 13px;
+  }
+
+  .qnav-item.active .qnav-icon {
+    background: rgba(0,217,192,.2);
+    color: var(--cs-teal-text);
+  }
+}
