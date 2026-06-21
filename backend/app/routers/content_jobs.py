@@ -286,8 +286,8 @@ async def kling_render(
                 aspect_ratio=aspect_ratio,
             )
             task_type = "text2video"
-    except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     render = RenderVersion(
         content_job_id=job_id,
