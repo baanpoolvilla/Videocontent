@@ -12,7 +12,10 @@ from app.core.deps import CurrentUser
 from app.models.content_job import ContentJob
 from app.models.script import Script
 from app.models.render_version import RenderVersion
+from app.models.analysis import Analysis
+from app.models.product import Product
 from app.schemas.content_job import ContentJobCreate, ContentJobOut, RenderVersionOut, ScriptOut
+from app.services.ai import ai_service
 
 router = APIRouter(prefix="/jobs", tags=["content-jobs"])
 
@@ -87,6 +90,68 @@ async def get_job_renders(
 ):
     result = await db.execute(select(RenderVersion).where(RenderVersion.content_job_id == job_id))
     return result.scalars().all()
+
+
+@router.post("/{job_id}/generate-script", response_model=ScriptOut)
+async def generate_script(
+    job_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    tone_of_voice: str = "",
+    cta_style: str = "",
+    duration_sec: int = 30,
+):
+    result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    product_result = await db.execute(select(Product).where(Product.id == job.product_id))
+    product = product_result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    analysis_result = await db.execute(
+        select(Analysis).where(Analysis.product_id == job.product_id).order_by(Analysis.created_at.desc())
+    )
+    analysis = analysis_result.scalar_one_or_none()
+    if not analysis:
+        raise HTTPException(status_code=400, detail="No analysis found — run /analyze first")
+
+    analysis_data = {
+        "selling_points": analysis.selling_points or [],
+        "target_audience": analysis.target_audience or "",
+        "suggested_hooks": analysis.suggested_hooks or [],
+        "mood": analysis.mood or "",
+    }
+
+    ai_result = await ai_service.generate_script(
+        product_name=product.name,
+        analysis=analysis_data,
+        tone_of_voice=tone_of_voice,
+        cta_style=cta_style,
+        duration_sec=duration_sec,
+    )
+
+    existing = await db.execute(select(Script).where(Script.content_job_id == job_id))
+    latest = existing.scalars().all()
+    version = len(latest) + 1
+
+    script = Script(
+        content_job_id=job_id,
+        hook=ai_result["script"].get("hook"),
+        body=ai_result["script"].get("body"),
+        cta=ai_result["script"].get("cta"),
+        full_script=ai_result["script"].get("full_script"),
+        version=version,
+        model_used=ai_result["model_used"],
+        tokens_used=ai_result["tokens_used"],
+    )
+    db.add(script)
+    job.status = "processing"
+    await db.commit()
+    await db.refresh(script)
+    return script
 
 
 @router.patch("/{job_id}/approve")
