@@ -4,16 +4,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Home, Package, BrainCircuit, FileText, Mic2,
-  Film, ShieldCheck, Eye, CheckCircle2, Calendar, BarChart3,
-  Link2, LogOut, Sparkles, Cpu, Plus,
+  Film, Eye, CheckCircle2, Calendar, BarChart3,
+  Link2, LogOut, Sparkles, Plus, Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-/* ── Navigation data ── */
-
 const quickNav = [
-  { href: "/",          label: "หน้าแรก",   icon: Home },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard", label: "Dashboard",  icon: LayoutDashboard },
+  { href: "/",          label: "หน้าแรก",    icon: Home },
 ];
 
 type GroupItem = { href: string; label: string; icon: LucideIcon; step: string };
@@ -21,79 +19,47 @@ type Group     = { num: number; label: string; color: string; items: GroupItem[]
 
 const groups: Group[] = [
   {
-    num: 1, label: "อัปโหลด & วิเคราะห์", color: "#34D399",
+    num: 1, label: "อัปโหลด & วิเคราะห์", color: "#00FFD4",
     items: [
       { href: "/products", label: "อัปโหลดสินค้า",  icon: Package,      step: "02" },
       { href: "/analysis", label: "ผลวิเคราะห์ AI", icon: BrainCircuit, step: "03" },
     ],
   },
   {
-    num: 2, label: "สร้างคอนเทนต์ AI", color: "#00D9C0",
+    num: 2, label: "สร้างคอนเทนต์ AI", color: "#4D7FFF",
     items: [
-      { href: "/generate", label: "เทมเพลต",        icon: Sparkles, step: "04" },
-      { href: "/scripts",  label: "แก้ไข Script",   icon: FileText, step: "05" },
-      { href: "/voice",    label: "Caption & เสียง", icon: Mic2,     step: "06" },
+      { href: "/generate", label: "Generate Studio", icon: Sparkles, step: "04" },
+      { href: "/scripts",  label: "แก้ไข Script",    icon: FileText, step: "05" },
+      { href: "/voice",    label: "Caption & เสียง",  icon: Mic2,     step: "06" },
     ],
   },
   {
-    num: 3, label: "เรนเดอร์ & ตรวจสอบ", color: "#F5C04E",
+    num: 3, label: "เรนเดอร์ & ตรวจสอบ", color: "#FFB02E",
     items: [
-      { href: "/render-queue", label: "คิวเรนเดอร์",      icon: Film,        step: "07" },
-      { href: "/compliance",   label: "ตรวจสอบมาตรฐาน", icon: ShieldCheck, step: "08" },
+      { href: "/render-queue", label: "Render Queue",   icon: Film,        step: "07" },
     ],
   },
   {
-    num: 4, label: "พรีวิว & ตั้งเวลา", color: "#5B8CFF",
+    num: 4, label: "พรีวิว & ตั้งเวลา", color: "#9B6FFF",
     items: [
-      { href: "/preview",  label: "พรีวิว A–E",  icon: Eye,          step: "09" },
-      { href: "/approval", label: "อนุมัติ",      icon: CheckCircle2, step: "10" },
-      { href: "/schedule", label: "Schedule",     icon: Calendar,     step: "11" },
+      { href: "/preview",  label: "พรีวิว",    icon: Eye,          step: "08" },
+      { href: "/approval", label: "อนุมัติ",   icon: CheckCircle2, step: "09" },
+      { href: "/schedule", label: "Schedule",  icon: Calendar,     step: "10" },
     ],
   },
   {
-    num: 5, label: "ผลตอบรับ", color: "#FF6FA5",
+    num: 5, label: "ผลตอบรับ", color: "#FF6FB7",
     items: [
-      { href: "/analytics", label: "ผลตอบรับ", icon: BarChart3, step: "12" },
+      { href: "/analytics", label: "Analytics", icon: BarChart3, step: "11" },
     ],
   },
   {
-    num: 0, label: "ระบบ", color: "#9A9DA6",
+    num: 0, label: "ระบบ", color: "#8890AE",
     items: [
-      { href: "/accounts", label: "บัญชี / Token", icon: Link2, step: "13" },
+      { href: "/accounts", label: "บัญชี / Token", icon: Link2, step: "12" },
     ],
   },
 ];
-
-/* ── Sub-components ── */
-
-function QNavItem({
-  href, label, icon: Icon, active,
-}: { href: string; label: string; icon: LucideIcon; active: boolean }) {
-  return (
-    <Link href={href} className={`qnav-item${active ? " active" : ""}`}>
-      <span className="qnav-icon">
-        <Icon size={13} strokeWidth={2} />
-      </span>
-      <span className="nav-label">{label}</span>
-    </Link>
-  );
-}
-
-function NavItem({
-  href, label, icon: Icon, step, active,
-}: GroupItem & { active: boolean }) {
-  return (
-    <Link href={href} className={`nav-item${active ? " active" : ""}`}>
-      <span className="nav-icon">
-        <Icon size={13} strokeWidth={2} />
-      </span>
-      <span className="nav-label">{label}</span>
-      <span className="nav-step">{step}</span>
-    </Link>
-  );
-}
-
-/* ── Main component ── */
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -103,149 +69,116 @@ export function Sidebar() {
     href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
 
   return (
-    <aside style={{
-      width: 248, flexShrink: 0,
-      background: "var(--cs-panel)",
-      borderRight: "1px solid var(--cs-line)",
-      display: "flex", flexDirection: "column",
-      height: "100vh", overflow: "hidden",
-    }}>
+    <aside className="sidebar">
 
-      {/* ── Brand ── */}
-      <div style={{ padding: "18px 14px 14px" }}>
+      {/* Brand */}
+      <div style={{ padding: "20px 16px 14px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 10, flexShrink: 0,
-            background: "linear-gradient(135deg, var(--cs-teal), var(--cs-blue))",
-            boxShadow: "0 4px 14px rgba(0,217,192,.32)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <Cpu size={16} color="#06201D" strokeWidth={2.5} />
+          <div className="brand-mark">
+            <Zap size={16} strokeWidth={3} />
           </div>
           <div>
-            <p style={{ margin: 0, fontSize: 13.5, fontWeight: 800, color: "var(--cs-text)", letterSpacing: "-.01em" }}>
+            <p style={{ margin: 0, fontSize: 13.5, fontWeight: 800, color: "var(--text)", letterSpacing: "-.01em" }}>
               Content Studio
             </p>
-            <p style={{ margin: 0, fontSize: 10, color: "var(--cs-faint)" }}>
-              AI Pipeline v1.1
-            </p>
+            <p style={{ margin: 0, fontSize: 10, color: "var(--faint)" }}>AI Pipeline v2.0</p>
           </div>
         </div>
 
-        {/* CTA */}
-        <button
-          onClick={() => router.push("/generate")}
-          style={{
-            width: "100%", padding: "10px 14px",
-            background: "linear-gradient(90deg, var(--cs-teal), var(--cs-blue))",
-            color: "#05201D", borderRadius: 11, fontSize: 13, fontWeight: 800,
-            border: "none", cursor: "pointer",
-            boxShadow: "0 3px 16px rgba(0,217,192,.28)",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-            letterSpacing: ".01em", transition: "opacity .1s, transform .08s",
-          }}
-          onMouseEnter={e => { e.currentTarget.style.opacity = "0.88"; }}
-          onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
-          onMouseDown={e  => { e.currentTarget.style.transform = "scale(.97)"; }}
-          onMouseUp={e    => { e.currentTarget.style.transform = "scale(1)"; }}
-        >
+        <button className="sidebar-cta" onClick={() => router.push("/generate")}>
           <Plus size={14} strokeWidth={3} />
           สร้างคลิปใหม่
         </button>
       </div>
 
-      {/* ── Scrollable nav (no scrollbar) ── */}
-      <nav className="nav-scroll" style={{ flex: 1, overflowY: "auto", paddingBottom: 6 }}>
+      {/* Scrollable nav */}
+      <nav className="sidebar-inner nav-scroll">
 
-        {/* Quick access */}
-        <div style={{ padding: "0 8px", marginBottom: 8 }}>
-          {quickNav.map(({ href, label, icon }) => (
-            <QNavItem key={href} href={href} label={label} icon={icon} active={isActive(href)} />
+        {/* Quick nav */}
+        <div style={{ padding: "0 8px", marginBottom: 6 }}>
+          {quickNav.map(({ href, label, icon: Icon }) => (
+            <Link key={href} href={href} className={`qnav-item${isActive(href) ? " active" : ""}`}>
+              <span className="qnav-icon"><Icon size={13} strokeWidth={2} /></span>
+              <span>{label}</span>
+            </Link>
           ))}
         </div>
 
-        {/* Divider */}
-        <div style={{ height: 1, background: "var(--cs-line)", margin: "0 16px 12px" }} />
+        <div className="sdiv" />
 
         {/* Workflow groups */}
         {groups.map((group) => (
-          <div key={group.num} style={{ marginBottom: 6 }}>
-
-            {/* Group header — colored number badge + label */}
-            <div style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "6px 12px 5px 14px",
-            }}>
+          <div key={group.num} style={{ marginBottom: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 14px 4px" }}>
               {group.num > 0 ? (
                 <span style={{
                   width: 17, height: 17, borderRadius: 5, flexShrink: 0,
-                  background: `${group.color}28`,
-                  border: `1px solid ${group.color}55`,
-                  color: group.color,
-                  fontSize: 9, fontWeight: 800,
+                  background: `${group.color}22`, border: `1px solid ${group.color}44`,
+                  color: group.color, fontSize: 9, fontWeight: 800,
                   display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  {group.num}
-                </span>
+                }}>{group.num}</span>
               ) : (
                 <span style={{
                   width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
-                  background: group.color,
-                  boxShadow: `0 0 6px ${group.color}88`,
+                  background: group.color, boxShadow: `0 0 6px ${group.color}99`,
                   marginLeft: 5,
                 }} />
               )}
               <span style={{
-                fontSize: 10, fontWeight: 700,
-                textTransform: "uppercase", letterSpacing: ".07em",
-                color: "var(--cs-faint)",
-                flex: 1, minWidth: 0, overflow: "hidden",
-                textOverflow: "ellipsis", whiteSpace: "nowrap",
-              }}>
-                {group.label}
-              </span>
+                fontSize: 9.5, fontWeight: 700, textTransform: "uppercase",
+                letterSpacing: ".07em", color: "var(--faint)",
+                flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>{group.label}</span>
             </div>
 
-            {/* Items */}
-            <div style={{ padding: "0 6px 4px 22px" }}>
+            <div style={{ padding: "0 6px 2px 20px" }}>
               {group.items.map((item) => (
-                <NavItem key={item.href} {...item} active={isActive(item.href)} />
+                <Link key={item.href} href={item.href}
+                  className={`nav-item${isActive(item.href) ? " active" : ""}`}
+                  style={{ border: "none" }}
+                >
+                  <span style={{
+                    width: 24, height: 24, borderRadius: 7,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: "var(--glass2)", flexShrink: 0,
+                  }}><item.icon size={12} strokeWidth={2} /></span>
+                  <span style={{ flex: 1 }}>{item.label}</span>
+                  <span className="nav-step">{item.step}</span>
+                </Link>
               ))}
             </div>
           </div>
         ))}
       </nav>
 
-      {/* ── Render usage ── */}
+      {/* Usage bar */}
       <div style={{ padding: "0 12px 10px" }}>
         <div style={{
-          background: "var(--cs-panel2)", border: "1px solid var(--cs-line)",
-          borderRadius: 11, padding: "10px 12px",
-          fontSize: 11, color: "var(--cs-dim)",
+          background: "var(--glass)", border: "1px solid var(--gb)",
+          borderRadius: 12, padding: "10px 12px", fontSize: 11.5, color: "var(--dim)",
         }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7, alignItems: "center" }}>
             <span>⚡ เรนเดอร์วันนี้</span>
-            <b style={{ color: "var(--cs-teal)", fontSize: 11.5 }}>62%</b>
+            <b style={{ color: "var(--teal)" }}>62%</b>
           </div>
-          <div style={{ height: 4, background: "var(--cs-line)", borderRadius: 2, overflow: "hidden" }}>
-            <div style={{
-              height: "100%", width: "62%",
-              background: "linear-gradient(90deg, var(--cs-teal), var(--cs-blue))",
-              borderRadius: 2,
-            }} />
+          <div style={{ height: 4, background: "rgba(255,255,255,.07)", borderRadius: 2, overflow: "hidden" }}>
+            <div className="rbar-fill" style={{ width: "62%", height: "100%" }} />
           </div>
         </div>
       </div>
 
-      {/* ── Logout ── */}
-      <div style={{ padding: "8px 6px 14px", borderTop: "1px solid var(--cs-line)" }}>
+      {/* Logout */}
+      <div style={{ padding: "8px 6px 14px", borderTop: "1px solid var(--gb)" }}>
         <button
           onClick={() => { localStorage.clear(); router.push("/login"); }}
           className="nav-item"
-          style={{ width: "100%", border: "none", textAlign: "left" }}
+          style={{ width: "100%", border: "none", background: "none", cursor: "pointer" }}
         >
-          <span className="nav-icon"><LogOut size={13} strokeWidth={2} /></span>
-          <span className="nav-label">ออกจากระบบ</span>
+          <span style={{
+            width: 24, height: 24, borderRadius: 7, display: "flex",
+            alignItems: "center", justifyContent: "center", background: "var(--glass2)", flexShrink: 0,
+          }}><LogOut size={12} strokeWidth={2} /></span>
+          <span style={{ flex: 1, textAlign: "left" }}>ออกจากระบบ</span>
         </button>
       </div>
     </aside>

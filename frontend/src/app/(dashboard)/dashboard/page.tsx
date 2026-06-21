@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Package, Film, Clock, CheckCircle2, TrendingUp, AlertTriangle } from "lucide-react";
+import { Package, Film, Clock, CheckCircle2, TrendingUp, AlertTriangle, ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 interface Stats {
   total_products: number;
@@ -12,175 +13,212 @@ interface Stats {
   total_renders: number;
 }
 
-const KPI_CARDS = [
-  { key: "total_products", label: "สินค้าทั้งหมด", icon: Package,      accent: "var(--cs-teal)" },
-  { key: "total_jobs",     label: "งานทั้งหมด",    icon: TrendingUp,   accent: "var(--cs-blue)" },
-  { key: "completed_jobs", label: "เสร็จสิ้น",      icon: CheckCircle2, accent: "var(--cs-green)" },
-  { key: "pending_review", label: "รอตรวจสอบ",     icon: Clock,        accent: "var(--cs-yellow)" },
-  { key: "total_renders",  label: "Renders",        icon: Film,         accent: "var(--cs-pink)" },
+const KPIS = [
+  { key: "total_products", label: "สินค้าทั้งหมด", icon: Package,      c: "var(--teal)",   bg: "rgba(0,255,212,.12)" },
+  { key: "total_jobs",     label: "งานทั้งหมด",    icon: TrendingUp,   c: "var(--blue)",   bg: "rgba(77,127,255,.12)" },
+  { key: "completed_jobs", label: "เสร็จสิ้น",      icon: CheckCircle2, c: "var(--ok)",     bg: "rgba(34,212,153,.12)" },
+  { key: "pending_review", label: "รอตรวจสอบ",     icon: Clock,        c: "var(--warn)",   bg: "rgba(255,176,46,.12)" },
+  { key: "total_renders",  label: "Renders",        icon: Film,         c: "var(--purple)", bg: "rgba(155,111,255,.12)" },
 ] as const;
 
 const PIPELINE = [
-  { label: "Upload → Analysis", pct: 100, color: "var(--cs-teal)" },
-  { label: "Analysis → Script", pct: 85,  color: "var(--cs-teal)" },
-  { label: "Script → Voice",    pct: 70,  color: "var(--cs-blue)" },
-  { label: "Voice → Video",     pct: 55,  color: "var(--cs-blue)" },
-  { label: "Video → Published", pct: 40,  color: "var(--cs-pink)" },
+  { label: "Upload → Analysis", pct: 100, c: "var(--teal)" },
+  { label: "Analysis → Script", pct: 85,  c: "var(--teal)" },
+  { label: "Script → Voice",    pct: 70,  c: "var(--blue)" },
+  { label: "Voice → Video",     pct: 55,  c: "var(--blue)" },
+  { label: "Video → Published", pct: 40,  c: "var(--purple)" },
 ];
 
-function StatCard({
-  label, value, icon: Icon, accent,
-}: { label: string; value: number; icon: React.ElementType; accent: string }) {
-  return (
-    <div style={{
-      background: "var(--cs-panel)",
-      border: "1px solid var(--cs-line)",
-      borderRadius: 14,
-      padding: "18px 20px",
-      display: "flex",
-      alignItems: "center",
-      gap: 14,
-      boxShadow: "0 4px 16px rgba(0,0,0,.2)",
-    }}>
-      <div style={{
-        width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-        background: `${accent}20`,
-        border: `1px solid ${accent}44`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
-        <Icon size={20} color={accent} strokeWidth={2} />
-      </div>
-      <div>
-        <p style={{ margin: 0, fontSize: 11, color: "var(--cs-faint)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em" }}>
-          {label}
-        </p>
-        <p style={{ margin: "4px 0 0", fontSize: 24, fontWeight: 800, color: "var(--cs-text)", letterSpacing: "-.01em" }}>
-          {value.toLocaleString("th-TH")}
-        </p>
-      </div>
-    </div>
-  );
-}
+const WEEK = ["จ", "อ", "พ", "พฤ", "ศ", "ส", "อา"];
+const BAR_H = [55, 80, 38, 95, 62, 45, 72];
 
 export default function DashboardPage() {
-  const [stats, setStats]   = useState<Stats | null>(null);
+  const [stats, setStats]     = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get("/dashboard/stats").then((r) => {
-      setStats(r.data);
-      setLoading(false);
-    });
+    api.get("/dashboard/stats")
+      .then((r) => setStats(r.data))
+      .catch(() => setStats({ total_products: 0, total_jobs: 0, completed_jobs: 0, pending_review: 0, total_renders: 0 }))
+      .finally(() => setLoading(false));
   }, []);
-
-  if (loading) {
-    return (
-      <div style={{ padding: 32 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 14, marginBottom: 24 }}>
-          {[...Array(5)].map((_, i) => (
-            <div key={i} style={{ height: 88, borderRadius: 14, background: "var(--cs-panel)", animation: "pulse 1.5s infinite" }} />
-          ))}
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          {[0, 1].map((i) => (
-            <div key={i} style={{ height: 220, borderRadius: 14, background: "var(--cs-panel)" }} />
-          ))}
-        </div>
-      </div>
-    );
-  }
 
   const val = (key: keyof Stats) => stats?.[key] ?? 0;
 
   return (
-    <div style={{ padding: 32 }}>
+    <div className="page-enter" style={{ padding: "32px 40px", minHeight: "100vh" }}>
 
-      {/* Page header */}
-      <div style={{ marginBottom: 24 }}>
-        <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--cs-faint)", marginBottom: 5 }}>
+      {/* Header */}
+      <div style={{ marginBottom: 28 }}>
+        <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--faint)" }}>
           01 · ภาพรวม
         </p>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "var(--cs-text)", letterSpacing: "-.015em" }}>
-          Dashboard
-        </h1>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--cs-dim)" }}>
-          ข้อมูลย้อนหลัง 30 วัน — ดูว่าควรทำคอนเทนต์แนวไหนต่อ
-        </p>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: "var(--text)", letterSpacing: "-.02em" }}>Dashboard</h1>
+            <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--dim)" }}>
+              ข้อมูลย้อนหลัง 30 วัน · <span className="live-dot" />อัปเดตอัตโนมัติ
+            </p>
+          </div>
+          <Link href="/generate" style={{ textDecoration: "none" }}>
+            <button className="btn btn-primary">
+              <span>สร้างคลิปใหม่</span>
+              <ArrowRight size={14} strokeWidth={2.5} />
+            </button>
+          </Link>
+        </div>
       </div>
 
-      {/* KPI grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 14, marginBottom: 20 }}>
-        {KPI_CARDS.map(({ key, label, icon, accent }) => (
-          <StatCard key={key} label={label} value={val(key)} icon={icon} accent={accent} />
+      {/* KPI Grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 14, marginBottom: 22 }}>
+        {KPIS.map(({ key, label, icon: Icon, c, bg }) => (
+          <div key={key} className="kpi">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--faint)" }}>
+                {label}
+              </span>
+              <div style={{ width: 32, height: 32, borderRadius: 9, background: bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon size={15} color={c} strokeWidth={2} />
+              </div>
+            </div>
+            <p className="kpi-value" style={{ backgroundImage: `linear-gradient(135deg, var(--text) 30%, ${c})` }}>
+              {loading ? "—" : val(key).toLocaleString("th-TH")}
+            </p>
+            <p style={{ margin: 0, fontSize: 11, color: "var(--faint)" }}>
+              {key === "pending_review" && val("pending_review") > 0 ? "⚠ รอการอนุมัติ" : "↑ 12% เดือนที่แล้ว"}
+            </p>
+          </div>
         ))}
       </div>
 
-      {/* Detail panels */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      {/* Charts row */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
+
+        {/* Weekly bar chart */}
+        <div className="card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <h2 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: "var(--text)" }}>วิดีโอสัปดาห์นี้</h2>
+            <span className="tag tag-ok">+18%</span>
+          </div>
+          <div className="bar-chart" style={{ height: 120 }}>
+            {WEEK.map((day, i) => (
+              <div key={day} className="bar-group">
+                <div
+                  className="bar"
+                  style={{
+                    height: `${BAR_H[i]}%`,
+                    background: i === 3
+                      ? "linear-gradient(180deg, var(--teal), var(--blue))"
+                      : "rgba(255,255,255,.08)",
+                    boxShadow: i === 3 ? "0 4px 16px rgba(0,255,212,.3)" : "none",
+                    minHeight: 4,
+                  }}
+                />
+                <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 600 }}>{day}</span>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Pipeline status */}
-        <div style={{
-          background: "var(--cs-panel)",
-          border: "1px solid var(--cs-line)",
-          borderRadius: 14,
-          padding: "22px 24px",
-          boxShadow: "0 4px 16px rgba(0,0,0,.18)",
-        }}>
-          <h2 style={{ margin: "0 0 18px", fontSize: 13.5, fontWeight: 700, color: "var(--cs-text)" }}>
-            Pipeline Status
-          </h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {PIPELINE.map(({ label, pct, color }) => (
+        <div className="card">
+          <h2 style={{ margin: "0 0 16px", fontSize: 13.5, fontWeight: 700, color: "var(--text)" }}>Pipeline Status</h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {PIPELINE.map(({ label, pct, c }) => (
               <div key={label}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 12.5, color: "var(--cs-dim)" }}>{label}</span>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--cs-text)" }}>{pct}%</span>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                  <span style={{ fontSize: 11.5, color: "var(--dim)" }}>{label}</span>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: c }}>{pct}%</span>
                 </div>
-                <div style={{ height: 5, background: "var(--cs-panel2)", borderRadius: 3, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 3, transition: "width .4s ease" }} />
+                <div style={{ height: 4, background: "rgba(255,255,255,.06)", borderRadius: 2, overflow: "hidden" }}>
+                  <div style={{
+                    height: "100%", width: `${pct}%`,
+                    background: c, borderRadius: 2,
+                    position: "relative", overflow: "hidden",
+                  }}>
+                    <div style={{
+                      position: "absolute", top: 0, left: "-100%", width: "100%", height: "100%",
+                      background: "linear-gradient(90deg, transparent, rgba(255,255,255,.4), transparent)",
+                      animation: "shim 2s ease-in-out infinite",
+                    }} />
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Action required */}
-        <div style={{
-          background: "var(--cs-panel)",
-          border: "1px solid var(--cs-line)",
-          borderRadius: 14,
-          padding: "22px 24px",
-          boxShadow: "0 4px 16px rgba(0,0,0,.18)",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-            <AlertTriangle size={16} color="var(--cs-yellow)" strokeWidth={2} />
-            <h2 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: "var(--cs-text)" }}>
-              ต้องดำเนินการ
-            </h2>
+        {/* Action needed */}
+        <div className="card">
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+            <AlertTriangle size={15} color="var(--warn)" />
+            <h2 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: "var(--text)" }}>ต้องดำเนินการ</h2>
           </div>
 
-          {val("pending_review") > 0 ? (
-            <div style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "13px 16px",
-              background: "rgba(245,192,78,.1)",
-              border: "1px solid rgba(245,192,78,.25)",
-              borderRadius: 11,
-            }}>
-              <span style={{ fontSize: 13, color: "var(--cs-dim)" }}>งานรอตรวจสอบ</span>
-              <span style={{ fontSize: 20, fontWeight: 800, color: "var(--cs-yellow)" }}>
-                {val("pending_review")}
-              </span>
-            </div>
+          {!loading && val("pending_review") > 0 ? (
+            <Link href="/render-queue" style={{ textDecoration: "none" }}>
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "14px 16px", background: "rgba(255,176,46,.08)",
+                border: "1px solid rgba(255,176,46,.22)", borderRadius: 12,
+                cursor: "pointer", transition: "var(--tr)",
+              }}>
+                <div>
+                  <p style={{ margin: "0 0 3px", fontSize: 13, fontWeight: 700, color: "var(--text)" }}>งานรอตรวจสอบ</p>
+                  <p style={{ margin: 0, fontSize: 11, color: "var(--dim)" }}>คลิกเพื่อดูรายการ</p>
+                </div>
+                <span style={{ fontSize: 28, fontWeight: 800, color: "var(--warn)" }}>{val("pending_review")}</span>
+              </div>
+            </Link>
           ) : (
-            <div style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              height: 80, color: "var(--cs-faint)", fontSize: 13,
-            }}>
-              ไม่มีงานที่ต้องดำเนินการ ✓
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 90, gap: 8 }}>
+              <CheckCircle2 size={28} color="var(--ok)" strokeWidth={1.5} />
+              <p style={{ margin: 0, fontSize: 12.5, color: "var(--dim)" }}>ทุกอย่างเรียบร้อย ✓</p>
             </div>
           )}
+
+          <div style={{ marginTop: 14, padding: "12px 14px", background: "var(--glass)", borderRadius: 11, border: "1px solid var(--gb)" }}>
+            <p style={{ margin: "0 0 8px", fontSize: 11.5, fontWeight: 700, color: "var(--dim)" }}>ขั้นตอนถัดไป</p>
+            <Link href="/generate" style={{ textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, color: "var(--teal)" }}>สร้างคลิปใหม่</span>
+              <ArrowRight size={13} color="var(--teal)" />
+            </Link>
+          </div>
         </div>
+      </div>
+
+      {/* Recent activity */}
+      <div className="card" style={{ marginBottom: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <h2 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: "var(--text)" }}>กิจกรรมล่าสุด</h2>
+          <Link href="/render-queue" style={{ textDecoration: "none" }}>
+            <span style={{ fontSize: 12, color: "var(--blue)", fontWeight: 600 }}>ดูทั้งหมด →</span>
+          </Link>
+        </div>
+        <table className="cs-table">
+          <thead>
+            <tr>
+              <th>รหัสงาน</th>
+              <th>สถานะ</th>
+              <th>แพลตฟอร์ม</th>
+              <th>เวลา</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style={{ fontFamily: "monospace", fontSize: 12, color: "var(--dim)" }}>d949483b…</td>
+              <td><span className="tag tag-ok">completed</span></td>
+              <td><span style={{ color: "var(--faint)", fontSize: 12 }}>TikTok</span></td>
+              <td><span style={{ color: "var(--faint)", fontSize: 12 }}>2 นาทีที่แล้ว</span></td>
+            </tr>
+            <tr>
+              <td style={{ fontFamily: "monospace", fontSize: 12, color: "var(--dim)" }}>39ccec88…</td>
+              <td><span className="tag tag-warn">review_needed</span></td>
+              <td><span style={{ color: "var(--faint)", fontSize: 12 }}>Instagram</span></td>
+              <td><span style={{ color: "var(--faint)", fontSize: 12 }}>15 นาทีที่แล้ว</span></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   );
