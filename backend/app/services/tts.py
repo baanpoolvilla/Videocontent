@@ -1,7 +1,6 @@
 import io
 from gtts import gTTS
 from app.services.storage import storage_service
-from fastapi import UploadFile
 
 
 class TTSService:
@@ -10,12 +9,15 @@ class TTSService:
 
         audio_buffer = io.BytesIO()
         tts.write_to_fp(audio_buffer)
-        audio_buffer.seek(0)
+        audio_bytes = audio_buffer.getvalue()
 
-        upload = UploadFile(filename=f"{job_id}_voiceover.mp3", file=audio_buffer)
-        upload.content_type = "audio/mpeg"
-
-        url = await storage_service.upload(upload, bucket="assets", prefix=f"voiceovers/{job_id}")
+        url = await storage_service.upload_bytes(
+            data=audio_bytes,
+            filename=f"{job_id}_voiceover.mp3",
+            content_type="audio/mpeg",
+            bucket="assets",
+            prefix=f"voiceovers/{job_id}",
+        )
 
         return {
             "url": url,
