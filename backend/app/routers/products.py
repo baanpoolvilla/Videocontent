@@ -8,8 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import CurrentUser
 from app.models.product import Product
+from app.models.analysis import Analysis
 from app.schemas.product import ProductCreate, ProductOut, ProductUpdate
 from app.services.storage import storage_service
+from app.services.ai import ai_service
 
 router = APIRouter(prefix="/products", tags=["products"])
 
@@ -82,6 +84,46 @@ async def delete_product(
         raise HTTPException(status_code=404, detail="Product not found")
     await db.delete(product)
     await db.commit()
+
+
+@router.post("/{product_id}/analyze", response_model=dict)
+async def analyze_product(
+    product_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result = await db.execute(select(Product).where(Product.id == product_id))
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    ai_result = await ai_service.analyze_product(
+        product_name=product.name,
+        description=product.description or "",
+    )
+
+    analysis = Analysis(
+        product_id=product.id,
+        model_used=ai_result["model_used"],
+        raw_response=ai_result["analysis"],
+        key_features=ai_result["analysis"].get("key_features"),
+        selling_points=ai_result["analysis"].get("selling_points"),
+        target_audience=ai_result["analysis"].get("target_audience"),
+        mood=ai_result["analysis"].get("mood"),
+        suggested_hooks=ai_result["analysis"].get("suggested_hooks"),
+        tokens_used=ai_result["tokens_used"],
+    )
+    db.add(analysis)
+    await db.commit()
+    await db.refresh(analysis)
+
+    return {
+        "analysis_id": str(analysis.id),
+        "product_id": str(product_id),
+        **ai_result["analysis"],
+        "tokens_used": ai_result["tokens_used"],
+        "model_used": ai_result["model_used"],
+    }
 
 
 @router.post("/{product_id}/upload", response_model=dict)
