@@ -16,6 +16,7 @@ from app.models.analysis import Analysis
 from app.models.product import Product
 from app.schemas.content_job import ContentJobCreate, ContentJobOut, RenderVersionOut, ScriptOut
 from app.services.ai import ai_service
+from app.services.tts import tts_service
 
 router = APIRouter(prefix="/jobs", tags=["content-jobs"])
 
@@ -152,6 +153,46 @@ async def generate_script(
     await db.commit()
     await db.refresh(script)
     return script
+
+
+@router.post("/{job_id}/voiceover", response_model=dict)
+async def generate_voiceover(
+    job_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    script_id: str | None = None,
+):
+    result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if script_id:
+        from uuid import UUID as UUIDType
+        script_result = await db.execute(
+            select(Script).where(Script.id == UUIDType(script_id), Script.content_job_id == job_id)
+        )
+    else:
+        script_result = await db.execute(
+            select(Script).where(Script.content_job_id == job_id).order_by(Script.version.desc())
+        )
+    script = script_result.scalar_one_or_none()
+    if not script:
+        raise HTTPException(status_code=400, detail="No script found — run /generate-script first")
+
+    tts_result = await tts_service.generate_voiceover(
+        text=script.full_script or "",
+        job_id=str(job_id),
+    )
+
+    return {
+        "job_id": str(job_id),
+        "script_id": str(script.id),
+        "voiceover_url": tts_result["url"],
+        "characters_used": tts_result["characters_used"],
+        "voice_id": tts_result["voice_id"],
+        "model_id": tts_result["model_id"],
+    }
 
 
 @router.patch("/{job_id}/approve")
