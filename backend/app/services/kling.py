@@ -71,7 +71,8 @@ class KlingService:
                 headers=self.headers,
                 json=payload,
             )
-            resp.raise_for_status()
+            if not resp.is_success:
+                raise RuntimeError(f"Kling API error {resp.status_code}: {resp.text}")
             data = resp.json()
 
         task_id = data["data"]["task_id"]

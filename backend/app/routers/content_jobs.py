@@ -270,21 +270,24 @@ async def kling_render(
 
     image_urls = list(product.media_urls or []) if product else []
 
-    if image_urls:
-        kling_result = await kling_service.image_to_video(
-            image_url=image_urls[0],
-            prompt=prompt,
-            duration=duration,
-            aspect_ratio=aspect_ratio,
-        )
-        task_type = "image2video"
-    else:
-        kling_result = await kling_service.text_to_video(
-            prompt=prompt,
-            duration=duration,
-            aspect_ratio=aspect_ratio,
-        )
-        task_type = "text2video"
+    try:
+        if image_urls:
+            kling_result = await kling_service.image_to_video(
+                image_url=image_urls[0],
+                prompt=prompt,
+                duration=duration,
+                aspect_ratio=aspect_ratio,
+            )
+            task_type = "image2video"
+        else:
+            kling_result = await kling_service.text_to_video(
+                prompt=prompt,
+                duration=duration,
+                aspect_ratio=aspect_ratio,
+            )
+            task_type = "text2video"
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
     render = RenderVersion(
         content_job_id=job_id,
