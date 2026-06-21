@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, fileUrl } from "@/lib/api";
 import {
   Zap, FileText, Mic2, Film, CheckCircle2, Loader2, ChevronRight,
-  Package, Copy, RotateCcw, Download, Play,
+  Package, Copy, RotateCcw, Play,
 } from "lucide-react";
 
 interface Product {
@@ -209,7 +209,7 @@ export default function GeneratePage() {
                         background: "rgba(255,255,255,.06)", display: "flex", alignItems: "center", justifyContent: "center",
                       }}>
                         {p.media_urls?.length > 0
-                          ? <img src={p.media_urls[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ? <img src={fileUrl(p.media_urls[0])} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                           : <Package size={18} color="var(--faint)" />
                         }
                       </div>
@@ -458,7 +458,7 @@ export default function GeneratePage() {
             ) : (
               <div style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
                 {selectedProduct?.media_urls?.[0] ? (
-                  <img src={selectedProduct.media_urls[0]} alt="" style={{ width: 120, height: 160, objectFit: "cover", borderRadius: 12, marginBottom: 12, boxShadow: "0 8px 30px rgba(0,0,0,.5)" }} />
+                  <img src={fileUrl(selectedProduct.media_urls[0])} alt="" style={{ width: 120, height: 160, objectFit: "cover", borderRadius: 12, marginBottom: 12, boxShadow: "0 8px 30px rgba(0,0,0,.5)" }} />
                 ) : (
                   <div style={{ width: 90, height: 120, background: "rgba(255,255,255,.04)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
                     <Film size={28} color="var(--faint)" />

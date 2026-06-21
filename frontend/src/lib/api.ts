@@ -7,6 +7,13 @@ export const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+/** Convert a MinIO path like /products/uuid/file.jpg → full API URL for browser display */
+export function fileUrl(path: string | null | undefined): string {
+  if (!path) return "";
+  const clean = path.startsWith("/") ? path.slice(1) : path;
+  return `${API_URL}/api/v1/files/${clean}`;
+}
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("access_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
