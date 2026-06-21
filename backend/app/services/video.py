@@ -43,14 +43,15 @@ class VideoService:
 
     async def _download_file(self, url: str, dest: str):
         if url.startswith("/"):
-            minio_url = f"http://{__import__('app.core.config', fromlist=['settings']).settings.MINIO_ENDPOINT}{url}"
-        else:
-            minio_url = url
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.get(minio_url)
-            resp.raise_for_status()
+            data = storage_service.download_bytes(url)
             with open(dest, "wb") as f:
-                f.write(resp.content)
+                f.write(data)
+        else:
+            async with httpx.AsyncClient(timeout=60) as client:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                with open(dest, "wb") as f:
+                    f.write(resp.content)
 
     async def _images_to_video(self, image_paths: list[str], audio_path: str, tmpdir: str, duration_sec: int) -> str:
         output_path = os.path.join(tmpdir, "output.mp4")

@@ -43,6 +43,16 @@ class StorageService:
         )
         return f"/{bucket}/{object_name}"
 
+    def download_bytes(self, path: str) -> bytes:
+        parts = path.strip("/").split("/", 1)
+        bucket, object_name = parts[0], parts[1]
+        response = self.client.get_object(bucket, object_name)
+        try:
+            return response.read()
+        finally:
+            response.close()
+            response.release_conn()
+
     def get_presigned_url(self, bucket: str, object_name: str, expires: int = 3600) -> str:
         from datetime import timedelta
         return self.client.presigned_get_object(bucket, object_name, expires=timedelta(seconds=expires))
