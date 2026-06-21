@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Content Studio — Premium</title>
+<style>
+:root{
+  --bg:#06060A;--bg2:#0C0D14;--bg3:#111318;
+  --glass:rgba(255,255,255,0.04);--glass2:rgba(255,255,255,0.07);
+  --gb:rgba(255,255,255,0.09);--gb2:rgba(255,255,255,0.18);
+  --text:#EEF0F8;--dim:#8890AE;--faint:#454963;
+  --teal:#00FFD4;--blue:#4D7FFF;--purple:#9B6FFF;--pink:#FF6FB7;
+  --ok:#22D499;--warn:#FFB02E;--err:#FF4D6A;--info:#4D7FFF;
+  --r:18px;--rsm:12px;--tr:all .2s cubic-bezier(.4,0,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;display:flex;min-height:100vh;overflow-x:hidden;}
+
+/* AMBIENT BACKGROUND */
+.bg-canvas{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
+.orb{position:absolute;border-radius:50%;filter:blur(100px);}
+.orb1{width:700px;height:700px;background:radial-gradient(circle,rgba(0,255,212,.13),transparent 70%);top:-250px;left:-250px;animation:d1 28s ease-in-out infinite;}
+.orb2{width:600px;height:600px;background:radial-gradient(circle,rgba(77,127,255,.12),transparent 70%);bottom:-180px;right:-180px;animation:d2 33s ease-in-out infinite;}
+.orb3{width:450px;height:450px;background:radial-gradient(circle,rgba(155,111,255,.09),transparent 70%);top:45%;left:50%;animation:d3 22s ease-in-out infinite;}
+@keyframes d1{0%,100%{transform:translate(0,0)}33%{transform:translate(70px,-50px)}66%{transform:translate(-35px,70px)}}
+@keyframes d2{0%,100%{transform:translate(0,0)}33%{transform:translate(-60px,45px)}66%{transform:translate(55px,-70px)}}
+@keyframes d3{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.25)}}
+
+/* SIDEBAR */
+.sidebar{width:258px;flex-shrink:0;background:rgba(8,8,13,.96);backdrop-filter:blur(20px);border-right:1px solid var(--gb);padding:20px 0 16px;overflow-y:auto;position:relative;z-index:10;display:flex;flex-direction:column;}
+.sidebar::after{content:'';position:absolute;top:0;right:0;width:1px;height:100%;background:linear-gradient(180deg,transparent,rgba(0,255,212,.25) 30%,rgba(77,127,255,.2) 70%,transparent);}
+
+.brand{display:flex;align-items:center;gap:12px;padding:0 20px 22px;}
+.brand-mark{width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,var(--teal),var(--blue));flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:#06060A;animation:markPulse 3s ease-in-out infinite;}
+@keyframes markPulse{0%,100%{box-shadow:0 0 20px rgba(0,255,212,.4),0 0 50px rgba(0,255,212,.12)}50%{box-shadow:0 0 30px rgba(0,255,212,.6),0 0 80px rgba(0,255,212,.2)}}
+.brand-name{font-size:15px;font-weight:800;letter-spacing:-.02em;}
+.brand-name span{background:linear-gradient(135deg,var(--teal),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+
+.sidebar-cta{margin:0 14px 20px;padding:13px 16px;background:linear-gradient(135deg,var(--teal),var(--blue));color:#06060A;border-radius:14px;text-align:center;font-size:13.5px;font-weight:900;cursor:pointer;box-shadow:0 4px 20px rgba(0,255,212,.3),0 0 50px rgba(0,255,212,.08);transition:var(--tr);letter-spacing:.01em;}
+.sidebar-cta:hover{transform:translateY(-2px);box-shadow:0 6px 30px rgba(0,255,212,.45);}
+
+.qnav{padding:0 10px;margin-bottom:14px;}
+.qitem{display:flex;align-items:center;gap:10px;padding:9px 12px;font-size:13px;color:var(--dim);cursor:pointer;border-radius:11px;font-weight:600;margin-bottom:2px;transition:var(--tr);position:relative;}
+.qitem .ic{width:27px;height:27px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;background:var(--glass2);flex-shrink:0;}
+.qitem:hover{background:var(--glass2);color:var(--text);}
+.qitem.active{background:rgba(0,255,212,.08);color:var(--teal);}
+.qitem.active::before{content:'';position:absolute;left:0;top:22%;bottom:22%;width:3px;background:var(--teal);border-radius:0 3px 3px 0;box-shadow:0 0 10px var(--teal);}
+.qitem.active .ic{background:rgba(0,255,212,.15);}
+
+.sdiv{height:1px;background:linear-gradient(90deg,transparent,var(--gb) 30%,var(--gb) 70%,transparent);margin:0 14px 14px;}
+
+.group{margin-bottom:10px;}
+.group-head{display:flex;align-items:center;gap:8px;padding:0 14px 6px 14px;}
+.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.gname{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);flex:1;}
+.navitem{display:flex;align-items:center;gap:9px;padding:8px 12px;font-size:13px;color:var(--dim);cursor:pointer;border-radius:10px;margin:0 8px 1px 22px;transition:var(--tr);position:relative;}
+.navitem:hover{background:var(--glass2);color:var(--text);}
+.navitem.active{background:rgba(0,255,212,.08);color:var(--teal);font-weight:700;}
+.navitem.active::before{content:'';position:absolute;left:0;top:25%;bottom:25%;width:3px;background:var(--teal);border-radius:0 3px 3px 0;box-shadow:0 0 8px var(--teal);}
+.navitem .num{font-size:9px;font-weight:700;color:var(--faint);width:20px;height:20px;border-radius:6px;background:var(--glass);flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.navitem.active .num{color:var(--teal);background:rgba(0,255,212,.15);}
+
+.sfooter{margin-top:auto;padding:14px;}
+.rw{background:var(--glass);border:1px solid var(--gb);border-radius:14px;padding:14px;}
+.rw-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;font-size:11.5px;color:var(--dim);}
+.rw-val{font-size:13px;font-weight:800;background:linear-gradient(135deg,var(--teal),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.rbar{height:6px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden;}
+.rbar-fill{height:100%;width:62%;background:linear-gradient(90deg,var(--teal),var(--blue));border-radius:3px;position:relative;overflow:hidden;}
+.rbar-fill::after{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);animation:shim 2s ease-in-out infinite;}
+@keyframes shim{to{left:200%}}
+
+/* MAIN */
+.main{flex:1;min-width:0;padding:32px 40px;overflow-y:auto;position:relative;z-index:1;}
+.page{display:none;max-width:1100px;}
+.page.active{display:block;animation:pgIn .3s ease;}
+@keyframes pgIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+.crumb{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;font-weight:700;}
+.pagetitle{font-size:26px;font-weight:800;margin:0 0 6px;letter-spacing:-.025em;}
+.pagedesc{font-size:13px;color:var(--dim);margin:0;}
+.pagehead{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px;}
+
+/* CARDS */
+.card{background:var(--glass);backdrop-filter:blur(10px);border:1px solid var(--gb);border-radius:var(--r);padding:24px;margin-bottom:16px;position:relative;overflow:hidden;transition:var(--tr);}
+.card::before{content:'';position:absolute;top:0;left:20%;right:20%;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.12),transparent);}
+.card:hover{border-color:var(--gb2);}
+.card h3{font-size:11.5px;font-weight:800;margin:0 0 16px;color:var(--faint);text-transform:uppercase;letter-spacing:.07em;}
+.row{display:flex;gap:14px;flex-wrap:wrap;}
+.col{flex:1;min-width:200px;}
+.ph{background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.08);border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:12px;min-height:90px;text-align:center;padding:12px;}
+.thumb{aspect-ratio:9/16;}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:11px 20px;border-radius:12px;font-size:13.5px;font-weight:700;cursor:pointer;border:none;transition:var(--tr);white-space:nowrap;position:relative;overflow:hidden;}
+.btn::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.15),transparent);opacity:0;transition:opacity .2s;}
+.btn:hover::after{opacity:1;}
+.btn:hover{transform:translateY(-1px);}
+.btn-primary{background:linear-gradient(135deg,var(--teal),var(--blue));color:#06060A;font-weight:900;box-shadow:0 4px 20px rgba(0,255,212,.3);}
+.btn-primary:hover{box-shadow:0 6px 30px rgba(0,255,212,.5);}
+.btn-ghost{background:var(--glass);border:1px solid var(--gb);color:var(--text);}
+.btn-ghost:hover{background:var(--glass2);border-color:var(--gb2);}
+.btn-soft{background:rgba(0,255,212,.1);color:var(--teal);border:1px solid rgba(0,255,212,.2);}
+.btn-soft:hover{background:rgba(0,255,212,.18);}
+.btn-sm{padding:7px 14px;font-size:12px;border-radius:9px;}
+.icon-btn{width:32px;height:32px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:var(--glass);border:1px solid var(--gb);color:var(--dim);cursor:pointer;font-size:14px;transition:var(--tr);}
+.icon-btn:hover{background:var(--glass2);color:var(--text);border-color:var(--gb2);}
+
+/* TAGS */
+.tag{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:20px;font-size:11.5px;font-weight:700;}
+.tag-ok{background:rgba(34,212,153,.1);color:var(--ok);border:1px solid rgba(34,212,153,.2);}
+.tag-warn{background:rgba(255,176,46,.1);color:var(--warn);border:1px solid rgba(255,176,46,.2);}
+.tag-err{background:rgba(255,77,106,.1);color:var(--err);border:1px solid rgba(255,77,106,.2);}
+.tag-info{background:rgba(77,127,255,.1);color:var(--info);border:1px solid rgba(77,127,255,.2);}
+
+/* TABLE */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{text-align:left;color:var(--faint);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;padding:10px 12px;border-bottom:1px solid var(--gb);}
+td{padding:13px 12px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--text);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.025);}
+.actions{display:flex;gap:6px;}
+
+/* FORMS */
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:11px;color:var(--dim);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+.input{background:rgba(255,255,255,.04);border:1px solid var(--gb);border-radius:10px;padding:11px 14px;font-size:13px;color:var(--text);transition:var(--tr);width:100%;}
+textarea.input{font-family:inherit;resize:none;min-height:60px;display:block;}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
+.kpi{background:var(--glass);backdrop-filter:blur(10px);border:1px solid var(--gb);border-radius:var(--r);padding:22px;position:relative;overflow:hidden;transition:var(--tr);}
+.kpi::before{content:'';position:absolute;top:0;left:20%;right:20%;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent);}
+.kpi:hover{transform:translateY(-3px);border-color:var(--gb2);}
+.kpi-icon{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:14px;}
+.kpi .label{font-size:10.5px;color:var(--faint);font-weight:700;text-transform:uppercase;letter-spacing:.07em;}
+.kpi .value{font-size:30px;font-weight:800;margin:8px 0 6px;letter-spacing:-.025em;background:linear-gradient(135deg,var(--text) 40%,var(--teal));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.kpi .delta{font-size:12px;font-weight:700;}
+.delta.up{color:var(--ok);}
+.delta.down{color:var(--err);}
+
+/* BAR CHART */
+.barchart{display:flex;align-items:flex-end;gap:12px;height:140px;padding-top:10px;}
+.bargroup{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end;}
+.bar{width:100%;border-radius:6px 6px 0 0;position:relative;overflow:hidden;}
+.bar::after{content:'';position:absolute;top:0;left:0;right:0;height:35%;background:linear-gradient(180deg,rgba(255,255,255,.2),transparent);}
+.blabel{font-size:11px;color:var(--faint);font-weight:600;}
+.bval{font-size:11.5px;color:var(--dim);font-weight:700;}
+
+/* MATRIX */
+.matrix{width:100%;border-collapse:collapse;font-size:11.5px;}
+.matrix th{font-size:10.5px;color:var(--faint);padding:7px;text-align:center;font-weight:700;}
+.matrix td{text-align:center;padding:10px 7px;border-radius:8px;font-weight:700;color:#fff;}
+
+/* VIEW SWITCH */
+.view-switch{display:flex;background:var(--glass);border:1px solid var(--gb);border-radius:12px;padding:4px;gap:2px;}
+.view-switch span{padding:7px 16px;font-size:12.5px;font-weight:700;border-radius:9px;cursor:pointer;color:var(--dim);transition:var(--tr);}
+.view-switch span.sel{background:rgba(0,255,212,.1);color:var(--teal);box-shadow:0 0 12px rgba(0,255,212,.2);}
+
+/* CALENDAR */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
+.cal-head{font-size:10px;color:var(--faint);text-align:center;font-weight:800;padding-bottom:8px;text-transform:uppercase;letter-spacing:.06em;}
+.cal-cell{min-height:76px;border:1px solid var(--gb);border-radius:13px;padding:8px;font-size:11px;color:var(--faint);background:var(--glass);transition:var(--tr);}
+.cal-cell:hover{border-color:var(--gb2);}
+.cal-cell .d{font-size:12px;font-weight:700;color:var(--dim);margin-bottom:5px;}
+.cal-post{background:rgba(0,255,212,.1);border:1px solid rgba(0,255,212,.18);color:var(--teal);border-radius:6px;padding:2px 7px;font-size:9.5px;margin-bottom:3px;font-weight:700;display:block;}
+.cal-cell.today{border-color:rgba(0,255,212,.4);border-width:1.5px;background:rgba(0,255,212,.05);}
+.cal-cell.today .d{color:var(--teal);}
+.week-row{display:grid;grid-template-columns:90px 1fr;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.week-row:last-child{border-bottom:none;}
+.week-row .day{font-size:12px;font-weight:700;color:var(--dim);}
+.week-row .slot{display:flex;gap:6px;flex-wrap:wrap;}
+
+/* MASONRY */
+.masonry{column-count:4;column-gap:12px;}
+.gitem2{break-inside:avoid;margin-bottom:12px;border-radius:16px;overflow:hidden;border:1px solid var(--gb);background:var(--glass);cursor:pointer;position:relative;transition:var(--tr);}
+.gitem2:hover{transform:translateY(-4px) scale(1.015);border-color:var(--gb2);box-shadow:0 12px 40px rgba(0,0,0,.5);z-index:5;}
+.gitem2 .vthumb{width:100%;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
+.gitem2 .vthumb .inner{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:11px;color:rgba(255,255,255,.3);font-weight:600;}
+.play-ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);opacity:0;transition:opacity .2s;backdrop-filter:blur(2px);}
+.gitem2:hover .play-ov{opacity:1;}
+.play-btn{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;font-size:16px;color:#06060A;box-shadow:0 4px 20px rgba(0,0,0,.5);}
+.gitem2 .dur{position:absolute;top:9px;left:9px;background:rgba(0,0,0,.72);backdrop-filter:blur(8px);padding:3px 8px;border-radius:7px;font-size:10px;color:#fff;font-weight:700;}
+.gitem2 .vbadge{position:absolute;top:9px;right:9px;background:rgba(0,255,212,.12);backdrop-filter:blur(8px);border:1px solid rgba(0,255,212,.22);padding:3px 8px;border-radius:7px;font-size:9.5px;color:var(--teal);font-weight:700;}
+.gitem2 .meta{position:absolute;bottom:0;left:0;right:0;padding:12px;background:linear-gradient(0deg,rgba(0,0,0,.88) 0%,transparent 100%);}
+.gitem2 .meta .t{font-size:11.5px;font-weight:700;color:#fff;}
+.gitem2 .meta .s{font-size:10px;color:rgba(255,255,255,.55);margin-top:2px;}
+
+/* PROMO */
+.promo-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px;}
+.promo{position:relative;border-radius:20px;overflow:hidden;min-height:165px;padding:28px;display:flex;flex-direction:column;justify-content:flex-end;border:1px solid var(--gb);cursor:pointer;transition:var(--tr);}
+.promo:hover{transform:translateY(-3px);border-color:var(--gb2);}
+.pbg{position:absolute;inset:0;}
+.p1 .pbg{background:radial-gradient(140% 160% at 100% 0%,rgba(77,127,255,.42),transparent 60%),radial-gradient(60% 80% at 0% 100%,rgba(155,111,255,.18),transparent 50%),var(--bg2);}
+.p2 .pbg{background:radial-gradient(140% 160% at 100% 0%,rgba(0,255,212,.38),transparent 60%),radial-gradient(60% 80% at 0% 100%,rgba(34,212,153,.14),transparent 50%),var(--bg2);}
+.pcnt{position:relative;z-index:1;}
+.pey{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:8px;}
+.ptitle{font-size:22px;font-weight:800;font-style:italic;margin:0 0 8px;letter-spacing:-.02em;line-height:1.15;}
+.ptitle b{color:var(--teal);font-style:normal;}
+.p1 .ptitle b{color:#8BB4FF;}
+.psub{font-size:12px;color:rgba(255,255,255,.5);}
+
+/* CAP 6 */
+.cap6-row{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr 1fr 1fr;gap:10px;margin-bottom:24px;}
+.cap6{background:var(--glass);border:1px solid var(--gb);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:var(--tr);}
+.cap6:hover{background:var(--glass2);border-color:var(--gb2);transform:translateY(-2px);}
+.c6ic{font-size:16px;flex-shrink:0;}
+.c6name{font-size:12.5px;font-weight:700;flex:1;}
+.c6arrow{font-size:13px;color:var(--faint);}
+.cap6.hcap{background:linear-gradient(135deg,rgba(0,255,212,.09),rgba(77,127,255,.09));border-color:rgba(0,255,212,.22);}
+.cap6.hcap:hover{border-color:rgba(0,255,212,.38);}
+.c6btn{background:linear-gradient(135deg,var(--teal),var(--blue));color:#06060A;font-size:11px;font-weight:900;padding:6px 14px;border-radius:8px;white-space:nowrap;box-shadow:0 0 14px rgba(0,255,212,.28);}
+
+/* TAB/SEARCH ROW */
+.tabsearch-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.tabs2{display:flex;gap:22px;}
+.tabs2 span{font-size:13px;color:var(--faint);cursor:pointer;padding-bottom:6px;font-weight:700;transition:color .2s;border-bottom:2px solid transparent;}
+.tabs2 span:hover{color:var(--dim);}
+.tabs2 span.sel{color:var(--text);border-bottom-color:var(--teal);}
+.searchbox{display:flex;align-items:center;gap:8px;background:var(--glass);border:1px solid var(--gb);border-radius:11px;padding:9px 14px;font-size:12px;color:var(--faint);width:220px;cursor:text;transition:var(--tr);}
+.searchbox:hover{border-color:var(--gb2);}
+.pub-btn{background:var(--glass);border:1px solid var(--gb);color:var(--text);padding:9px 18px;border-radius:10px;font-size:12.5px;font-weight:700;cursor:pointer;transition:var(--tr);}
+.pub-btn:hover{background:var(--glass2);}
+
+/* FILTER PILLS */
+.filterpill-row{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
+.filterpill-row span{font-size:12px;color:var(--faint);font-weight:600;cursor:pointer;padding:6px 14px;background:var(--glass);border:1px solid var(--gb);border-radius:20px;transition:var(--tr);}
+.filterpill-row span:hover{color:var(--dim);}
+.filterpill-row span.sel{background:rgba(0,255,212,.1);border-color:rgba(0,255,212,.22);color:var(--teal);}
+
+/* GENERATE STUDIO */
+.gs-toptabs{display:flex;gap:26px;margin-bottom:20px;border-bottom:1px solid var(--gb);padding-bottom:16px;}
+.gs-toptabs span{font-size:13.5px;color:var(--faint);cursor:pointer;font-weight:700;padding-bottom:16px;margin-bottom:-17px;transition:color .2s;}
+.gs-toptabs span:hover{color:var(--dim);}
+.gs-toptabs span.sel{color:var(--text);font-weight:800;border-bottom:2px solid var(--teal);text-shadow:0 0 20px rgba(0,255,212,.35);}
+.gs-model{display:flex;align-items:center;gap:14px;background:var(--glass);border:1px solid var(--gb);border-radius:14px;padding:13px 18px;margin-bottom:18px;cursor:pointer;transition:var(--tr);}
+.gs-model:hover{border-color:var(--gb2);}
+.gicon{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--teal),var(--blue));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#06060A;flex-shrink:0;box-shadow:0 0 15px rgba(0,255,212,.28);}
+.gs-model b{font-size:13px;font-weight:800;}
+.mdl-desc{font-size:12px;color:var(--faint);}
+.gs-body{display:flex;gap:18px;align-items:stretch;}
+.gs-left{width:340px;flex-shrink:0;display:flex;flex-direction:column;}
+.gs-panel{background:var(--glass);border:1px solid var(--gb);border-radius:16px;padding:20px;flex:1;display:flex;flex-direction:column;}
+.gs-frame{border:1.5px dashed rgba(255,255,255,.1);border-radius:13px;padding:24px 12px;text-align:center;color:var(--faint);font-size:12px;margin-bottom:16px;cursor:pointer;background:rgba(255,255,255,.02);transition:var(--tr);}
+.gs-frame:hover{border-color:rgba(0,255,212,.25);background:rgba(0,255,212,.03);}
+.gs-frame .fic{font-size:24px;margin-bottom:8px;opacity:.6;}
+.gs-hint{font-size:11.5px;color:var(--teal);line-height:1.6;margin-bottom:14px;opacity:.8;}
+.gs-panel textarea{flex:1;width:100%;background:transparent;border:none;color:var(--text);font-size:13px;line-height:1.7;resize:none;outline:none;min-height:100px;}
+.gs-toggle-row{display:flex;align-items:center;gap:10px;border-top:1px solid var(--gb);padding-top:14px;margin-top:auto;}
+.gs-toggle{width:36px;height:20px;border-radius:10px;background:linear-gradient(90deg,var(--teal),var(--blue));position:relative;flex-shrink:0;box-shadow:0 0 10px rgba(0,255,212,.28);}
+.gs-toggle i{position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:#06060A;}
+.ttxt{font-size:12px;color:var(--dim);font-weight:600;}
+.tsub{font-size:11.5px;color:var(--teal);font-weight:700;margin-left:auto;}
+.gs-canvas{position:relative;flex:1;background:var(--glass);border:1px solid var(--gb);border-radius:16px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;min-height:440px;overflow:hidden;}
+.gc-bg{position:absolute;inset:0;background:radial-gradient(60% 60% at 70% 20%,rgba(0,255,212,.08),transparent),radial-gradient(50% 50% at 30% 80%,rgba(77,127,255,.08),transparent);pointer-events:none;}
+.gc-inner{position:relative;z-index:1;text-align:center;}
+.gc-icon{font-size:40px;opacity:.35;margin-bottom:10px;}
+.gc-text{font-size:13px;color:var(--faint);}
+.gc-btn{margin-top:14px;background:var(--glass);border:1px solid var(--gb);color:var(--text);padding:10px 20px;border-radius:11px;font-size:12.5px;font-weight:700;cursor:pointer;display:inline-block;transition:var(--tr);}
+.gc-btn:hover{background:var(--glass2);}
+.voice-badge{position:absolute;top:14px;left:14px;background:rgba(34,212,153,.1);backdrop-filter:blur(8px);border:1px solid rgba(34,212,153,.2);padding:6px 12px;border-radius:9px;font-size:11.5px;color:var(--ok);font-weight:700;display:flex;align-items:center;gap:7px;}
+.vdot{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:vpulse 1.5s ease-in-out infinite;}
+@keyframes vpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.75)}}
+.gs-bottombar{display:flex;align-items:center;gap:10px;margin-top:16px;}
+.gs-opt,.gs-audio{display:flex;align-items:center;gap:8px;background:var(--glass);border:1px solid var(--gb);padding:11px 16px;border-radius:12px;font-size:12.5px;color:var(--dim);font-weight:600;cursor:pointer;transition:var(--tr);}
+.gs-opt:hover,.gs-audio:hover{background:var(--glass2);border-color:var(--gb2);}
+.gs-audio .chk{color:var(--teal);}
+.gs-genbtn{margin-left:auto;background:linear-gradient(135deg,#22D499,#00FFD4,#4D7FFF);background-size:200% 200%;color:#06060A;border:none;padding:13px 40px;border-radius:13px;font-size:14.5px;font-weight:900;cursor:pointer;box-shadow:0 6px 30px rgba(34,212,153,.35),0 0 60px rgba(34,212,153,.1);transition:var(--tr);letter-spacing:.01em;animation:gbg 3s ease infinite;}
+@keyframes gbg{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.gs-genbtn:hover{transform:translateY(-2px);box-shadow:0 10px 40px rgba(34,212,153,.5),0 0 80px rgba(34,212,153,.15);}
+
+/* footer note */
+.footer-note{font-size:12px;color:var(--faint);margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.04);line-height:1.6;}
+.badge-add{background:rgba(255,176,46,.1);color:var(--warn);font-size:10px;padding:2px 8px;border-radius:6px;margin-left:8px;font-weight:700;border:1px solid rgba(255,176,46,.2);}
+
+/* pill row */
+.pill-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+.pill{padding:7px 16px;border-radius:20px;font-size:12.5px;font-weight:600;background:var(--glass);border:1px solid var(--gb);color:var(--dim);cursor:pointer;transition:var(--tr);}
+.pill.sel{background:rgba(0,255,212,.1);border-color:rgba(0,255,212,.22);color:var(--teal);}
+
+/* upload zone */
+.upload-zone{border:1.5px dashed rgba(0,255,212,.2);border-radius:16px;padding:24px;text-align:center;color:var(--faint);font-size:12.5px;background:rgba(0,255,212,.02);margin-bottom:16px;cursor:pointer;transition:var(--tr);}
+.upload-zone:hover{border-color:rgba(0,255,212,.38);background:rgba(0,255,212,.05);}
+
+/* cap cards */
+.cap-row{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:24px;}
+.cap-card{background:var(--glass);border:1px solid var(--gb);border-radius:16px;padding:18px;cursor:pointer;transition:var(--tr);}
+.cap-card:hover{background:var(--glass2);border-color:var(--gb2);transform:translateY(-2px);}
+.cap-card.sel{border-color:rgba(0,255,212,.35);background:rgba(0,255,212,.06);}
+.cicon{width:36px;height:36px;border-radius:11px;background:rgba(0,255,212,.1);display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:12px;}
+.cname{font-size:13.5px;font-weight:700;margin-bottom:4px;}
+.cdesc{font-size:11px;color:var(--faint);}
+.ctag{display:inline-block;margin-top:10px;font-size:9.5px;color:var(--teal);background:rgba(0,255,212,.1);padding:3px 9px;border-radius:6px;font-weight:700;border:1px solid rgba(0,255,212,.18);}
+
+/* mode card */
+.mode-row{display:flex;gap:12px;margin-bottom:18px;}
+.mode-card{flex:1;border:1px solid var(--gb);border-radius:14px;padding:18px 14px;cursor:pointer;text-align:center;background:var(--glass);transition:var(--tr);}
+.mode-card:hover{background:var(--glass2);border-color:var(--gb2);}
+.mode-card.sel{border-color:rgba(0,255,212,.35);background:rgba(0,255,212,.06);}
+.micon{font-size:22px;margin-bottom:8px;}
+.mname{font-size:13px;font-weight:700;}
+.mode-card.sel .mname{color:var(--teal);}
+.mdesc{font-size:11px;color:var(--faint);margin-top:5px;}
+
+/* feedback accent card */
+.feedback-card{background:linear-gradient(135deg,rgba(0,255,212,.05),rgba(77,127,255,.05));border:1px solid rgba(0,255,212,.18);border-radius:var(--r);padding:24px;margin-bottom:16px;}
+.feedback-card h3{color:var(--teal);font-size:14px;margin-bottom:8px;}
+.feedback-card p{font-size:12.5px;color:var(--dim);}
+
+/* scrollbar */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.18);}
+
+/* Glow dot live */
+.live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok);animation:ldot 2s ease-in-out infinite;margin-right:4px;}
+@keyframes ldot{0%,100%{opacity:1}50%{opacity:.3}}
+</style>
+</head>
+<body>
+
+<!-- Ambient background orbs -->
+<div class="bg-canvas">
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+</div>
+
+<!-- ===== SIDEBAR ===== -->
+<div class="sidebar">
+  <div class="brand">
+    <div class="brand-mark">✦</div>
+    <div class="brand-name"><span>Content</span> Studio</div>
+  </div>
+
+  <div class="sidebar-cta" data-page="p4">+ สร้างคลิปใหม่</div>
+
+  <div class="qnav">
+    <div class="qitem active" data-page="home"><span class="ic">🏠</span>หน้าแรก</div>
+    <div class="qitem" data-page="dash"><span class="ic">▦</span>Dashboard</div>
+  </div>
+  <div class="sdiv"></div>
+
+  <div class="group">
+    <div class="group-head"><span class="dot" style="background:#22D499;box-shadow:0 0 6px #22D499"></span><span class="gname">1. อัปโหลด &amp; วิเคราะห์</span></div>
+    <div class="navitem" data-page="p2"><span class="num">02</span>อัปโหลดสินค้า</div>
+    <div class="navitem" data-page="p3"><span class="num">03</span>ผลวิเคราะห์ AI</div>
+  </div>
+
+  <div class="group">
+    <div class="group-head"><span class="dot" style="background:#00FFD4;box-shadow:0 0 6px #00FFD4"></span><span class="gname">2. AI สร้างคอนเทนต์</span></div>
+    <div class="navitem" data-page="p4"><span class="num">04</span>เทมเพลต / คอนเซ็ปต์</div>
+    <div class="navitem" data-page="p5"><span class="num">05</span>แก้ไข Script</div>
+    <div class="navitem" data-page="p6"><span class="num">06</span>Caption · Hashtag · เสียง</div>
+  </div>
+
+  <div class="group">
+    <div class="group-head"><span class="dot" style="background:#FFB02E;box-shadow:0 0 6px #FFB02E"></span><span class="gname">3. เรนเดอร์ &amp; ตรวจสอบ</span></div>
+    <div class="navitem" data-page="p7"><span class="num">07</span>คิวเรนเดอร์</div>
+    <div class="navitem" data-page="p8"><span class="num">08</span>ตรวจสอบมาตรฐาน</div>
+  </div>
+
+  <div class="group">
+    <div class="group-head"><span class="dot" style="background:#4D7FFF;box-shadow:0 0 6px #4D7FFF"></span><span class="gname">4. พรีวิว &amp; ตั้งเวลา</span></div>
+    <div class="navitem" data-page="p9"><span class="num">09</span>พรีวิวเวอร์ชัน A–E</div>
+    <div class="navitem" data-page="p10"><span class="num">10</span>อนุมัติ</div>
+    <div class="navitem" data-page="p10b"><span class="num">10b</span>โพสต์เอง</div>
+    <div class="navitem" data-page="p11"><span class="num">11</span>Schedule</div>
+  </div>
+
+  <div class="group">
+    <div class="group-head"><span class="dot" style="background:#FF6FB7;box-shadow:0 0 6px #FF6FB7"></span><span class="gname">5. ผลตอบรับ</span></div>
+    <div class="navitem" data-page="p12"><span class="num">12</span>ผลตอบรับหลังโพสต์</div>
+  </div>
+
+  <div class="group">
+    <div class="group-head"><span class="dot" style="background:#454963"></span><span class="gname">ระบบ</span></div>
+    <div class="navitem" data-page="p13"><span class="num">13</span>เชื่อมต่อบัญชี/Token</div>
+  </div>
+
+  <div class="sfooter">
+    <div class="rw">
+      <div class="rw-top">
+        <span>⚡ เครื่องเรนเดอร์วันนี้</span>
+        <span class="rw-val">62%</span>
+      </div>
+      <div class="rbar"><div class="rbar-fill"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MAIN ===== -->
+<div class="main">
+
+  <!-- HOME -->
+  <div class="page active" id="home">
+    <div class="promo-row">
+      <div class="promo p1" data-page="p4">
+        <div class="pbg"></div>
+        <div class="pcnt">
+          <div class="pey">✦ อัปเดตใหม่</div>
+          <div class="ptitle">เทมเพลตใหม่ <b>12 แบบ</b></div>
+          <div class="psub">พร้อมใช้สร้างคลิปได้ทันที ไม่ต้องเขียนพรอมพ์เอง</div>
+        </div>
+      </div>
+      <div class="promo p2" data-page="dash">
+        <div class="pbg"></div>
+        <div class="pcnt">
+          <div class="pey">🚀 ประสิทธิภาพ</div>
+          <div class="ptitle">เรนเดอร์เร็วขึ้น <b>2 เท่า</b></div>
+          <div class="psub">อัปเดตคิว FFmpeg ล่าสุดบน Server ของเรา</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cap6-row">
+      <div class="cap6 hcap" data-page="p4"><span class="c6ic">✦</span><span class="c6name">ระบบทำให้ครบทั้งหมด</span><span class="c6btn">เริ่มเลย</span></div>
+      <div class="cap6" data-page="p4"><span class="c6ic">🎨</span><span class="c6name">สร้างภาพ</span><span class="c6arrow">→</span></div>
+      <div class="cap6" data-page="p4"><span class="c6ic">🎬</span><span class="c6name">สร้างวิดีโอ</span><span class="c6arrow">→</span></div>
+      <div class="cap6" data-page="p4"><span class="c6ic">🖼</span><span class="c6name">รูปนิ่ง → วิดีโอ</span><span class="c6arrow">→</span></div>
+      <div class="cap6" data-page="p9"><span class="c6ic">⬚</span><span class="c6name">พรีวิวเวอร์ชัน</span><span class="c6arrow">→</span></div>
+      <div class="cap6" data-page="dash"><span class="c6ic">◎</span><span class="c6name">ดูรายงานผล</span><span class="c6arrow">→</span></div>
+    </div>
+
+    <div class="tabsearch-row">
+      <div class="tabs2"><span class="sel">แนะนำ</span><span>ติดตาม</span><span>กิจกรรม</span></div>
+      <div class="row" style="gap:10px">
+        <div class="searchbox">🔍&nbsp; ค้นหาเทมเพลต / ผลงาน</div>
+        <div class="pub-btn">เผยแพร่</div>
+      </div>
+    </div>
+
+    <div class="filterpill-row">
+      <span class="sel">สำหรับคุณ</span><span>คลิปสั้น</span><span>ยอดนิยม 🔥</span><span>รีวิว</span><span>ขายของ</span><span>หรู</span><span>ตลก</span><span>UGC</span>
+    </div>
+
+    <!-- Masonry with gradient thumbnail colors -->
+    <div class="masonry">
+      <div class="gitem2"><div class="vthumb" style="height:230px;background:linear-gradient(145deg,#1a0a2e,#3d1a6e,#7c3aed)"><div class="inner">เซรั่มหน้าใส · C</div><div class="play-ov"><div class="play-btn">▶</div></div></div><div class="dur">00:38</div><div class="vbadge">48.2K ▶</div><div class="meta"><div class="t">รีวิวเพื่อนสนิท</div><div class="s">เซรั่มหน้าใส 30ml</div></div></div>
+      <div class="gitem2"><div class="vthumb" style="height:170px;background:linear-gradient(145deg,#0a1a1a,#0d3d35,#0d6e5c)"><div class="inner">กระเป๋าหนัง Mini</div><div class="play-ov"><div class="play-btn">▶</div></div></div><div class="dur">00:24</div><div class="vbadge">12.4K ▶</div><div class="meta"><div class="t">ลักชัวรี่ซีเนมาติก</div><div class="s">กระเป๋าหนัง Mini</div></div></div>
+      <div class="gitem2"><div class="vthumb" style="height:260px;background:linear-gradient(145deg,#0a0f2e,#1a2870,#1a5299)"><div class="inner">หูฟังไร้สาย X2</div><div class="play-ov"><div class="play-btn">▶</div></div></div><div class="dur">00:31</div><div class="vbadge">31.0K ▶</div><div class="meta"><div class="t">โปรโมชั่นเร่งด่วน</div><div class="s">หูฟังไร้สาย X2</div></div></div>
+      <div class="gitem2"><div class="vthumb" style="height:190px;background:linear-gradient(145deg,#0a1f0a,#1a5c1a,#1a8c6e)"><div class="inner">Smart Bottle</div><div class="play-ov"><div class="play-btn">▶</div></div></div><div class="dur">00:19</div><div class="vbadge">9.8K ▶</div><div class="meta"><div class="t">มีมเปิดกล่อง</div><div class="s">ขวดน้ำ Smart Bottle</div></div></div>
+      <div class="gitem2"><div class="vthumb" style="height:200px;background:linear-gradient(145deg,#2e0a1a,#6e1a3d,#9e2d6e)"><div class="inner">เซรั่มหน้าใส · A</div><div class="play-ov"><div class="play-btn">▶</div></div></div><div class="dur">00:35</div><div class="vbadge">18.6K ▶</div><div class="meta"><div class="t">รีวิวเพื่อนสนิท</div><div class="s">เซรั่มหน้าใส 30ml</div></div></div>
+      <div class="gitem2"><div class="vthumb" style="height:150px;background:linear-gradient(145deg,#1a1505,#5c4a0a,#8c6a0a)"><div class="inner">กระเป๋าหนัง · B</div><div class="play-ov"><div class="play-btn">▶</div></div></div><div class="dur">00:22</div><div class="vbadge">6.1K ▶</div><div class="meta"><div class="t">ลักชัวรี่ซีเนมาติก</div><div class="s">กระเป๋าหนัง Mini</div></div></div>
+      <div class="gitem2"><div class="vthumb" style="height:220px;background:linear-gradient(145deg,#0e0e0e,#1a1a2e,#2a2a4e)"><div class="inner">สรุปข่าวสินค้าใหม่</div><div class="play-ov"><div class="play-btn">▶</div></div></div><div class="dur">00:28</div><div class="vbadge">4.4K ▶</div><div class="meta"><div class="t">สรุปข่าวสินค้าใหม่</div><div class="s">หูฟังไร้สาย X2</div></div></div>
+      <div class="gitem2"><div class="vthumb" style="height:175px;background:linear-gradient(145deg,#0a1f1a,#0d4035,#00a080)"><div class="inner">UGC ถ่ายเอง</div><div class="play-ov"><div class="play-btn">▶</div></div></div><div class="dur">00:15</div><div class="vbadge">22.9K ▶</div><div class="meta"><div class="t">UGC ถ่ายเอง</div><div class="s">ขวดน้ำ Smart Bottle</div></div></div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="page" id="dash">
+    <div class="crumb">01 · ภาพรวม</div>
+    <div class="pagehead">
+      <div><h2 class="pagetitle">Dashboard</h2><p class="pagedesc">ข้อมูลย้อนหลัง 30 วัน — ใช้ดูว่าควรทำคอนเทนต์แนวไหนต่อ</p></div>
+      <div class="view-switch"><span class="sel">30 วัน</span><span>90 วัน</span><span>ทั้งหมด</span></div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-icon" style="background:rgba(0,255,212,.1)">👁</div>
+        <div class="label">ยอดวิวรวม</div>
+        <div class="value" data-count="182400" data-suffix="K">182.4K</div>
+        <div class="delta up">▲ 23% จากเดือนก่อน</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon" style="background:rgba(77,127,255,.1)">💬</div>
+        <div class="label">Engagement เฉลี่ย</div>
+        <div class="value">4.6%</div>
+        <div class="delta up">▲ 0.8 จุด</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon" style="background:rgba(34,212,153,.1)">✓</div>
+        <div class="label">โพสต์สำเร็จ</div>
+        <div class="value">37</div>
+        <div class="delta down">▼ 2 โพสต์ล้มเหลว</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon" style="background:rgba(255,176,46,.1)">⏱</div>
+        <div class="label">เวลาดูเฉลี่ย</div>
+        <div class="value">9.2s</div>
+        <div class="delta up">▲ 1.1s</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col card">
+        <h3>ยอดวิวตามแพลตฟอร์ม</h3>
+        <div class="barchart">
+          <div class="bargroup"><div class="bval">86K</div><div class="bar" style="height:100%;background:linear-gradient(180deg,var(--teal),rgba(0,255,212,.5))"></div><div class="blabel">TikTok</div></div>
+          <div class="bargroup"><div class="bval">52K</div><div class="bar" style="height:60%;background:linear-gradient(180deg,#4D7FFF,rgba(77,127,255,.5))"></div><div class="blabel">FB Reels</div></div>
+          <div class="bargroup"><div class="bval">31K</div><div class="bar" style="height:36%;background:linear-gradient(180deg,#9B6FFF,rgba(155,111,255,.5))"></div><div class="blabel">IG Reels</div></div>
+          <div class="bargroup"><div class="bval">13K</div><div class="bar" style="height:15%;background:linear-gradient(180deg,#FF6FB7,rgba(255,111,183,.5))"></div><div class="blabel">YouTube</div></div>
+        </div>
+      </div>
+      <div class="col card">
+        <h3>Engagement ตามแนวคอนเทนต์</h3>
+        <div class="barchart">
+          <div class="bargroup"><div class="bval">5.4%</div><div class="bar" style="height:100%;background:linear-gradient(180deg,var(--teal),rgba(0,255,212,.4))"></div><div class="blabel">รีวิว</div></div>
+          <div class="bargroup"><div class="bval">4.1%</div><div class="bar" style="height:76%;background:linear-gradient(180deg,#9B6FFF,rgba(155,111,255,.4))"></div><div class="blabel">ตลก</div></div>
+          <div class="bargroup"><div class="bval">3.0%</div><div class="bar" style="height:56%;background:linear-gradient(180deg,#4D7FFF,rgba(77,127,255,.4))"></div><div class="blabel">ขายของ</div></div>
+          <div class="bargroup"><div class="bval">2.2%</div><div class="bar" style="height:41%;background:linear-gradient(180deg,#FFB02E,rgba(255,176,46,.4))"></div><div class="blabel">หรู</div></div>
+          <div class="bargroup"><div class="bval">1.8%</div><div class="bar" style="height:33%;background:linear-gradient(180deg,#FF6FB7,rgba(255,111,183,.4))"></div><div class="blabel">ข่าว</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>แนวคอนเทนต์ vs แพลตฟอร์ม (engagement rate)</h3>
+      <table class="matrix">
+        <tr><th></th><th>TikTok</th><th>FB Reels</th><th>IG Reels</th><th>YouTube</th></tr>
+        <tr><td style="background:transparent;color:var(--dim);text-align:left;font-weight:700">รีวิว</td><td style="background:rgba(0,255,212,.35)">6.1%</td><td style="background:rgba(0,255,212,.26)">5.0%</td><td style="background:rgba(0,255,212,.18)">3.8%</td><td style="background:rgba(0,255,212,.08);color:var(--dim)">2.1%</td></tr>
+        <tr><td style="background:transparent;color:var(--dim);text-align:left;font-weight:700">ตลก</td><td style="background:rgba(0,255,212,.28)">5.2%</td><td style="background:rgba(0,255,212,.2)">4.0%</td><td style="background:rgba(0,255,212,.32)">5.5%</td><td style="background:rgba(0,255,212,.05);color:var(--dim)">1.4%</td></tr>
+        <tr><td style="background:transparent;color:var(--dim);text-align:left;font-weight:700">ขายของ</td><td style="background:rgba(0,255,212,.08);color:var(--dim)">2.3%</td><td style="background:rgba(0,255,212,.19)">3.9%</td><td style="background:rgba(0,255,212,.06);color:var(--dim)">1.6%</td><td style="background:rgba(0,255,212,.24)">4.4%</td></tr>
+        <tr><td style="background:transparent;color:var(--dim);text-align:left;font-weight:700">หรู</td><td style="background:rgba(0,255,212,.05);color:var(--dim)">1.5%</td><td style="background:rgba(0,255,212,.09);color:var(--dim)">2.4%</td><td style="background:rgba(0,255,212,.22)">4.1%</td><td style="background:rgba(0,255,212,.04);color:var(--dim)">1.2%</td></tr>
+      </table>
+      <p class="footer-note">สีเข้ม = engagement สูง — ระบบใช้ข้อมูลนี้แนะนำเทมเพลตอัตโนมัติตามสินค้าและแพลตฟอร์มที่เลือก</p>
+    </div>
+
+    <div class="row">
+      <div class="col card"><h3>ช่วงเวลาโพสต์ที่ดีที่สุด</h3><div style="display:flex;align-items:center;gap:10px;padding:12px;background:rgba(0,255,212,.06);border:1px solid rgba(0,255,212,.14);border-radius:12px;"><span style="font-size:24px">🕖</span><div><div style="font-size:16px;font-weight:800;color:var(--teal)">19:00–21:00 น.</div><div style="font-size:12px;color:var(--dim);margin-top:3px">เสาร์–อาทิตย์ engagement สูงสุด</div></div></div></div>
+      <div class="col card"><h3>ข้อมูลที่ระบบเก็บอัตโนมัติ</h3><p style="font-size:12.5px;color:var(--dim);margin:0;line-height:1.8">views · likes · comments · shares · completion rate · เวลาดูเฉลี่ย · click-through · เวอร์ชัน/คอนเซ็ปต์ที่ใช้ · แพลตฟอร์ม · เวลาโพสต์ · สถานะสำเร็จ/ล้มเหลว</p></div>
+    </div>
+  </div>
+
+  <!-- UPLOAD -->
+  <div class="page" id="p2">
+    <div class="crumb">กลุ่ม 1 · อัปโหลด &amp; วิเคราะห์</div>
+    <h2 class="pagetitle">อัปโหลดสินค้า</h2>
+    <p class="pagedesc" style="margin-bottom:24px">คลังสินค้าที่เคยอัปโหลด — เพิ่ม / แก้ไข / ลบได้</p>
+    <div class="card">
+      <div class="row">
+        <div class="col upload-zone" style="min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;">
+          <div style="font-size:32px;opacity:.4">📦</div>
+          <div style="font-size:13px;font-weight:600">ลากไฟล์มาวาง หรือคลิกเพื่อเลือก</div>
+          <div style="font-size:11px;color:var(--faint)">JPG, PNG, MP4 ได้สูงสุด 50MB</div>
+        </div>
+        <div class="col">
+          <div class="field"><label>ชื่อสินค้า</label><div class="input">เซรั่มหน้าใส 30ml</div></div>
+          <div class="field"><label>หมวดหมู่</label><div class="input">ความงาม / สกินแคร์</div></div>
+          <div class="field"><label>แบรนด์</label><div class="input">GlowLab</div></div>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:8px">✦ ส่งให้ AI วิเคราะห์</button>
+    </div>
+    <div class="card">
+      <h3>คลังสินค้าที่เคยเพิ่ม (24)</h3>
+      <table>
+        <tr><th>สินค้า</th><th>หมวดหมู่</th><th>ใช้ล่าสุด</th><th>สถานะ</th><th></th></tr>
+        <tr><td>เซรั่มหน้าใส 30ml</td><td>สกินแคร์</td><td>วันนี้</td><td><span class="tag tag-ok">วิเคราะห์แล้ว</span></td><td class="actions"><span class="icon-btn">✎</span><span class="icon-btn">🗑</span></td></tr>
+        <tr><td>หูฟังไร้สาย X2</td><td>อิเล็กทรอนิกส์</td><td>เมื่อวาน</td><td><span class="tag tag-ok">วิเคราะห์แล้ว</span></td><td class="actions"><span class="icon-btn">✎</span><span class="icon-btn">🗑</span></td></tr>
+        <tr><td>กระเป๋าหนัง Mini</td><td>แฟชั่น</td><td>3 วันก่อน</td><td><span class="tag tag-info">กำลังวิเคราะห์</span></td><td class="actions"><span class="icon-btn">✎</span><span class="icon-btn">🗑</span></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ANALYSIS -->
+  <div class="page" id="p3">
+    <div class="crumb">กลุ่ม 1 · อัปโหลด &amp; วิเคราะห์</div>
+    <h2 class="pagetitle">ผลวิเคราะห์ AI</h2>
+    <p class="pagedesc" style="margin-bottom:24px">แก้ไขผลวิเคราะห์ได้ถ้า AI เข้าใจผิด</p>
+    <div class="card">
+      <div class="row">
+        <div class="col ph thumb" style="max-width:130px;background:linear-gradient(145deg,#1a0a2e,#3d1a6e)">รูปสินค้า</div>
+        <div class="col">
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(0,255,212,.07);border:1px solid rgba(0,255,212,.15);border-radius:12px;margin-bottom:16px;font-size:12px;color:var(--teal)"><span class="live-dot"></span>AI วิเคราะห์เสร็จแล้ว · ความมั่นใจ 94%</div>
+          <div class="field"><label>สินค้าคือ</label><div class="input">เซรั่มบำรุงผิวหน้า เนื้อเจล ซึมไว</div></div>
+          <div class="field"><label>จุดขายหลัก</label><div class="input">Niacinamide 10% · ลดรอยสิว · ไม่เหนียว</div></div>
+          <button class="btn btn-ghost btn-sm">✎ แก้ไขผลวิเคราะห์</button>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary">ไปเลือกเทมเพลต →</button>
+  </div>
+
+  <!-- GENERATE STUDIO -->
+  <div class="page" id="p4">
+    <div class="crumb">กลุ่ม 2 · AI สร้างคอนเทนต์</div>
+
+    <div class="gs-toptabs">
+      <span>สร้างภาพ</span><span class="sel">สร้างวิดีโอ</span><span>รูปนิ่ง → วิดีโอ</span><span>สเก็ตช์ → ภาพ/วิดีโอ</span>
+    </div>
+
+    <div class="gs-model">
+      <div class="gicon">AI</div>
+      <div>
+        <b>เทมเพลต รีวิวเพื่อนสนิท</b>
+        <div class="mdl-desc">เสียงเป็นกันเอง · โทนสบายๆ · เหมาะกับสกินแคร์</div>
+      </div>
+      <div style="margin-left:auto;color:var(--faint);font-size:11px">เปลี่ยน ▾</div>
+    </div>
+
+    <div class="gs-body">
+      <div class="gs-left">
+        <div class="gs-panel">
+          <div class="gs-frame"><div class="fic">🖼</div>เพิ่มรูปสินค้าอ้างอิง<br><span style="font-size:10.5px;color:var(--faint)">(ไม่บังคับ)</span></div>
+          <div class="gs-hint">ใช้เครื่องหมายคำพูดสำหรับบทพูด เช่น พูดว่า "เซรั่มตัวนี้ใช้มา 2 อาทิตย์หน้าเปลี่ยนจริงไหม" รองรับหลายภาษา</div>
+          <textarea placeholder="อธิบายคลิปที่อยากได้...">รีวิวเซรั่มหน้าใสแบบเพื่อนสนิทเล่าให้ฟัง เน้น Niacinamide 10% ลดรอยสิว โทนเป็นกันเอง</textarea>
+          <div class="gs-toggle-row">
+            <div class="gs-toggle"><i></i></div>
+            <span class="ttxt">สร้างหลายเวอร์ชัน</span>
+            <span class="tsub">5 เวอร์ชัน (A–E) ›</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="gs-canvas">
+        <div class="gc-bg"></div>
+        <div class="voice-badge"><div class="vdot"></div>🎙 มีเสียงพากย์: เป็นกันเอง (หญิง)</div>
+        <div class="gc-inner">
+          <div class="gc-icon">🎬</div>
+          <div class="gc-text">พรีวิวคลิปจะแสดงตรงนี้หลังกดสร้าง</div>
+          <div class="gc-btn">ดูเทมเพลตที่เคยใช้ →</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="gs-bottombar">
+      <div class="gs-opt">720p · 15s · 9:16 ▾</div>
+      <div class="gs-audio" data-page="p6"><span class="chk">🎙</span> เสียง: เป็นกันเอง (หญิง) ›</div>
+      <button class="gs-genbtn">✦ Generate</button>
+    </div>
+    <p class="footer-note">เลือกเสียงเร็วๆ ได้ตรงนี้ — ถ้าจะตั้งค่าละเอียด (สำเนียง/อารมณ์/บันทึกเสียงใหม่) ไปที่ <b style="color:var(--teal);cursor:pointer" data-page="p6" onclick="goTo('p6')">06 Caption · Hashtag · เสียง</b></p>
+  </div>
+
+  <!-- SCRIPT -->
+  <div class="page" id="p5">
+    <div class="crumb">กลุ่ม 2 · AI สร้างคอนเทนต์</div>
+    <h2 class="pagetitle">แก้ไข Script</h2>
+    <p class="pagedesc" style="margin-bottom:24px">ตรวจ/แก้สคริปต์ก่อนส่งพากย์เสียงจริง</p>
+    <div class="card">
+      <div class="field"><label>Hook (3 วิแรก)</label><textarea class="input">เซรั่มตัวนี้ใช้มา 2 อาทิตย์ หน้าเปลี่ยนจริงไหม...</textarea></div>
+      <div class="field"><label>เนื้อหาหลัก</label><textarea class="input" style="min-height:80px">Niacinamide 10% ซึมไว ไม่เหนียวเหนอะ ใช้แล้วรอยสิวจางลงชัดเจน...</textarea></div>
+      <div class="field"><label>Call to Action</label><textarea class="input">ลองดูได้เลย ลิงก์อยู่ใน bio นะคะ 💚</textarea></div>
+      <div class="row" style="gap:10px">
+        <button class="btn btn-primary">ยืนยัน → ส่งพากย์เสียง</button>
+        <button class="btn btn-ghost">↺ ให้ AI เขียนใหม่</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CAPTION / VOICE -->
+  <div class="page" id="p6">
+    <div class="crumb">กลุ่ม 2 · AI สร้างคอนเทนต์</div>
+    <h2 class="pagetitle">Caption · Hashtag · เสียงพากย์</h2>
+    <p class="pagedesc" style="margin-bottom:24px">เสียงพากย์มีให้เลือกหลายแบบ บันทึกเป็นค่าโปรดได้</p>
+    <div class="card">
+      <div class="field"><label>Caption</label><textarea class="input">เซรั่มตัวนี้คือคำตอบของผิวมัน เป็นสิวง่าย 🌿✨</textarea></div>
+      <div class="field"><label>Hashtag</label><div class="input">#สกินแคร์ #เซรั่ม #หน้าใส #Niacinamide #สิวหาย</div></div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0">เสียงพากย์ที่บันทึกไว้</h3>
+        <button class="btn btn-soft btn-sm">+ เพิ่มเสียงใหม่</button>
+      </div>
+      <table>
+        <tr><th>ชื่อ</th><th>เพศ/สำเนียง</th><th>อารมณ์</th><th></th></tr>
+        <tr><td><span style="color:var(--teal);font-weight:700">★</span> เป็นกันเอง (ใช้บ่อย)</td><td>หญิง / ไทยกลาง</td><td>สดใส</td><td class="actions"><span class="icon-btn">▶</span><span class="icon-btn">✎</span><span class="icon-btn">🗑</span></td></tr>
+        <tr><td>มืออาชีพ</td><td>ชาย / ไทยกลาง</td><td>หนักแน่น</td><td class="actions"><span class="icon-btn">▶</span><span class="icon-btn">✎</span><span class="icon-btn">🗑</span></td></tr>
+      </table>
+    </div>
+    <button class="btn btn-primary">ส่งเข้าคิวเรนเดอร์ →</button>
+  </div>
+
+  <!-- RENDER QUEUE -->
+  <div class="page" id="p7">
+    <div class="crumb">กลุ่ม 3 · เรนเดอร์ &amp; ตรวจสอบ</div>
+    <h2 class="pagetitle">คิวเรนเดอร์</h2>
+    <p class="pagedesc" style="margin-bottom:24px">Retry / ทำซ้ำ / ลบ ได้ทุกงาน</p>
+    <div class="card">
+      <table>
+        <tr><th>เวอร์ชัน</th><th>สถานะ</th><th>เสียง</th><th>เวลา</th><th></th></tr>
+        <tr><td style="font-weight:700">A</td><td><span class="tag tag-ok">✓ เสร็จแล้ว</span></td><td><span class="tag tag-ok">🎙 มีเสียง</span></td><td style="color:var(--dim)">48s</td><td class="actions"><span class="icon-btn">▶</span><span class="icon-btn">⧉</span><span class="icon-btn">🗑</span></td></tr>
+        <tr><td style="font-weight:700">C</td>
+          <td><span class="tag tag-info"><span class="live-dot"></span>กำลังเรนเดอร์ 64%</span></td>
+          <td><span class="tag tag-ok">🎙 มีเสียง</span></td><td style="color:var(--faint)">—</td>
+          <td class="actions"><span class="icon-btn">⏸</span><span class="icon-btn">🗑</span></td></tr>
+        <tr><td style="font-weight:700">D</td><td><span class="tag tag-err">⚠ ล้มเหลว</span></td><td><span class="tag tag-err">เสียงไม่ตรงไฟล์</span></td><td style="color:var(--faint)">—</td><td class="actions"><button class="btn btn-soft btn-sm">↺ Retry</button></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- STANDARDS -->
+  <div class="page" id="p8">
+    <div class="crumb">กลุ่ม 3 · เรนเดอร์ &amp; ตรวจสอบ</div>
+    <h2 class="pagetitle">ตรวจสอบมาตรฐาน</h2>
+    <p class="pagedesc" style="margin-bottom:24px">เช็คก่อนส่งไปแพลตฟอร์ม</p>
+    <div class="card">
+      <table>
+        <tr><th>รายการ</th><th>เวอร์ชัน A</th><th>เวอร์ชัน B</th><th>เวอร์ชัน C</th></tr>
+        <tr><td>อัตราส่วน 9:16</td><td><span class="tag tag-ok">ผ่าน</span></td><td><span class="tag tag-ok">ผ่าน</span></td><td><span class="tag tag-ok">ผ่าน</span></td></tr>
+        <tr><td>ความยาว (TikTok ≤60s)</td><td><span class="tag tag-ok">38s</span></td><td><span class="tag tag-err">72s เกิน</span></td><td><span class="tag tag-ok">45s</span></td></tr>
+        <tr><td>ลิขสิทธิ์เพลง</td><td><span class="tag tag-ok">ปลอดภัย</span></td><td><span class="tag tag-warn">ตรวจสอบไม่ผ่าน</span></td><td><span class="tag tag-ok">ปลอดภัย</span></td></tr>
+        <tr><td>ความละเอียดวิดีโอ</td><td><span class="tag tag-ok">1080p</span></td><td><span class="tag tag-ok">1080p</span></td><td><span class="tag tag-ok">1080p</span></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- PREVIEW -->
+  <div class="page" id="p9">
+    <div class="crumb">กลุ่ม 4 · พรีวิว &amp; ตั้งเวลา</div>
+    <h2 class="pagetitle">พรีวิวเวอร์ชัน A–E</h2>
+    <p class="pagedesc" style="margin-bottom:24px">เปรียบเทียบและเลือกเวอร์ชันที่จะใช้จริง</p>
+    <div class="row">
+      <div class="col" style="text-align:center"><div class="ph thumb" style="background:linear-gradient(145deg,#1a0a2e,#3d1a6e)">A</div><div style="margin-top:8px"><span class="tag tag-ok" style="font-size:10px">🎙 มีเสียง</span></div></div>
+      <div class="col" style="text-align:center"><div class="ph thumb" style="background:linear-gradient(145deg,#0a1a1a,#0d3d35)">B</div><div style="margin-top:8px"><span class="tag tag-ok" style="font-size:10px">🎙 มีเสียง</span></div></div>
+      <div class="col" style="text-align:center"><div class="ph thumb" style="background:linear-gradient(145deg,#0a1f0a,#1a5c1a);border:2px solid var(--teal);box-shadow:0 0 20px rgba(0,255,212,.3)">C ✓</div><div style="margin-top:8px"><span class="tag tag-ok" style="font-size:10px">🎙 มีเสียง</span></div></div>
+      <div class="col" style="text-align:center"><div class="ph thumb" style="background:linear-gradient(145deg,#0e0e0e,#1a1a2e)">D</div><div style="margin-top:8px"><span style="font-size:10.5px;color:var(--faint)">🔇 ไม่มีเสียง</span></div></div>
+      <div class="col" style="text-align:center"><div class="ph thumb" style="background:linear-gradient(145deg,#2e0a1a,#6e1a3d)">E</div><div style="margin-top:8px"><span class="tag tag-ok" style="font-size:10px">🎙 มีเสียง</span></div></div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:20px">ไปขั้นอนุมัติ →</button>
+  </div>
+
+  <!-- APPROVE -->
+  <div class="page" id="p10">
+    <div class="crumb">กลุ่ม 4 · พรีวิว &amp; ตั้งเวลา</div>
+    <h2 class="pagetitle">อนุมัติ</h2>
+    <p class="pagedesc" style="margin-bottom:24px">เลือกเวอร์ชันที่จะใช้จริง ระบบจะส่งต่อให้ Schedule</p>
+    <div class="card">
+      <div class="row">
+        <div class="col ph thumb" style="max-width:130px;background:linear-gradient(145deg,#0a1f0a,#1a5c1a)">เวอร์ชัน C</div>
+        <div class="col">
+          <div class="field"><label>แพลตฟอร์ม</label><div class="input">TikTok · FB Reels · IG Reels</div></div>
+          <div class="row" style="gap:10px">
+            <button class="btn btn-primary">✓ อนุมัติ → ไป Schedule</button>
+            <button class="btn btn-ghost">ส่งกลับไปแก้ Script</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>คลังเวอร์ชันที่อนุมัติแล้ว</h3>
+      <table>
+        <tr><th>สินค้า</th><th>เวอร์ชันที่เลือก</th><th>แพลตฟอร์ม</th><th>สถานะ</th><th></th></tr>
+        <tr><td>กระเป๋าหนัง Mini</td><td>C · หรู</td><td>TikTok, FB, IG</td><td><span class="tag tag-ok">พร้อมโพสต์</span></td><td class="actions"><span class="icon-btn">▶</span><span class="icon-btn">📅</span></td></tr>
+        <tr><td>เซรั่มหน้าใส 30ml</td><td>C · รีวิว</td><td>TikTok, IG</td><td><span class="tag tag-info">ตั้งเวลาแล้ว</span></td><td class="actions"><span class="icon-btn">▶</span><span class="icon-btn">📅</span></td></tr>
+        <tr><td>หูฟังไร้สาย X2</td><td>B · ขายของ</td><td>YouTube</td><td><span class="tag tag-warn">รออนุมัติเพิ่ม</span></td><td class="actions"><span class="icon-btn">▶</span><span class="icon-btn">✎</span></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- MANUAL POST -->
+  <div class="page" id="p10b">
+    <div class="crumb">กลุ่ม 4 · พรีวิว &amp; ตั้งเวลา <span class="badge-add">เพิ่มใหม่</span></div>
+    <h2 class="pagetitle">โพสต์เอง</h2>
+    <p class="pagedesc" style="margin-bottom:24px">เอาวิดีโอที่ถ่ายเอง/ตัดต่อเองมาโพสต์หรือตั้งเวลา — ไม่ต้องผ่านขั้นตอน AI</p>
+    <div class="card">
+      <div class="row">
+        <div class="col upload-zone" style="min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px">
+          <div style="font-size:32px;opacity:.4">🎥</div>
+          <div style="font-size:13px;font-weight:600">ลากไฟล์วิดีโอมาวาง</div>
+          <div style="font-size:11px;color:var(--faint)">.mp4 .mov</div>
+        </div>
+        <div class="col">
+          <div class="field"><label>Caption</label><textarea class="input">ใส่ข้อความที่จะโพสต์...</textarea></div>
+          <div class="field"><label>แพลตฟอร์ม</label><div class="input">TikTok · FB Reels · IG Reels · YouTube</div></div>
+          <div class="field"><label>เวลาโพสต์</label><div class="input">โพสต์ทันที / ตั้งเวลา</div></div>
+        </div>
+      </div>
+      <div class="row" style="gap:10px;margin-top:8px">
+        <button class="btn btn-primary">โพสต์ทันที</button>
+        <button class="btn btn-ghost">ส่งไปตั้งเวลาใน Schedule</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>โพสต์เองล่าสุด</h3>
+      <table>
+        <tr><th>ไฟล์</th><th>แพลตฟอร์ม</th><th>เวลาโพสต์</th><th>สถานะ</th><th></th></tr>
+        <tr><td style="color:var(--dim);font-family:monospace;font-size:12px">behind_scene_01.mp4</td><td>IG Reels</td><td>วันนี้ 14:20</td><td><span class="tag tag-ok">โพสต์แล้ว</span></td><td class="actions"><span class="icon-btn">🗑</span></td></tr>
+        <tr><td style="color:var(--dim);font-family:monospace;font-size:12px">store_opening.mp4</td><td>TikTok</td><td>พรุ่งนี้ 09:00</td><td><span class="tag tag-info">ตั้งเวลาไว้</span></td><td class="actions"><span class="icon-btn">✎</span><span class="icon-btn">🗑</span></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- SCHEDULE -->
+  <div class="page" id="p11">
+    <div class="crumb">กลุ่ม 4 · พรีวิว &amp; ตั้งเวลา</div>
+    <div class="pagehead">
+      <div><h2 class="pagetitle">Schedule</h2><p class="pagedesc">ดูและจัดการเวลาโพสต์ทั้งหมด</p></div>
+      <button class="btn btn-primary btn-sm">+ เพิ่มเวลาโพสต์</button>
+    </div>
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="view-switch">
+        <span data-view="day">วัน</span><span class="sel" data-view="week">สัปดาห์</span><span data-view="month">เดือน</span><span data-view="year">ปี</span>
+      </div>
+      <div class="row" style="gap:8px;align-items:center">
+        <span class="icon-btn">‹</span>
+        <span style="font-size:13px;font-weight:700;color:var(--dim)">16–22 มิ.ย. 2569</span>
+        <span class="icon-btn">›</span>
+      </div>
+    </div>
+
+    <div class="card" id="view-week">
+      <div class="week-row"><div class="day">จันทร์ 16</div><div class="slot"><span class="cal-post">19:30 TikTok</span></div></div>
+      <div class="week-row"><div class="day">อังคาร 17</div><div class="slot"><span style="font-size:11px;color:var(--faint)">ว่าง</span></div></div>
+      <div class="week-row"><div class="day">พุธ 18</div><div class="slot"><span class="cal-post">12:00 IG</span><span class="cal-post">20:00 FB</span></div></div>
+      <div class="week-row"><div class="day">พฤหัส 19</div><div class="slot"><span style="font-size:11px;color:var(--faint)">ว่าง</span></div></div>
+      <div class="week-row"><div class="day">ศุกร์ 20</div><div class="slot"><span class="cal-post">19:30 TikTok</span><span class="cal-post">19:30 FB</span></div></div>
+      <div class="week-row"><div class="day">เสาร์ 21</div><div class="slot"><span class="cal-post">12:00 TikTok</span></div></div>
+      <div class="week-row"><div class="day">อาทิตย์ 22</div><div class="slot"><span style="font-size:11px;color:var(--faint)">ว่าง</span></div></div>
+    </div>
+
+    <div class="card" id="view-month" style="display:none">
+      <div class="cal-grid">
+        <div class="cal-head">จ</div><div class="cal-head">อ</div><div class="cal-head">พ</div><div class="cal-head">พฤ</div><div class="cal-head">ศ</div><div class="cal-head">ส</div><div class="cal-head">อา</div>
+        <div class="cal-cell"><div class="d">1</div></div><div class="cal-cell"><div class="d">2</div></div><div class="cal-cell"><div class="d">3</div></div><div class="cal-cell"><div class="d">4</div></div><div class="cal-cell"><div class="d">5</div><span class="cal-post">TikTok</span></div><div class="cal-cell"><div class="d">6</div></div><div class="cal-cell"><div class="d">7</div></div>
+        <div class="cal-cell"><div class="d">8</div></div><div class="cal-cell"><div class="d">9</div><span class="cal-post">FB</span></div><div class="cal-cell"><div class="d">10</div></div><div class="cal-cell"><div class="d">11</div></div><div class="cal-cell"><div class="d">12</div></div><div class="cal-cell"><div class="d">13</div></div><div class="cal-cell"><div class="d">14</div></div>
+        <div class="cal-cell"><div class="d">15</div></div><div class="cal-cell today"><div class="d">16</div><span class="cal-post">TikTok</span></div><div class="cal-cell"><div class="d">17</div></div><div class="cal-cell"><div class="d">18</div><span class="cal-post">IG</span><span class="cal-post">FB</span></div><div class="cal-cell"><div class="d">19</div></div><div class="cal-cell"><div class="d">20</div><span class="cal-post">TikTok</span><span class="cal-post">FB</span></div><div class="cal-cell"><div class="d">21</div><span class="cal-post">TikTok</span></div>
+      </div>
+    </div>
+
+    <div class="card" id="view-day" style="display:none">
+      <h3>วันจันทร์ที่ 16 มิ.ย.</h3>
+      <table>
+        <tr><th>เวลา</th><th>สินค้า</th><th>แพลตฟอร์ม</th><th></th></tr>
+        <tr><td style="font-weight:700;color:var(--teal)">19:30</td><td>กระเป๋าหนัง Mini</td><td>TikTok, FB</td><td class="actions"><span class="icon-btn">✎</span><span class="icon-btn">🗑</span></td></tr>
+      </table>
+    </div>
+
+    <div class="card" id="view-year" style="display:none">
+      <h3>โพสต์รวมรายเดือน 2569</h3>
+      <div class="barchart">
+        <div class="bargroup"><div class="bval">12</div><div class="bar" style="height:50%;background:linear-gradient(180deg,var(--teal),rgba(0,255,212,.4))"></div><div class="blabel">ม.ค.</div></div>
+        <div class="bargroup"><div class="bval">18</div><div class="bar" style="height:75%;background:linear-gradient(180deg,var(--blue),rgba(77,127,255,.4))"></div><div class="blabel">ก.พ.</div></div>
+        <div class="bargroup"><div class="bval">15</div><div class="bar" style="height:62%;background:linear-gradient(180deg,var(--purple),rgba(155,111,255,.4))"></div><div class="blabel">มี.ค.</div></div>
+        <div class="bargroup"><div class="bval">22</div><div class="bar" style="height:92%;background:linear-gradient(180deg,var(--teal),rgba(0,255,212,.4))"></div><div class="blabel">เม.ย.</div></div>
+        <div class="bargroup"><div class="bval">19</div><div class="bar" style="height:79%;background:linear-gradient(180deg,var(--blue),rgba(77,127,255,.4))"></div><div class="blabel">พ.ค.</div></div>
+        <div class="bargroup"><div class="bval">24</div><div class="bar" style="height:100%;background:linear-gradient(180deg,var(--teal),var(--blue))"></div><div class="blabel">มิ.ย.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FEEDBACK -->
+  <div class="page" id="p12">
+    <div class="crumb">กลุ่ม 5 · ผลตอบรับ</div>
+    <h2 class="pagetitle">ผลตอบรับหลังโพสต์</h2>
+    <p class="pagedesc" style="margin-bottom:24px">ผลจริงผูกกับเวอร์ชัน/คอนเซ็ปต์ → วนกลับไปปรับเทมเพลตรอบถัดไป</p>
+    <div class="card">
+      <table>
+        <tr><th>แพลตฟอร์ม</th><th>เวอร์ชัน/คอนเซ็ปต์</th><th>Views</th><th>ER</th><th>สถานะ</th></tr>
+        <tr><td>TikTok</td><td>C · รีวิว</td><td style="font-weight:700;color:var(--teal)">48.2K</td><td style="font-weight:700;color:var(--ok)">5.1%</td><td><span class="tag tag-ok">สำเร็จ</span></td></tr>
+        <tr><td>IG Reels</td><td>C · รีวิว</td><td style="color:var(--faint)">—</td><td style="color:var(--faint)">—</td><td><span class="tag tag-err">token หมดอายุ</span></td></tr>
+        <tr><td>FB Reels</td><td>C · รีวิว</td><td style="font-weight:700;color:var(--teal)">12.4K</td><td style="font-weight:700;color:var(--ok)">3.8%</td><td><span class="tag tag-ok">สำเร็จ</span></td></tr>
+      </table>
+    </div>
+    <div class="feedback-card">
+      <h3>↻ ป้อนกลับสู่เทมเพลตแนะนำ</h3>
+      <p>เทมเพลต "รีวิว" ทำผลงานดีสุดบน TikTok สำหรับสกินแคร์ — ระบบจะแนะนำเป็นอันดับแรกในรอบถัดไป</p>
+    </div>
+  </div>
+
+  <!-- ACCOUNTS -->
+  <div class="page" id="p13">
+    <div class="crumb">ระบบ</div>
+    <div class="pagehead">
+      <div><h2 class="pagetitle">เชื่อมต่อบัญชี / Token</h2><p class="pagedesc">จัดการ token ของแต่ละแพลตฟอร์ม</p></div>
+      <button class="btn btn-primary btn-sm">+ เชื่อมต่อบัญชีใหม่</button>
+    </div>
+    <div class="card">
+      <table>
+        <tr><th>แพลตฟอร์ม</th><th>บัญชี</th><th>หมดอายุ</th><th>สถานะ</th><th></th></tr>
+        <tr><td style="display:flex;align-items:center;gap:8px"><span style="font-size:16px">🎵</span>TikTok</td><td style="color:var(--dim)">@brand.official</td><td style="color:var(--faint)">2025-12-01</td><td><span class="tag tag-ok">ใช้งานได้</span></td><td class="actions"><span class="icon-btn">↻</span><span class="icon-btn">🗑</span></td></tr>
+        <tr><td style="display:flex;align-items:center;gap:8px"><span style="font-size:16px">📸</span>Instagram</td><td style="color:var(--dim)">@brand.official</td><td style="color:var(--err)">หมดแล้ว</td><td><span class="tag tag-err">หมดอายุ</span></td><td class="actions"><button class="btn btn-soft btn-sm">เชื่อมต่อใหม่</button></td></tr>
+        <tr><td style="display:flex;align-items:center;gap:8px"><span style="font-size:16px">📘</span>Facebook</td><td style="color:var(--dim)">เพจแบรนด์หลัก</td><td style="color:var(--faint)">2025-10-14</td><td><span class="tag tag-ok">ใช้งานได้</span></td><td class="actions"><span class="icon-btn">↻</span><span class="icon-btn">🗑</span></td></tr>
+        <tr><td style="display:flex;align-items:center;gap:8px"><span style="font-size:16px">▶</span>YouTube</td><td style="color:var(--dim)">Brand Channel</td><td style="color:var(--faint)">2026-03-20</td><td><span class="tag tag-ok">ใช้งานได้</span></td><td class="actions"><span class="icon-btn">↻</span><span class="icon-btn">🗑</span></td></tr>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function goTo(id){
+  document.querySelectorAll('.main>.page').forEach(p=>p.classList.toggle('active',p.id===id));
+  document.querySelectorAll('.qitem[data-page],.navitem[data-page]').forEach(n=>n.classList.toggle('active',n.dataset.page===id));
+}
+
+document.querySelectorAll('[data-page]').forEach(n=>{
+  n.addEventListener('click',()=>goTo(n.dataset.page));
+});
+
+document.querySelectorAll('.gs-toptabs span').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.gs-toptabs span').forEach(x=>x.classList.remove('sel'));
+    t.classList.add('sel');
+  });
+});
+
+document.querySelectorAll('.tabs2 span, .filterpill-row span, .pill').forEach(p=>{
+  p.addEventListener('click',()=>{
+    const g=p.parentElement;
+    g.querySelectorAll('span').forEach(x=>x.classList.remove('sel'));
+    p.classList.add('sel');
+  });
+});
+
+document.querySelectorAll('#p11 .view-switch span').forEach(s=>{
+  s.addEventListener('click',()=>{
+    document.querySelectorAll('#p11 .view-switch span').forEach(x=>x.classList.remove('sel'));
+    s.classList.add('sel');
+    ['day','week','month','year'].forEach(v=>{
+      const el=document.getElementById('view-'+v);
+      if(el) el.style.display=(v===s.dataset.view)?'block':'none';
+    });
+  });
+});
+
+document.querySelectorAll('.mode-card').forEach(c=>{
+  c.addEventListener('click',()=>{
+    document.querySelectorAll('.mode-card').forEach(x=>x.classList.remove('sel'));
+    c.classList.add('sel');
+  });
+});
+document.querySelectorAll('.cap-card').forEach(c=>{
+  c.addEventListener('click',()=>{
+    document.querySelectorAll('.cap-card').forEach(x=>x.classList.remove('sel'));
+    c.classList.add('sel');
+  });
+});
+
+// Sidebar CTA also nav
+document.querySelector('.sidebar-cta').addEventListener('click',()=>goTo('p4'));
+</script>
+</body>
+</html>
