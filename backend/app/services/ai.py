@@ -1,12 +1,12 @@
-import anthropic
-
+import json
+from groq import Groq
 from app.core.config import settings
 
 
 class AIService:
     def __init__(self):
-        self.client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-        self.model = "claude-haiku-4-5"
+        self.client = Groq(api_key=settings.GROQ_API_KEY)
+        self.model = "llama-3.3-70b-versatile"
 
     async def analyze_product(self, product_name: str, description: str, brand_context: str = "") -> dict:
         prompt = f"""วิเคราะห์สินค้าต่อไปนี้เพื่อสร้างวิดีโอสั้น:
@@ -15,7 +15,7 @@ class AIService:
 คำอธิบาย: {description}
 ข้อมูลแบรนด์: {brand_context}
 
-กรุณาวิเคราะห์และตอบในรูปแบบ JSON:
+กรุณาวิเคราะห์และตอบในรูปแบบ JSON เท่านั้น ไม่ต้องมีข้อความอื่น:
 {{
   "key_features": ["คุณสมบัติหลัก 3-5 ข้อ"],
   "selling_points": ["จุดขาย 3-5 ข้อ"],
@@ -24,22 +24,24 @@ class AIService:
   "suggested_hooks": ["Hook 3 แบบที่แตกต่างกัน"]
 }}"""
 
-        message = self.client.messages.create(
+        response = self.client.chat.completions.create(
             model=self.model,
-            max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
+            max_tokens=1024,
+            temperature=0.7,
         )
 
-        import json
-        content = message.content[0].text
+        content = response.choices[0].message.content
         try:
-            result = json.loads(content)
-        except json.JSONDecodeError:
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            result = json.loads(content[start:end])
+        except (json.JSONDecodeError, ValueError):
             result = {"raw": content}
 
         return {
             "analysis": result,
-            "tokens_used": message.usage.input_tokens + message.usage.output_tokens,
+            "tokens_used": response.usage.total_tokens,
             "model_used": self.model,
         }
 
@@ -62,7 +64,7 @@ class AIService:
 CTA: {cta_style or "กระตุ้นการซื้อ"}
 ความยาว: {duration_sec} วินาที
 
-สร้าง Script ในรูปแบบ JSON:
+สร้าง Script ในรูปแบบ JSON เท่านั้น ไม่ต้องมีข้อความอื่น:
 {{
   "hook": "ประโยคเปิดที่ดึงดูดใน 3 วินาที",
   "body": "เนื้อหาหลัก 15-20 วินาที",
@@ -70,22 +72,24 @@ CTA: {cta_style or "กระตุ้นการซื้อ"}
   "full_script": "Script ฉบับเต็ม"
 }}"""
 
-        message = self.client.messages.create(
+        response = self.client.chat.completions.create(
             model=self.model,
-            max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
+            max_tokens=1024,
+            temperature=0.7,
         )
 
-        import json
-        content = message.content[0].text
+        content = response.choices[0].message.content
         try:
-            result = json.loads(content)
-        except json.JSONDecodeError:
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            result = json.loads(content[start:end])
+        except (json.JSONDecodeError, ValueError):
             result = {"full_script": content}
 
         return {
             "script": result,
-            "tokens_used": message.usage.input_tokens + message.usage.output_tokens,
+            "tokens_used": response.usage.total_tokens,
             "model_used": self.model,
         }
 
