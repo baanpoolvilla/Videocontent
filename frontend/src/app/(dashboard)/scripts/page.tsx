@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { api, fileUrl } from "@/lib/api";
-import { CheckCircle2, Clock, ChevronDown, ChevronUp, Pencil, Save, X, Loader2, Mic2, Film, RotateCcw, AlertCircle } from "lucide-react";
+import { CheckCircle2, Clock, ChevronDown, ChevronUp, Pencil, Save, X, Loader2, Mic2, Film, RotateCcw, AlertCircle, Trash2 } from "lucide-react";
 
 interface Product { id: string; name: string; media_urls: string[]; }
 interface Script {
@@ -40,6 +40,8 @@ export default function ScriptsPage() {
   const [voicing, setVoicing]   = useState<string | null>(null);
   const [rendering, setRendering] = useState<string | null>(null);
   const [actionMsg, setActionMsg] = useState<Record<string, string>>({});
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -112,6 +114,18 @@ export default function ScriptsPage() {
     } finally { setVoicing(null); setRendering(null); }
   };
 
+  const deleteJob = async (jobId: string) => {
+    setDeleting(jobId);
+    try {
+      await api.delete(`/jobs/${jobId}`);
+      setJobs(prev => prev.filter(j => j.id !== jobId));
+      setConfirmDelete(null);
+      if (expanded === jobId) setExpanded(null);
+    } catch {
+      setActionMsg(prev => ({ ...prev, [jobId]: "❌ ลบไม่สำเร็จ" }));
+    } finally { setDeleting(null); }
+  };
+
   const jobsWithScripts = jobs.filter(j => {
     if (filter === "pending")    return j.review_status === "review_needed" || j.status === "processing";
     if (filter === "approved")   return j.review_status === "approved";
@@ -182,6 +196,33 @@ export default function ScriptsPage() {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <StatusBadge status={job.status} reviewStatus={job.review_status} />
+                    {/* Delete button — stop propagation so it doesn't toggle expand */}
+                    {confirmDelete === job.id ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }} onClick={e => e.stopPropagation()}>
+                        <span style={{ fontSize: 11, color: "var(--err)", fontWeight: 700 }}>ยืนยันลบ?</span>
+                        <button onClick={() => deleteJob(job.id)} disabled={deleting === job.id} style={{
+                          padding: "4px 10px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                          border: "1px solid rgba(255,77,106,.4)", background: "rgba(255,77,106,.15)", color: "var(--err)",
+                        }}>
+                          {deleting === job.id ? <Loader2 size={10} style={{ animation: "spin 1s linear infinite" }} /> : "ลบ"}
+                        </button>
+                        <button onClick={() => setConfirmDelete(null)} style={{
+                          padding: "4px 8px", borderRadius: 7, fontSize: 11, cursor: "pointer",
+                          border: "1px solid var(--gb)", background: "transparent", color: "var(--faint)",
+                        }}>ยกเลิก</button>
+                      </div>
+                    ) : (
+                      <button onClick={e => { e.stopPropagation(); setConfirmDelete(job.id); }} title="ลบ job นี้" style={{
+                        width: 28, height: 28, borderRadius: 7, border: "1px solid var(--gb)",
+                        background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                        color: "var(--faint)", transition: "color .15s, border-color .15s",
+                      }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--err)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,77,106,.4)"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--faint)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--gb)"; }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
                     {isOpen ? <ChevronUp size={14} color="var(--faint)" /> : <ChevronDown size={14} color="var(--faint)" />}
                   </div>
                 </div>

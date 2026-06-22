@@ -35,6 +35,7 @@ async def list_jobs(
     query = select(ContentJob)
     if status:
         query = query.where(ContentJob.status == status)
+    query = query.order_by(ContentJob.created_at.desc())
     result = await db.execute(query.offset(skip).limit(limit))
     return result.scalars().all()
 
@@ -74,6 +75,20 @@ async def get_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+
+@router.delete("/{job_id}", status_code=204)
+async def delete_job(
+    job_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    await db.delete(job)
+    await db.commit()
 
 
 @router.get("/{job_id}/scripts", response_model=list[ScriptOut])
