@@ -34,16 +34,13 @@ class WanService:
             raise RuntimeError("FAL_KEY not configured")
 
         # Submit to fal.ai queue
-        logger.info(f"fal.ai submit → {FAL_QUEUE}/{model}  payload={payload}")
+        url = f"{FAL_QUEUE}/{model}"
+        print(f"[WAN] POST {url}  payload={payload}", flush=True)
         async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.post(
-                f"{FAL_QUEUE}/{model}",
-                headers=self._headers(),
-                json=payload,
-            )
-            logger.info(f"fal.ai submit response {r.status_code}: {r.text[:500]}")
+            r = await client.post(url, headers=self._headers(), json=payload)
+            print(f"[WAN] response {r.status_code}: {r.text[:600]}", flush=True)
             if not r.is_success:
-                raise RuntimeError(f"fal.ai submit error {r.status_code}: {r.text[:500]}")
+                raise RuntimeError(f"fal.ai submit error {r.status_code}: {r.text[:600]}")
             data = r.json()
 
         request_id = data.get("request_id") or data.get("id")
