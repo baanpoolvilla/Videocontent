@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { api, fileUrl } from "@/lib/api";
-import { ChevronDown, Film, Image, Layers, Pen, Loader2, Download, RefreshCw, X, Sparkles, ImagePlus } from "lucide-react";
+import { ChevronDown, Film, Image, Layers, Pen, Loader2, Download, RefreshCw, X, Sparkles, ImagePlus, CheckCircle2, Play, ArrowRight } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 
 interface Product { id: string; name: string; media_urls: string[]; }
@@ -62,6 +62,8 @@ export default function GeneratePage() {
   const [errMsg, setErrMsg]    = useState("");
   const [results, setResults]  = useState<Record<string, string>>({});
   const [activeVer, setActiveVer] = useState("A");
+  const [startTime, setStartTime] = useState(0);
+  const [elapsed, setElapsed]    = useState(0);
 
   const [refImgFile, setRefImgFile]   = useState<File | null>(null);
   const [refImgUrl, setRefImgUrl]     = useState("");
@@ -116,7 +118,7 @@ export default function GeneratePage() {
       params: { voiceover_url: voiceRes.data.voiceover_url, duration_sec: durSec },
     });
 
-    return renderRes.data.url || "";
+    return renderRes.data.video_url || "";
   };
 
   const handleGenerate = async () => {
@@ -125,6 +127,7 @@ export default function GeneratePage() {
     setResults({});
     setErrMsg("");
     setActiveVer("A");
+    setStartTime(Date.now());
 
     try {
       const count = multiVer ? verCount : 1;
@@ -134,6 +137,7 @@ export default function GeneratePage() {
         acc[VER_LABELS[i]] = url;
         setResults({ ...acc });
       }
+      setElapsed(Math.round((Date.now() - startTime) / 1000));
       setStatus("done");
     } catch (e: unknown) {
       setErrMsg(e instanceof Error ? e.message : "เกิดข้อผิดพลาด กรุณาลองใหม่");
@@ -382,27 +386,115 @@ export default function GeneratePage() {
             )}
 
             {status === "done" && (
-              <div style={{ width: "100%", maxWidth: 280, margin: "0 auto" }}>
+              <div style={{ width: "100%", maxWidth: 360, margin: "0 auto" }}>
                 {activeUrl ? (
+                  /* ── มีวิดีโอ: แสดง player พร้อม success bar ── */
                   <>
-                    <video src={fileUrl(activeUrl)} controls style={{ width: "100%", aspectRatio: "9/16", borderRadius: 10, background: "#000", display: "block", maxHeight: "65vh" }} />
-                    <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 12 }}>
+                    <div style={{ position: "relative", borderRadius: 14, overflow: "hidden", boxShadow: "0 0 40px rgba(0,255,212,.2)" }}>
+                      <video src={fileUrl(activeUrl)} controls style={{ width: "100%", aspectRatio: "9/16", background: "#000", display: "block", maxHeight: "58vh" }} />
+                      {/* success badge */}
+                      <div style={{ position: "absolute", top: 10, left: 10, display: "flex", alignItems: "center", gap: 6, background: "rgba(6,6,10,.75)", backdropFilter: "blur(8px)", border: "1px solid rgba(34,212,153,.35)", borderRadius: 10, padding: "6px 12px" }}>
+                        <CheckCircle2 size={13} color="var(--ok)" />
+                        <span style={{ fontSize: 11.5, fontWeight: 800, color: "var(--ok)" }}>สร้างสำเร็จ!</span>
+                        {elapsed > 0 && <span style={{ fontSize: 10.5, color: "var(--faint)" }}>{elapsed}s</span>}
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 12 }}>
                       <a href={fileUrl(activeUrl)} download style={{
-                        display: "inline-flex", alignItems: "center", gap: 5,
-                        padding: "7px 14px", borderRadius: 8, background: "var(--glass)", border: "1px solid var(--gb)",
-                        color: "var(--teal)", textDecoration: "none", fontSize: 12, fontWeight: 700,
-                      }}><Download size={12} /> ดาวน์โหลด</a>
+                        display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                        padding: "10px 8px", borderRadius: 11, background: "var(--glass)", border: "1px solid var(--gb)",
+                        color: "var(--faint)", textDecoration: "none", fontSize: 11, fontWeight: 700, cursor: "pointer",
+                      }}><Download size={15} color="var(--teal)" />ดาวน์โหลด</a>
+                      <button onClick={() => router.push("/preview")} style={{
+                        display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                        padding: "10px 8px", borderRadius: 11, cursor: "pointer",
+                        background: "rgba(0,255,212,.08)", border: "1px solid rgba(0,255,212,.25)",
+                        color: "var(--teal)", fontSize: 11, fontWeight: 700,
+                      }}><Play size={15} fill="var(--teal)" />พรีวิวทั้งหมด</button>
                       <button onClick={reset} style={{
-                        display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer",
-                        padding: "7px 14px", borderRadius: 8, background: "var(--glass)", border: "1px solid var(--gb)",
-                        color: "var(--dim)", fontSize: 12, fontWeight: 700,
-                      }}><RefreshCw size={12} /> สร้างใหม่</button>
+                        display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                        padding: "10px 8px", borderRadius: 11, cursor: "pointer",
+                        background: "var(--glass)", border: "1px solid var(--gb)",
+                        color: "var(--faint)", fontSize: 11, fontWeight: 700,
+                      }}><RefreshCw size={15} />สร้างใหม่</button>
                     </div>
                   </>
                 ) : (
-                  <div style={{ color: "var(--faint)", fontSize: 13 }}>
-                    <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
-                    สร้างสำเร็จ — ดูใน Render Queue
+                  /* ── ไม่มี URL: success card + ปุ่มไป Preview ── */
+                  <div style={{ textAlign: "center" }}>
+                    {/* Glow ring */}
+                    <div style={{ position: "relative", width: 100, height: 100, margin: "0 auto 24px" }}>
+                      <div style={{
+                        position: "absolute", inset: -6, borderRadius: "50%",
+                        background: "conic-gradient(var(--teal), var(--blue), var(--purple), var(--teal))",
+                        animation: "spin 3s linear infinite", opacity: .6,
+                      }} />
+                      <div style={{
+                        position: "absolute", inset: -3, borderRadius: "50%", background: "var(--surface)",
+                      }} />
+                      <div style={{
+                        position: "absolute", inset: 0, borderRadius: "50%",
+                        background: "radial-gradient(circle, rgba(0,255,212,.15) 0%, transparent 70%)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        <CheckCircle2 size={40} color="var(--ok)" strokeWidth={1.5} />
+                      </div>
+                    </div>
+
+                    <p style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 900, background: "linear-gradient(90deg,var(--teal),var(--blue))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                      สร้างสำเร็จ!
+                    </p>
+                    <p style={{ margin: "0 0 6px", fontSize: 13, color: "var(--dim)" }}>
+                      {product?.name || "วิดีโอ"} · เทมเพลต {tpl.label}
+                    </p>
+                    {elapsed > 0 && (
+                      <p style={{ margin: "0 0 24px", fontSize: 11.5, color: "var(--faint)" }}>
+                        ใช้เวลา {elapsed >= 60 ? `${Math.floor(elapsed/60)} นาที ${elapsed%60} วิ` : `${elapsed} วินาที`}
+                      </p>
+                    )}
+
+                    {/* Stats pills */}
+                    <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
+                      {[
+                        { label: "AI Script", val: "✓" },
+                        { label: "Voiceover", val: "✓" },
+                        { label: "FFmpeg Render", val: "✓" },
+                      ].map(s => (
+                        <div key={s.label} style={{ padding: "5px 12px", borderRadius: 20, background: "rgba(34,212,153,.08)", border: "1px solid rgba(34,212,153,.2)", fontSize: 11, color: "var(--ok)", fontWeight: 700 }}>
+                          {s.val} {s.label}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* CTA buttons */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      <button onClick={() => router.push("/preview")} style={{
+                        width: "100%", padding: "14px 20px", borderRadius: 13, cursor: "pointer",
+                        background: "linear-gradient(90deg,var(--teal),var(--blue))",
+                        border: "none", color: "#06060A", fontSize: 14, fontWeight: 900,
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                        boxShadow: "0 6px 24px rgba(0,255,212,.3)",
+                      }}>
+                        <Play size={16} fill="#06060A" /> ดูวิดีโอใน Preview
+                        <ArrowRight size={14} />
+                      </button>
+                      <button onClick={() => router.push("/approval")} style={{
+                        width: "100%", padding: "11px 20px", borderRadius: 13, cursor: "pointer",
+                        background: "rgba(77,127,255,.08)", border: "1px solid rgba(77,127,255,.25)",
+                        color: "var(--blue)", fontSize: 13, fontWeight: 700,
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      }}>
+                        ไปหน้าอนุมัติ <ArrowRight size={13} />
+                      </button>
+                      <button onClick={reset} style={{
+                        width: "100%", padding: "10px 20px", borderRadius: 13, cursor: "pointer",
+                        background: "transparent", border: "1px solid var(--gb)",
+                        color: "var(--faint)", fontSize: 12, fontWeight: 700,
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                      }}>
+                        <RefreshCw size={12} /> สร้างวิดีโอใหม่
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
