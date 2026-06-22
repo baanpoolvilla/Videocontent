@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { api, fileUrl } from "@/lib/api";
-import { ChevronDown, Film, Image, Layers, Pen, Loader2, Download, RefreshCw, X, Sparkles, ImagePlus, CheckCircle2, Play, ArrowRight } from "lucide-react";
+import { ChevronDown, Loader2, Download, RefreshCw, X, Sparkles, ImagePlus, CheckCircle2, Play, ArrowRight } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 
 interface Product { id: string; name: string; media_urls: string[]; }
@@ -32,12 +32,6 @@ const TEMPLATES = [
   { id: "travel",   emoji: "✈️", label: "ท่องเที่ยว / Vlog",     desc: "บรรยากาศ · ความสวยงาม · เชิญชวน",               tone: "ท่องเที่ยว Vlog บรรยากาศดี เชิญชวน ผ่อนคลาย",           cta: "จองเลยก่อนเต็ม" },
 ];
 
-const TABS = [
-  { id: "video",   label: "สร้างวิดีโอ",           Icon: Film },
-  { id: "image",   label: "สร้างภาพ",              Icon: Image },
-  { id: "img2vid", label: "รูปนิ่ง → วิดีโอ",     Icon: Layers },
-  { id: "sketch",  label: "สเก็ตช์ → ภาพ/วิดีโอ", Icon: Pen },
-];
 
 const STEPS = [
   "AI วิเคราะห์สินค้า...",
@@ -53,7 +47,6 @@ type Status = "idle" | "running" | "done" | "error";
 export default function GeneratePage() {
   const router = useRouter();
 
-  const [tab, setTab]                  = useState("video");
   const [tpl, setTpl]                  = useState(TEMPLATES[0]);
   const [showTplModal, setShowTplModal] = useState(false);
   const [concept, setConcept]          = useState("");
@@ -160,24 +153,16 @@ export default function GeneratePage() {
   return (
     <div className="page-enter" style={{ padding: "28px 40px", maxWidth: 1100, margin: "0 auto" }}>
 
-      <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--faint)" }}>
-        กลุ่ม 2 · AI สร้างคอนเทนต์
-      </p>
-
-      {/* Top tabs */}
-      <div style={{ display: "flex", gap: 26, marginBottom: 18, borderBottom: "1px solid var(--gb)" }}>
-        {TABS.map(({ id, label, Icon }) => (
-          <button key={id} onClick={() => setTab(id)} style={{
-            background: "none", border: "none", cursor: "pointer",
-            fontSize: 13.5, fontWeight: tab === id ? 800 : 600,
-            color: tab === id ? "var(--text)" : "var(--faint)",
-            paddingBottom: 14, marginBottom: -1,
-            borderBottom: `2px solid ${tab === id ? "var(--teal)" : "transparent"}`,
-            display: "flex", alignItems: "center", gap: 7, transition: "all .15s",
-          }}>
-            <Icon size={14} strokeWidth={2} />{label}
-          </button>
-        ))}
+      {/* Page header */}
+      <div style={{ marginBottom: 20 }}>
+        <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--faint)" }}>
+          กลุ่ม 2 · AI สร้างคอนเทนต์
+        </p>
+        <h1 style={{
+          margin: 0, fontSize: 22, fontWeight: 900, letterSpacing: "-.02em",
+          background: "linear-gradient(90deg, var(--teal), var(--blue))",
+          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+        }}>สร้างวิดีโอด้วย AI</h1>
       </div>
 
       {/* Template bar */}
@@ -323,15 +308,33 @@ export default function GeneratePage() {
           </div>
         </div>
 
-        {/* Canvas */}
+        {/* Canvas — running-light border when generating */}
         <div style={{
-          position: "relative", flex: 1,
-          background: "var(--glass)", border: "1px solid var(--gb)", borderRadius: 14,
+          position: "relative", flex: 1, borderRadius: 16,
+          padding: status === "running" ? 2 : 1,
+          background: status === "running" ? "transparent" : "var(--gb)",
+          overflow: "hidden", display: "flex", flexDirection: "column",
+        }}>
+          {/* Rotating conic-gradient — the "ไฟวิ่ง" effect */}
+          {status === "running" && (
+            <div style={{
+              position: "absolute",
+              width: "200%", height: "200%",
+              top: "-50%", left: "-50%",
+              background: "conic-gradient(from 0deg, transparent 0deg, #22D499 30deg, #00FFD4 50deg, #4D7FFF 85deg, #A855F7 110deg, transparent 150deg)",
+              animation: "spin-border 1.8s linear infinite",
+              transformOrigin: "center center",
+            }} />
+          )}
+
+        <div style={{
+          position: "relative",
+          background: "var(--glass)", borderRadius: 14,
           display: "flex", alignItems: "center", justifyContent: "center",
-          flexDirection: "column", minHeight: 420, overflow: "hidden",
+          flexDirection: "column", minHeight: 420, flex: 1, overflow: "hidden",
         }}>
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
-            background: "radial-gradient(60% 60% at 70% 20%,rgba(0,255,212,.06),transparent),radial-gradient(50% 50% at 30% 80%,rgba(77,127,255,.06),transparent)" }} />
+            background: "radial-gradient(60% 60% at 70% 20%,rgba(0,255,212,.07),transparent),radial-gradient(50% 50% at 30% 80%,rgba(77,127,255,.07),transparent),radial-gradient(40% 40% at 50% 50%,rgba(168,85,247,.04),transparent)" }} />
 
           {/* Voice badge */}
           <div style={{
@@ -522,6 +525,7 @@ export default function GeneratePage() {
             )}
           </div>
         </div>
+        </div>
       </div>
 
       {/* Bottom bar */}
@@ -546,18 +550,26 @@ export default function GeneratePage() {
         </div>
 
         <button onClick={handleGenerate} disabled={status === "running"} style={{
-          marginLeft: "auto",
+          marginLeft: "auto", position: "relative", overflow: "hidden",
           background: status === "running" ? "var(--glass2)" : "linear-gradient(90deg,#22D499,#00FFD4,#4D7FFF)",
           backgroundSize: "200% 200%",
           color: status === "running" ? "var(--faint)" : "#06060A",
           border: "none", padding: "12px 40px", borderRadius: 12,
           fontSize: 14, fontWeight: 900,
           cursor: status === "running" ? "not-allowed" : "pointer",
-          boxShadow: status === "running" ? "none" : "0 6px 20px rgba(34,212,153,.35)",
           display: "flex", alignItems: "center", gap: 8,
-          animation: status !== "running" ? "gbg 3s ease infinite" : "none",
+          animation: status === "running" ? "none" : "gbg 3s ease infinite, btn-glow 2s ease-in-out infinite",
           transition: "all .2s",
         }}>
+          {/* Shimmer sweep when idle */}
+          {status !== "running" && (
+            <div style={{
+              position: "absolute", top: 0, left: "-80%", width: "50%", height: "100%",
+              background: "linear-gradient(90deg, transparent, rgba(255,255,255,.25), transparent)",
+              animation: "shimmer 2.5s ease-in-out infinite",
+              pointerEvents: "none",
+            }} />
+          )}
           {status === "running"
             ? <><Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> กำลังสร้าง...</>
             : <><Sparkles size={15} /> Generate</>}
@@ -620,7 +632,10 @@ export default function GeneratePage() {
       <style>{`
         @keyframes gbg { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
         @keyframes spin { to{transform:rotate(360deg)} }
+        @keyframes spin-border { to{transform:rotate(360deg)} }
         @keyframes vpulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.75)} }
+        @keyframes btn-glow { 0%,100%{box-shadow:0 6px 20px rgba(34,212,153,.35)} 50%{box-shadow:0 6px 32px rgba(34,212,153,.6),0 0 0 4px rgba(34,212,153,.1)} }
+        @keyframes shimmer { 0%{left:-80%} 100%{left:120%} }
       `}</style>
     </div>
   );
