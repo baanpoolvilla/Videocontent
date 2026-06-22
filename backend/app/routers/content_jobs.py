@@ -117,7 +117,7 @@ async def generate_script(
     analysis_result = await db.execute(
         select(Analysis).where(Analysis.product_id == job.product_id).order_by(Analysis.created_at.desc())
     )
-    analysis = analysis_result.scalar_one_or_none()
+    analysis = analysis_result.scalars().first()
     if not analysis:
         raise HTTPException(status_code=400, detail="No analysis found — run /analyze first")
 
@@ -178,7 +178,7 @@ async def generate_voiceover(
         script_result = await db.execute(
             select(Script).where(Script.content_job_id == job_id).order_by(Script.version.desc())
         )
-    script = script_result.scalar_one_or_none()
+    script = script_result.scalars().first()
     if not script:
         raise HTTPException(status_code=400, detail="No script found — run /generate-script first")
 
