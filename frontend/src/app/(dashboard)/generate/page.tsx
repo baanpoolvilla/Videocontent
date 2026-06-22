@@ -8,11 +8,18 @@ import { ChevronDown, Film, Image, Layers, Pen, Loader2, Download, RefreshCw, X,
 interface Product { id: string; name: string; media_urls: string[]; }
 
 const TEMPLATES = [
-  { id: "friend",  emoji: "🤝", label: "รีวิวเพื่อนสนิท",     desc: "เสียงเป็นกันเอง · โทนสบายๆ · เหมาะกับสกินแคร์",   tone: "สนุก กระชับ เป็นกันเอง",        cta: "ลองดูได้เลย" },
-  { id: "luxury",  emoji: "✨", label: "ลักชัวรี่ซีเนมาติก",  desc: "โทนหรู · พรีเมียม · เน้นคุณค่าและความพิเศษ",       tone: "หรู พรีเมียม มีระดับ ซีเนมาติก", cta: "สัมผัสความพิเศษ" },
-  { id: "promo",   emoji: "🔥", label: "โปรโมชั่นเร่งด่วน",   desc: "เร่งด่วน · มีส่วนลด · กระตุ้นการซื้อสูง",           tone: "เร่งด่วน กระตุ้น โปรโมชั่น ลด", cta: "สั่งเลยวันนี้" },
-  { id: "unbox",   emoji: "📦", label: "มีมเปิดกล่อง",         desc: "ตลก · สนุก · สไตล์ UGC ถ่ายเอง",                   tone: "ตลก สนุก UGC เป็นธรรมชาติ",     cta: "ลิงก์ใน bio" },
-  { id: "pro",     emoji: "💼", label: "รีวิวมืออาชีพ",        desc: "หนักแน่น · มีข้อมูล · น่าเชื่อถือสูง",             tone: "มืออาชีพ หนักแน่น ข้อมูลชัดเจน",cta: "เปรียบเทียบแล้วซื้อ" },
+  { id: "friend",   emoji: "🤝", label: "รีวิวเพื่อนสนิท",      desc: "เสียงเป็นกันเอง · สบายๆ · เหมาะสกินแคร์/ของใช้",  tone: "สนุก กระชับ เป็นกันเอง เหมือนเพื่อนแนะนำ",              cta: "ลองดูได้เลย" },
+  { id: "luxury",   emoji: "✨", label: "ลักชัวรี่ซีเนมาติก",   desc: "หรู · พรีเมียม · เน้นคุณค่าและความพิเศษ",           tone: "หรู พรีเมียม มีระดับ ซีเนมาติก บรรยายละเอียด",           cta: "สัมผัสความพิเศษ" },
+  { id: "promo",    emoji: "🔥", label: "โปรโมชั่นเร่งด่วน",    desc: "เร่งด่วน · มีส่วนลด · กระตุ้นการซื้อสูง",          tone: "เร่งด่วน กระตุ้น โปรโมชั่น มีเวลาจำกัด ลด",             cta: "สั่งเลยวันนี้" },
+  { id: "unbox",    emoji: "📦", label: "มีมเปิดกล่อง",          desc: "สนุก · UGC · สไตล์ถ่ายเอง ดูเป็นธรรมชาติ",         tone: "ตลก สนุก UGC เป็นธรรมชาติ ไม่ขัดเกลา",                 cta: "ลิงก์ใน bio" },
+  { id: "pro",      emoji: "💼", label: "รีวิวมืออาชีพ",         desc: "หนักแน่น · มีข้อมูล · น่าเชื่อถือสูง",             tone: "มืออาชีพ หนักแน่น ข้อมูลชัดเจน เปรียบเทียบตัวเลข",     cta: "เปรียบเทียบแล้วซื้อ" },
+  { id: "funny",    emoji: "😂", label: "ตลก / เฮฮา",           desc: "ขำขัน · เซอร์ไพรส์ · ดูแล้วอยากแชร์",              tone: "ตลก เฮฮา ขำขัน เซอร์ไพรส์ มุกแบบไม่คาดฝัน ไวรัล",      cta: "แชร์ให้เพื่อนด้วย" },
+  { id: "comedy",   emoji: "🤣", label: "ขำขัน มีม",             desc: "มีมสไตล์ · ประโยคติดหู · เทรนด์โซเชียล",           tone: "มีม ประโยคติดหู เทรนด์โซเชียล Gen Z สนุก",               cta: "ดูแล้วฉีดยา" },
+  { id: "serious",  emoji: "🎯", label: "ซีเรียส / จริงจัง",    desc: "น้ำเสียงหนักแน่น · ตรงประเด็น · ไม่มีตลก",         tone: "ซีเรียส จริงจัง หนักแน่น พูดตรงๆ ไม่อ้อมค้อม",         cta: "ตัดสินใจเลย" },
+  { id: "lifestyle",emoji: "🌟", label: "ไลฟ์สไตล์",             desc: "แบรนด์คนรุ่นใหม่ · อารมณ์ดี · Aesthetic",           tone: "ไลฟ์สไตล์ aesthetic อารมณ์ดี minimalist คนรุ่นใหม่",    cta: "เป็นส่วนหนึ่งของ lifestyle นี้" },
+  { id: "compare",  emoji: "⚖️", label: "เปรียบเทียบ",           desc: "เทียบสินค้า · ก่อน-หลัง · ข้อดีข้อเสีย",           tone: "เปรียบเทียบ ข้อมูล ก่อนหลัง ข้อดีข้อเสีย ตัวเลขชัดเจน", cta: "เลือกแบบฉลาด" },
+  { id: "before",   emoji: "🔄", label: "ก่อน–หลัง ใช้งาน",      desc: "Transformation · ผลลัพธ์จริง · ดูน่าเชื่อถือ",      tone: "ก่อนหลัง transformation ผลลัพธ์จริง น่าเชื่อถือ",        cta: "ลองเปลี่ยนตัวเองดู" },
+  { id: "travel",   emoji: "✈️", label: "ท่องเที่ยว / Vlog",     desc: "บรรยากาศ · ความสวยงาม · เชิญชวนมาเที่ยว",         tone: "ท่องเที่ยว Vlog บรรยากาศดี เชิญชวน ผ่อนคลาย",           cta: "จองเลยก่อนเต็ม" },
 ];
 
 const TABS = [
@@ -383,24 +390,24 @@ export default function GeneratePage() {
 
       {/* Bottom bar */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 16 }}>
-        <select value={resolution} onChange={e => setResolution(e.target.value)} style={{
-          background: "var(--glass)", border: "1px solid var(--gb)", color: "var(--text)",
-          padding: "10px 14px", borderRadius: 11, fontSize: 12, fontWeight: 600, cursor: "pointer",
-        }}>
-          <option value="720p·15s">720p · 15s · 9:16</option>
-          <option value="1080p·30s">1080p · 30s · 9:16</option>
-          <option value="1080p·60s">1080p · 60s · 9:16</option>
-        </select>
+        <div style={{ position: "relative" }}>
+          <select value={resolution} onChange={e => setResolution(e.target.value)} className="cs-select">
+            <option value="720p·15s">720p · 15s · 9:16</option>
+            <option value="1080p·30s">1080p · 30s · 9:16</option>
+            <option value="1080p·60s">1080p · 60s · 9:16</option>
+          </select>
+          <ChevronDown size={12} color="var(--faint)" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+        </div>
 
-        <select value={voice} onChange={e => setVoice(e.target.value)} style={{
-          background: "var(--glass)", border: "1px solid var(--gb)", color: "var(--text)",
-          padding: "10px 14px", borderRadius: 11, fontSize: 12, fontWeight: 600, cursor: "pointer",
-        }}>
-          <option>เป็นกันเอง (หญิง)</option>
-          <option>มืออาชีพ (ชาย)</option>
-          <option>สดใส (หญิง)</option>
-          <option>หนักแน่น (ชาย)</option>
-        </select>
+        <div style={{ position: "relative" }}>
+          <select value={voice} onChange={e => setVoice(e.target.value)} className="cs-select">
+            <option>เป็นกันเอง (หญิง)</option>
+            <option>มืออาชีพ (ชาย)</option>
+            <option>สดใส (หญิง)</option>
+            <option>หนักแน่น (ชาย)</option>
+          </select>
+          <ChevronDown size={12} color="var(--faint)" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+        </div>
 
         <button onClick={handleGenerate} disabled={status === "running"} style={{
           marginLeft: "auto",
@@ -437,31 +444,38 @@ export default function GeneratePage() {
         }} onClick={() => setShowTplModal(false)}>
           <div style={{
             background: "var(--surface)", border: "1px solid var(--gb)",
-            borderRadius: 20, padding: 28, width: "100%", maxWidth: 580,
+            borderRadius: 20, padding: 28, width: "100%", maxWidth: 720,
+            maxHeight: "85vh", display: "flex", flexDirection: "column",
           }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>เลือกเทมเพลต</h2>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexShrink: 0 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>เลือกเทมเพลต</h2>
+                <p style={{ margin: "3px 0 0", fontSize: 12, color: "var(--faint)" }}>{TEMPLATES.length} สไตล์ · คลิกเพื่อเลือก</p>
+              </div>
               <button onClick={() => setShowTplModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--faint)" }}>
                 <X size={18} />
               </button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {TEMPLATES.map(t => (
-                <div key={t.id} onClick={() => { setTpl(t); setShowTplModal(false); }} style={{
-                  padding: 16, borderRadius: 14, cursor: "pointer",
-                  border: `1.5px solid ${tpl.id === t.id ? "rgba(0,255,212,.4)" : "var(--gb)"}`,
-                  background: tpl.id === t.id ? "rgba(0,255,212,.05)" : "var(--glass)",
-                }}>
-                  <div style={{ fontSize: 22, marginBottom: 8 }}>{t.emoji}</div>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 4 }}>{t.label}</div>
-                  <div style={{ fontSize: 11, color: "var(--faint)" }}>{t.desc}</div>
-                  {tpl.id === t.id && (
-                    <div style={{ marginTop: 8, display: "inline-block", fontSize: 10, color: "var(--teal)", fontWeight: 700, background: "rgba(0,255,212,.1)", padding: "2px 8px", borderRadius: 5 }}>
-                      ✓ กำลังใช้งาน
-                    </div>
-                  )}
-                </div>
-              ))}
+            <div style={{ overflowY: "auto", flex: 1 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
+                {TEMPLATES.map(t => (
+                  <div key={t.id} onClick={() => { setTpl(t); setShowTplModal(false); }} style={{
+                    padding: "14px 14px 12px", borderRadius: 13, cursor: "pointer",
+                    border: `1.5px solid ${tpl.id === t.id ? "rgba(0,255,212,.5)" : "var(--gb)"}`,
+                    background: tpl.id === t.id ? "rgba(0,255,212,.06)" : "var(--glass)",
+                    transition: "all .12s",
+                  }}>
+                    <div style={{ fontSize: 20, marginBottom: 7 }}>{t.emoji}</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 800, marginBottom: 4, lineHeight: 1.3 }}>{t.label}</div>
+                    <div style={{ fontSize: 10.5, color: "var(--faint)", lineHeight: 1.5 }}>{t.desc}</div>
+                    {tpl.id === t.id && (
+                      <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: "var(--teal)", fontWeight: 700, background: "rgba(0,255,212,.1)", padding: "2px 8px", borderRadius: 5 }}>
+                        ✓ กำลังใช้งาน
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

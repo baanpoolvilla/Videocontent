@@ -312,6 +312,18 @@ body {
 .cs-input::placeholder { color: var(--faint); }
 textarea.cs-input { font-family: inherit; resize: none; }
 
+/* ── Custom Select ── */
+.cs-select {
+  appearance: none; -webkit-appearance: none;
+  background: var(--surface); border: 1px solid var(--gb);
+  border-radius: 10px; padding: 10px 32px 10px 14px;
+  color: var(--text); font-size: 12px; font-weight: 600;
+  font-family: inherit; cursor: pointer; outline: none;
+  transition: border-color .15s;
+}
+.cs-select:focus { border-color: rgba(0,255,212,.35); }
+.cs-select option { background: #1a1d2e; color: var(--text); }
+
 /* ── Table ── */
 .cs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .cs-table th {
