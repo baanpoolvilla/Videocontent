@@ -40,6 +40,10 @@ class ScriptOut(BaseModel):
     full_script: str | None
     version: int
     is_approved: bool
+    reviewer_notes: str | None
+    tokens_used: int | None
+    created_at: datetime
+    updated_at: datetime
 
     model_config = {"from_attributes": True}
 

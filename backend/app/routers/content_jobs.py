@@ -85,6 +85,36 @@ async def get_job_scripts(
     return result.scalars().all()
 
 
+@router.patch("/{job_id}/scripts/{script_id}", response_model=ScriptOut)
+async def update_script(
+    job_id: UUID,
+    script_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    hook: str | None = None,
+    body: str | None = None,
+    cta: str | None = None,
+    full_script: str | None = None,
+    is_approved: bool | None = None,
+    reviewer_notes: str | None = None,
+):
+    result = await db.execute(
+        select(Script).where(Script.id == script_id, Script.content_job_id == job_id)
+    )
+    script = result.scalar_one_or_none()
+    if not script:
+        raise HTTPException(status_code=404, detail="Script not found")
+    if hook is not None:          script.hook = hook
+    if body is not None:          script.body = body
+    if cta is not None:           script.cta = cta
+    if full_script is not None:   script.full_script = full_script
+    if is_approved is not None:   script.is_approved = is_approved
+    if reviewer_notes is not None: script.reviewer_notes = reviewer_notes
+    await db.commit()
+    await db.refresh(script)
+    return script
+
+
 @router.get("/{job_id}/renders", response_model=list[RenderVersionOut])
 async def get_job_renders(
     job_id: UUID,

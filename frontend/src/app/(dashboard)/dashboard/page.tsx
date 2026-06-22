@@ -13,6 +13,21 @@ interface Stats {
   total_renders: number;
 }
 
+interface Job {
+  id: string; status: string; review_status: string;
+  platform: string | null; created_at: string; updated_at: string;
+}
+
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return "เมื่อกี้";
+  if (m < 60) return `${m} นาทีที่แล้ว`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} ชม.ที่แล้ว`;
+  return `${Math.floor(h / 24)} วันที่แล้ว`;
+}
+
 const KPIS = [
   { key: "total_products", label: "สินค้าทั้งหมด", icon: Package,      c: "var(--teal)",   bg: "rgba(0,255,212,.12)" },
   { key: "total_jobs",     label: "งานทั้งหมด",    icon: TrendingUp,   c: "var(--blue)",   bg: "rgba(77,127,255,.12)" },
@@ -34,12 +49,17 @@ const BAR_H = [55, 80, 38, 95, 62, 45, 72];
 
 export default function DashboardPage() {
   const [stats, setStats]     = useState<Stats | null>(null);
+  const [recentJobs, setRecentJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get("/dashboard/stats")
-      .then((r) => setStats(r.data))
-      .catch(() => setStats({ total_products: 0, total_jobs: 0, completed_jobs: 0, pending_review: 0, total_renders: 0 }))
+    Promise.all([
+      api.get("/dashboard/stats"),
+      api.get("/jobs/?limit=8"),
+    ]).then(([statsRes, jobsRes]) => {
+      setStats(statsRes.data);
+      setRecentJobs(jobsRes.data);
+    }).catch(() => setStats({ total_products: 0, total_jobs: 0, completed_jobs: 0, pending_review: 0, total_renders: 0 }))
       .finally(() => setLoading(false));
   }, []);
 
@@ -195,30 +215,44 @@ export default function DashboardPage() {
             <span style={{ fontSize: 12, color: "var(--blue)", fontWeight: 600 }}>ดูทั้งหมด →</span>
           </Link>
         </div>
-        <table className="cs-table">
-          <thead>
-            <tr>
-              <th>รหัสงาน</th>
-              <th>สถานะ</th>
-              <th>แพลตฟอร์ม</th>
-              <th>เวลา</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style={{ fontFamily: "monospace", fontSize: 12, color: "var(--dim)" }}>d949483b…</td>
-              <td><span className="tag tag-ok">completed</span></td>
-              <td><span style={{ color: "var(--faint)", fontSize: 12 }}>TikTok</span></td>
-              <td><span style={{ color: "var(--faint)", fontSize: 12 }}>2 นาทีที่แล้ว</span></td>
-            </tr>
-            <tr>
-              <td style={{ fontFamily: "monospace", fontSize: 12, color: "var(--dim)" }}>39ccec88…</td>
-              <td><span className="tag tag-warn">review_needed</span></td>
-              <td><span style={{ color: "var(--faint)", fontSize: 12 }}>Instagram</span></td>
-              <td><span style={{ color: "var(--faint)", fontSize: 12 }}>15 นาทีที่แล้ว</span></td>
-            </tr>
-          </tbody>
-        </table>
+        {recentJobs.length === 0 && !loading ? (
+          <div style={{ textAlign: "center", padding: "24px 0", color: "var(--faint)", fontSize: 13 }}>ยังไม่มีงาน — ไปสร้างคลิปแรก!</div>
+        ) : (
+          <table className="cs-table">
+            <thead>
+              <tr>
+                <th>รหัสงาน</th>
+                <th>สถานะ</th>
+                <th>ตรวจสอบ</th>
+                <th>แพลตฟอร์ม</th>
+                <th>เวลา</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentJobs.map(j => (
+                <tr key={j.id}>
+                  <td style={{ fontFamily: "monospace", fontSize: 12, color: "var(--dim)" }}>{j.id.slice(0, 8)}…</td>
+                  <td>
+                    <span className={`tag ${j.status === "completed" ? "tag-ok" : j.status === "processing" ? "tag-info" : "tag-warn"}`}>
+                      {j.status}
+                    </span>
+                  </td>
+                  <td>
+                    {j.review_status === "approved"
+                      ? <span className="tag tag-ok">อนุมัติ</span>
+                      : j.review_status === "rejected"
+                      ? <span className="tag tag-err">ปฏิเสธ</span>
+                      : j.review_status === "review_needed"
+                      ? <span className="tag tag-warn">รอตรวจ</span>
+                      : <span style={{ color: "var(--faint)", fontSize: 11 }}>—</span>}
+                  </td>
+                  <td><span style={{ color: "var(--faint)", fontSize: 12 }}>{j.platform || "—"}</span></td>
+                  <td><span style={{ color: "var(--faint)", fontSize: 12 }}>{timeAgo(j.updated_at)}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
