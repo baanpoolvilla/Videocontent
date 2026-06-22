@@ -27,15 +27,36 @@ function fmtPrice(p: number | null) {
   return p.toLocaleString("th-TH", { style: "currency", currency: "THB", maximumFractionDigits: 0 });
 }
 
-function CopyPill({ text }: { text: string }) {
+function CopyPill({ text, color = "var(--dim)", bg = "rgba(255,255,255,.04)", border = "rgba(255,255,255,.1)" }: { text: string; color?: string; bg?: string; border?: string }) {
   const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    }).catch(() => {
+      // fallback for older browsers
+      const el = document.createElement("textarea");
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    });
+  };
   return (
-    <button onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1800); }}
-      style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 20, cursor: "pointer", transition: "all .15s",
-        fontSize: 11.5, fontWeight: 600, border: `1px solid ${copied ? "rgba(34,212,153,.4)" : "rgba(255,255,255,.1)"}`,
-        background: copied ? "rgba(34,212,153,.1)" : "rgba(255,255,255,.04)", color: copied ? "var(--ok)" : "var(--dim)" }}>
-      {copied ? <Check size={10} /> : <Copy size={10} />}
-      {text.length > 60 ? text.slice(0, 60) + "…" : text}
+    <button onClick={copy} title={`คัดลอก: ${text}`} style={{
+      display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px",
+      borderRadius: 20, cursor: "pointer", transition: "all .15s",
+      fontSize: 12, fontWeight: 600,
+      border: `1px solid ${copied ? "rgba(34,212,153,.5)" : border}`,
+      background: copied ? "rgba(34,212,153,.15)" : bg,
+      color: copied ? "var(--ok)" : color,
+      boxShadow: copied ? "0 0 12px rgba(34,212,153,.2)" : "none",
+    }}>
+      {copied ? <Check size={11} strokeWidth={2.5} /> : <Copy size={11} />}
+      {text.length > 55 ? text.slice(0, 55) + "…" : text}
     </button>
   );
 }
@@ -213,13 +234,11 @@ export default function AnalysisPage() {
                       <div style={{ background: "rgba(34,212,153,.04)", border: "1px solid rgba(34,212,153,.1)", borderRadius: 12, padding: "14px 16px", marginBottom: 12 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
                           <Zap size={13} color="var(--ok)" />
-                          <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--ok)" }}>Key Features</span>
+                          <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--ok)" }}>Key Features (คลิกเพื่อคัดลอก)</span>
                         </div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
                           {result.key_features.map((f, i) => (
-                            <span key={i} style={{ padding: "4px 10px", borderRadius: 20, fontSize: 11.5, fontWeight: 600, background: "rgba(34,212,153,.08)", border: "1px solid rgba(34,212,153,.2)", color: "var(--ok)" }}>
-                              {f}
-                            </span>
+                            <CopyPill key={i} text={f} color="var(--ok)" bg="rgba(34,212,153,.08)" border="rgba(34,212,153,.25)" />
                           ))}
                         </div>
                       </div>
