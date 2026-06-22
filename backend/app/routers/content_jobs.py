@@ -3,7 +3,7 @@ from uuid import UUID
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -84,11 +84,15 @@ async def delete_job(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
-    job = result.scalar_one_or_none()
-    if not job:
+    if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Job not found")
-    await db.delete(job)
-    await db.commit()
+    try:
+        # Use SQL-level DELETE so ondelete="CASCADE" on FK fires automatically
+        await db.execute(sa_delete(ContentJob).where(ContentJob.id == job_id))
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Delete failed: {e}")
 
 
 @router.get("/{job_id}/scripts", response_model=list[ScriptOut])
