@@ -103,6 +103,7 @@ async def generate_script(
     tone_of_voice: str = "",
     cta_style: str = "",
     duration_sec: int = 30,
+    concept: str = "",
 ):
     result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
     job = result.scalar_one_or_none()
@@ -134,6 +135,7 @@ async def generate_script(
         tone_of_voice=tone_of_voice,
         cta_style=cta_style,
         duration_sec=duration_sec,
+        concept=concept,
     )
 
     existing = await db.execute(select(Script).where(Script.content_job_id == job_id))

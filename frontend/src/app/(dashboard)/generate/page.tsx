@@ -61,9 +61,16 @@ export default function GeneratePage() {
 
   const durSec = parseInt(resolution.split("·")[1]) || 30;
 
-  const runOne = async (vLabel: string, toneExtra: string) => {
+  const TONE_VARIANTS = [
+    tpl.tone,
+    `${tpl.tone} — สั้นกระชับ ตรงประเด็น ไม่อ้อมค้อม พูดน้อยแต่โดน`,
+    `${tpl.tone} — ใช้ตัวเลขและข้อมูล เน้นข้อเท็จจริง เปรียบเทียบราคา/ผลลัพธ์`,
+    `${tpl.tone} — storytelling เปิดด้วยปัญหาของคน เดินเรื่อง แล้วค่อยนำเสนอสินค้า`,
+    `${tpl.tone} — hook แปลกใหม่ เซอร์ไพรส์ ทำให้คนหยุดดู ไม่เหมือนโฆษณาทั่วไป`,
+  ];
+
+  const runOne = async (vLabel: string, toneVariant: string) => {
     if (!product) return "";
-    const tone = `${tpl.tone}. ${toneExtra}`.trim();
 
     setStep(0);
     const jobRes = await api.post("/jobs/", { product_id: product.id, platform: "tiktok" });
@@ -73,7 +80,7 @@ export default function GeneratePage() {
 
     setStep(1);
     await api.post(`/jobs/${jobId}/generate-script`, null, {
-      params: { tone_of_voice: tone, cta_style: tpl.cta, duration_sec: durSec },
+      params: { tone_of_voice: toneVariant, cta_style: tpl.cta, duration_sec: durSec, concept },
     });
 
     setStep(2);
@@ -96,16 +103,9 @@ export default function GeneratePage() {
 
     try {
       const count = multiVer ? verCount : 1;
-      const variants = [
-        concept,
-        `${concept} (เวอร์ชันสั้นกระชับ)`,
-        `${concept} (เวอร์ชันใช้ตัวเลข)`,
-        `${concept} (เวอร์ชัน storytelling)`,
-        `${concept} (เวอร์ชัน hook แปลก)`,
-      ];
       const acc: Record<string, string> = {};
       for (let i = 0; i < count; i++) {
-        const url = await runOne(VER_LABELS[i], variants[i]);
+        const url = await runOne(VER_LABELS[i], TONE_VARIANTS[i]);
         acc[VER_LABELS[i]] = url;
         setResults({ ...acc });
       }

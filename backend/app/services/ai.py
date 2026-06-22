@@ -52,31 +52,34 @@ class AIService:
         tone_of_voice: str = "",
         cta_style: str = "",
         duration_sec: int = 30,
+        concept: str = "",
     ) -> dict:
+        concept_block = f"\nแนวคิดพิเศษจากผู้สร้าง: {concept}" if concept.strip() else ""
         prompt = f"""สร้าง Script วิดีโอสั้นสำหรับสินค้า: {product_name}
 
 ข้อมูลการวิเคราะห์:
 - จุดขาย: {", ".join(analysis.get("selling_points", []))}
 - กลุ่มเป้าหมาย: {analysis.get("target_audience", "")}
 - Hook ที่แนะนำ: {", ".join(analysis.get("suggested_hooks", []))}
-
-โทนเสียง: {tone_of_voice or "เป็นมิตร น่าเชื่อถือ"}
+{concept_block}
+โทนเสียงและสไตล์: {tone_of_voice or "เป็นมิตร น่าเชื่อถือ"}
 CTA: {cta_style or "กระตุ้นการซื้อ"}
 ความยาว: {duration_sec} วินาที
 
+IMPORTANT: สร้าง Script ที่แตกต่างจากเวอร์ชันอื่นอย่างชัดเจน ตาม "โทนเสียงและสไตล์" ที่กำหนด
 สร้าง Script ในรูปแบบ JSON เท่านั้น ไม่ต้องมีข้อความอื่น:
 {{
   "hook": "ประโยคเปิดที่ดึงดูดใน 3 วินาที",
   "body": "เนื้อหาหลัก 15-20 วินาที",
   "cta": "Call to Action 5-7 วินาที",
-  "full_script": "Script ฉบับเต็ม"
+  "full_script": "Script ฉบับเต็มที่พูดได้เลย"
 }}"""
 
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=1024,
-            temperature=0.7,
+            temperature=0.95,
         )
 
         content = response.choices[0].message.content
