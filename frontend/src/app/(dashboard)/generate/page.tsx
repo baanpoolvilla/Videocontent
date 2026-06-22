@@ -112,8 +112,8 @@ export default function GeneratePage() {
     });
 
     setStep(3);
-    const renderRes = await api.post(`/jobs/${jobId}/render`, null, {
-      params: { voiceover_url: voiceRes.data.voiceover_url, duration_sec: durSec },
+    const renderRes = await api.post(`/jobs/${jobId}/wan-render`, null, {
+      params: { prompt: concept || tpl.tone, aspect_ratio: "9:16", duration: String(Math.min(durSec, 10)) },
     });
 
     return renderRes.data.video_url || "";

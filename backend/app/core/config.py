@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     ELEVENLABS_API_KEY: str = ""
     KLING_API_KEY: str = ""
+    FAL_KEY: str = ""
 
     N8N_WEBHOOK_URL: str = "http://n8n:5678"
 

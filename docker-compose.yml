@@ -178,6 +178,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
       KLING_API_KEY: ${KLING_API_KEY:-}
+      FAL_KEY: ${FAL_KEY:-}
       N8N_WEBHOOK_URL: http://n8n:5678
       CORS_ORIGINS: ${CORS_ORIGINS:-https://videocontent.vercel.app,http://localhost:3000,http://localhost:3001}
       TZ: Asia/Bangkok

@@ -19,6 +19,7 @@ from app.services.ai import ai_service
 from app.services.tts import tts_service
 from app.services.video import video_service
 from app.services.kling import kling_service
+from app.services.wan import wan_service
 
 router = APIRouter(prefix="/jobs", tags=["content-jobs"])
 
@@ -374,6 +375,74 @@ async def kling_status(
             await db.commit()
 
     return status_result
+
+
+@router.post("/{job_id}/wan-render", response_model=dict)
+async def wan_render(
+    job_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    prompt: str = "",
+    aspect_ratio: str = "9:16",
+    duration: str = "5",
+):
+    result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    product_result = await db.execute(select(Product).where(Product.id == job.product_id))
+    product = product_result.scalar_one_or_none()
+
+    if not prompt:
+        script_result = await db.execute(
+            select(Script).where(Script.content_job_id == job_id).order_by(Script.version.desc())
+        )
+        script = script_result.scalars().first()
+        prompt = script.hook if script and script.hook else (product.name if product else "")
+
+    image_urls = list(product.media_urls or []) if product else []
+
+    try:
+        if image_urls:
+            raw = image_urls[0].strip("/")
+            parts = raw.split("/", 1)
+            bucket, obj = parts[0], parts[1] if len(parts) > 1 else raw
+            img_public = storage_service.get_presigned_url(bucket, obj, expires=3600)
+            wan_result = await wan_service.image_to_video(
+                image_url=img_public,
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                duration=duration,
+            )
+        else:
+            wan_result = await wan_service.text_to_video(
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                duration=duration,
+            )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    render = RenderVersion(
+        content_job_id=job_id,
+        version_label="wan-v1",
+        final_video_url=wan_result.get("video_url"),
+        status="completed" if wan_result.get("video_url") else "processing",
+        ffmpeg_config={"provider": "wan-fal", "prompt": prompt},
+    )
+    db.add(render)
+    job.status = "completed"
+    job.review_status = "review_needed"
+    await db.commit()
+    await db.refresh(render)
+
+    return {
+        "render_id": str(render.id),
+        "job_id": str(job_id),
+        "video_url": wan_result.get("video_url", ""),
+        "status": "completed",
+    }
 
 
 @router.patch("/{job_id}/approve")
