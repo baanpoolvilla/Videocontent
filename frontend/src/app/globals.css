@@ -39,6 +39,9 @@ body {
   color: var(--text);
   font-family: -apple-system, 'Segoe UI', 'Noto Sans Thai', Helvetica, Arial, sans-serif;
   overflow-x: hidden;
+  /* Subtle dot grid — makes empty areas look designed, not just black */
+  background-image: radial-gradient(circle, rgba(255,255,255,.028) 1px, transparent 1px);
+  background-size: 28px 28px;
 }
 
 /* ── Scrollbar ── */
@@ -481,7 +484,10 @@ textarea.cs-input { font-family: inherit; resize: none; }
   from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.page-enter { animation: pgIn .3s ease; }
+.page-enter {
+  animation: pgIn .3s ease;
+  min-height: 100vh;   /* stretch short pages to fill the viewport */
+}
 
 /* ── View switch ── */
 .view-switch {

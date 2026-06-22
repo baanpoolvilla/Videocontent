@@ -51,6 +51,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar />
       <main style={{ flex: 1, overflowY: "auto", position: "relative", zIndex: 1 }}>
         {children}
+        {/* Bottom ambient glow — fades the page bottom nicely on short pages */}
+        <div style={{
+          position: "fixed", bottom: 2, left: 260, right: 2,
+          height: 180, pointerEvents: "none", zIndex: 0,
+          background: "linear-gradient(0deg, rgba(0,255,212,.03) 0%, rgba(77,127,255,.02) 40%, transparent 100%)",
+        }} />
       </main>
     </div>
   );
