@@ -405,10 +405,9 @@ async def wan_render(
 
     try:
         if image_urls:
+            # Build publicly accessible URL via backend file proxy
             raw = image_urls[0].strip("/")
-            parts = raw.split("/", 1)
-            bucket, obj = parts[0], parts[1] if len(parts) > 1 else raw
-            img_public = storage_service.get_presigned_url(bucket, obj, expires=3600)
+            img_public = f"{settings.API_BASE_URL}/api/v1/files/{raw}"
             wan_result = await wan_service.image_to_video(
                 image_url=img_public,
                 prompt=prompt,

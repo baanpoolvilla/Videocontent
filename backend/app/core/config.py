@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     ELEVENLABS_API_KEY: str = ""
     KLING_API_KEY: str = ""
     FAL_KEY: str = ""
+    API_BASE_URL: str = "http://localhost:8000"
 
     N8N_WEBHOOK_URL: str = "http://n8n:5678"
 
