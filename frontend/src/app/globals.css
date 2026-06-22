@@ -100,8 +100,29 @@ body {
 }
 .sidebar::after {
   content: '';
-  position: absolute; top: 0; right: 0; width: 1px; height: 100%;
-  background: linear-gradient(180deg, transparent, rgba(0,255,212,.25) 30%, rgba(77,127,255,.2) 70%, transparent);
+  position: absolute; top: -100%; right: 0; width: 2px; height: 100%;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(0,255,212,.8) 25%,
+    rgba(77,127,255,.7) 55%,
+    rgba(168,85,247,.5) 75%,
+    transparent 100%
+  );
+  animation: sb-run 3.5s linear infinite;
+}
+@keyframes sb-run {
+  from { transform: translateY(0); }
+  to   { transform: translateY(200%); }
+}
+
+/* ── Viewport frame running-light keyframes ── */
+@keyframes frame-h {
+  0%   { background-position-x: 200%; }
+  100% { background-position-x: -100%; }
+}
+@keyframes frame-v {
+  0%   { background-position-y: -150%; }
+  100% { background-position-y: 250%; }
 }
 .sidebar-inner { flex: 1; overflow-y: auto; padding-bottom: 8px; }
 
@@ -128,11 +149,7 @@ body {
 }
 .qnav-item:hover { background: var(--glass2); color: var(--text); }
 .qnav-item.active { background: rgba(0,255,212,.08); color: var(--teal); }
-.qnav-item.active::before {
-  content: ''; position: absolute; left: 0; top: 22%; bottom: 22%;
-  width: 3px; background: var(--teal); border-radius: 0 3px 3px 0;
-  box-shadow: 0 0 10px var(--teal);
-}
+/* ::before bar removed — sidebar.tsx now renders group-colored bars inline */
 .qnav-icon {
   width: 27px; height: 27px; border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
@@ -149,11 +166,7 @@ body {
 }
 .nav-item:hover { background: var(--glass2); color: var(--text); }
 .nav-item.active { background: rgba(0,255,212,.08); color: var(--teal); font-weight: 700; }
-.nav-item.active::before {
-  content: ''; position: absolute; left: 0; top: 25%; bottom: 25%;
-  width: 3px; background: var(--teal); border-radius: 0 3px 3px 0;
-  box-shadow: 0 0 8px var(--teal);
-}
+/* ::before bar removed — sidebar.tsx now renders group-colored bars inline */
 .nav-step {
   font-size: 9px; font-weight: 700; color: var(--faint);
   width: 20px; height: 20px; border-radius: 6px;

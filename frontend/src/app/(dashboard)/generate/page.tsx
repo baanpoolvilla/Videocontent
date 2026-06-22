@@ -257,20 +257,36 @@ export default function GeneratePage() {
               </div>
             )}
 
-            {/* Hint */}
-            <p style={{ margin: 0, fontSize: 11, color: "var(--teal)", lineHeight: 1.6, opacity: .85 }}>
-              ใช้เครื่องหมายคำพูดสำหรับบทพูด เช่น พูดว่า &quot;เซรั่มตัวนี้ใช้มา 2 อาทิตย์&quot; รองรับหลายภาษาและสำเนียง
-            </p>
-
-            {/* Concept */}
-            <textarea value={concept} onChange={e => setConcept(e.target.value)}
-              placeholder={`อธิบายคลิปที่อยากได้ เช่น "รีวิว${tpl.label}โทนสบายๆ เน้นจุดเด่นสินค้า"`}
-              style={{
-                flex: 1, width: "100%", background: "transparent", border: "none",
-                color: "var(--text)", fontSize: 13, lineHeight: 1.7, resize: "none",
-                outline: "none", minHeight: 90, fontFamily: "inherit",
-              }}
-            />
+            {/* Concept input — labeled, visible */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--faint)" }}>
+                  อธิบายคอนเซ็ปต์
+                </span>
+                <span style={{ fontSize: 10, color: "var(--faint)", opacity: .6 }}>(ไม่บังคับ)</span>
+              </div>
+              <div style={{
+                flex: 1, border: "1px solid var(--gb)", borderRadius: 10,
+                background: "rgba(255,255,255,.03)", overflow: "hidden",
+                transition: "border-color .15s",
+                display: "flex", flexDirection: "column",
+              }}>
+                <textarea value={concept} onChange={e => setConcept(e.target.value)}
+                  placeholder={`เช่น "รีวิว${tpl.label} โทนสบายๆ เน้นสระส่วนตัว วิว sunset"`}
+                  style={{
+                    flex: 1, width: "100%", background: "transparent", border: "none",
+                    color: "var(--text)", fontSize: 13, lineHeight: 1.7, resize: "none",
+                    outline: "none", minHeight: 100, fontFamily: "inherit",
+                    padding: "10px 12px",
+                  }}
+                />
+                <div style={{ padding: "6px 12px", borderTop: "1px solid var(--gb)", background: "rgba(0,255,212,.03)" }}>
+                  <span style={{ fontSize: 10, color: "var(--teal)", opacity: .8 }}>
+                    💡 เช่น: "พูดว่า &apos;มาพักกัน&apos; เน้นสระส่วนตัว ภาษาสบายๆ" หรือเว้นว่างให้ AI สร้างอัตโนมัติ
+                  </span>
+                </div>
+              </div>
+            </div>
 
             {/* Multi-version */}
             <div style={{
@@ -364,14 +380,35 @@ export default function GeneratePage() {
           <div style={{ position: "relative", zIndex: 1, textAlign: "center", padding: 24, width: "100%" }}>
 
             {status === "idle" && (
-              <>
-                <div style={{ fontSize: 36, opacity: .35, marginBottom: 10 }}>🎬</div>
-                <div style={{ fontSize: 12.5, color: "var(--faint)", marginBottom: 16 }}>พรีวิวคลิปจะแสดงตรงนี้หลังกดสร้าง</div>
+              <div style={{ textAlign: "center", padding: "0 20px" }}>
+                {/* Pulsing ring */}
+                <div style={{ position: "relative", width: 80, height: 80, margin: "0 auto 20px" }}>
+                  <div style={{
+                    position: "absolute", inset: 0, borderRadius: "50%",
+                    border: "2px solid rgba(0,255,212,.15)",
+                    animation: "spin 8s linear infinite",
+                  }} />
+                  <div style={{
+                    position: "absolute", inset: 8, borderRadius: "50%",
+                    border: "1.5px dashed rgba(77,127,255,.2)",
+                    animation: "spin 5s linear infinite reverse",
+                  }} />
+                  <div style={{
+                    position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 28, opacity: .5,
+                  }}>🎬</div>
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--dim)", marginBottom: 6 }}>
+                  พร้อมสร้างวิดีโอ
+                </div>
+                <div style={{ fontSize: 12, color: "var(--faint)", marginBottom: 16, lineHeight: 1.6 }}>
+                  เลือกสินค้า · เลือกเทมเพลต · กด Generate<br/>วิดีโอจะโผล่ตรงนี้
+                </div>
                 <button onClick={() => router.push("/render-queue")} style={{
-                  background: "var(--glass)", border: "1px solid var(--gb)", color: "var(--text)",
-                  padding: "9px 18px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
-                }}>ดูเทมเพลตที่เคยใช้ →</button>
-              </>
+                  background: "var(--glass)", border: "1px solid var(--gb)", color: "var(--dim)",
+                  padding: "8px 16px", borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                }}>ดูคิวเรนเดอร์ →</button>
+              </div>
             )}
 
             {status === "running" && (

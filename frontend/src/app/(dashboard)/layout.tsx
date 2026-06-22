@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 
@@ -19,6 +19,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!ready) return null;
 
+  /* Running-light strip styles shared across all 4 edges */
+  const frameBase: React.CSSProperties = { position: "fixed", pointerEvents: "none", zIndex: 9999 };
+
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "var(--bg)" }}>
       <div className="bg-canvas">
@@ -26,6 +29,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="orb orb2" />
         <div className="orb orb3" />
       </div>
+
+      {/* ── 4-edge viewport running-light frame ── */}
+      {/* Top */}
+      <div style={{ ...frameBase, top: 0, left: 0, right: 0, height: 2,
+        background: "linear-gradient(90deg, transparent 0%, #22D499 20%, #00FFD4 38%, #4D7FFF 55%, transparent 75%)",
+        backgroundSize: "250% 100%", animation: "frame-h 4s linear infinite" }} />
+      {/* Right */}
+      <div style={{ ...frameBase, top: 0, right: 0, bottom: 0, width: 2,
+        background: "linear-gradient(180deg, transparent 0%, #4D7FFF 25%, #A855F7 50%, #FF6FB7 70%, transparent 90%)",
+        backgroundSize: "100% 250%", animation: "frame-v 5s linear infinite" }} />
+      {/* Bottom */}
+      <div style={{ ...frameBase, bottom: 0, left: 0, right: 0, height: 2,
+        background: "linear-gradient(270deg, transparent 0%, #FF6FB7 20%, #A855F7 40%, #4D7FFF 58%, transparent 78%)",
+        backgroundSize: "250% 100%", animation: "frame-h 4.5s linear infinite" }} />
+      {/* Left */}
+      <div style={{ ...frameBase, top: 0, left: 0, bottom: 0, width: 2,
+        background: "linear-gradient(0deg, transparent 0%, #22D499 25%, #00FFD4 50%, #4D7FFF 70%, transparent 90%)",
+        backgroundSize: "100% 250%", animation: "frame-v 5.5s linear infinite reverse" }} />
+
       <Sidebar />
       <main style={{ flex: 1, overflowY: "auto", position: "relative", zIndex: 1 }}>
         {children}
