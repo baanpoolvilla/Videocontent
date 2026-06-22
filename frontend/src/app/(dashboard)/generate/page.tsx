@@ -107,7 +107,9 @@ export default function GeneratePage() {
     });
 
     setStep(2);
-    const voiceRes = await api.post(`/jobs/${jobId}/voiceover`);
+    const voiceRes = await api.post(`/jobs/${jobId}/voiceover`, null, {
+      params: { voice_style: voice },
+    });
 
     setStep(3);
     const renderRes = await api.post(`/jobs/${jobId}/render`, null, {
@@ -383,7 +385,7 @@ export default function GeneratePage() {
               <div style={{ width: "100%", maxWidth: 280, margin: "0 auto" }}>
                 {activeUrl ? (
                   <>
-                    <video src={fileUrl(activeUrl)} controls style={{ width: "100%", borderRadius: 10, background: "#000", maxHeight: 320 }} />
+                    <video src={fileUrl(activeUrl)} controls style={{ width: "100%", aspectRatio: "9/16", borderRadius: 10, background: "#000", display: "block", maxHeight: "65vh" }} />
                     <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 12 }}>
                       <a href={fileUrl(activeUrl)} download style={{
                         display: "inline-flex", alignItems: "center", gap: 5,

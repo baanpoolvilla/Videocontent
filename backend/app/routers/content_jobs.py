@@ -195,6 +195,7 @@ async def generate_voiceover(
     current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
     script_id: str | None = None,
+    voice_style: str = "เป็นกันเอง (หญิง)",
 ):
     result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
     job = result.scalar_one_or_none()
@@ -217,6 +218,7 @@ async def generate_voiceover(
     tts_result = await tts_service.generate_voiceover(
         text=script.full_script or "",
         job_id=str(job_id),
+        voice_style=voice_style,
     )
 
     return {

@@ -1,15 +1,42 @@
 import io
+import httpx
 from gtts import gTTS
+from app.core.config import settings
 from app.services.storage import storage_service
+
+# ElevenLabs voice IDs (multilingual v2 — all support Thai)
+VOICE_MAP = {
+    "เป็นกันเอง (หญิง)": "21m00Tcm4TlvDq8ikWAM",  # Rachel
+    "มืออาชีพ (ชาย)":    "pNInz6obpgDQGcFmaJgB",  # Adam
+    "สดใส (หญิง)":       "EXAVITQu4vr4xnSDxMaL",  # Bella
+    "หนักแน่น (ชาย)":    "VR6AewLTigWG4xSOukaG",  # Arnold
+}
 
 
 class TTSService:
-    async def generate_voiceover(self, text: str, job_id: str, lang: str = "th") -> dict:
-        tts = gTTS(text=text, lang=lang, slow=False)
+    async def generate_voiceover(
+        self, text: str, job_id: str,
+        voice_style: str = "เป็นกันเอง (หญิง)",
+        lang: str = "th",
+    ) -> dict:
+        if settings.ELEVENLABS_API_KEY:
+            return await self._elevenlabs(text, job_id, voice_style)
+        return await self._gtts(text, job_id, lang)
 
-        audio_buffer = io.BytesIO()
-        tts.write_to_fp(audio_buffer)
-        audio_bytes = audio_buffer.getvalue()
+    async def _elevenlabs(self, text: str, job_id: str, voice_style: str) -> dict:
+        voice_id = VOICE_MAP.get(voice_style, "21m00Tcm4TlvDq8ikWAM")
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(
+                f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+                headers={"xi-api-key": settings.ELEVENLABS_API_KEY, "Content-Type": "application/json"},
+                json={
+                    "text": text,
+                    "model_id": "eleven_multilingual_v2",
+                    "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+                },
+            )
+            resp.raise_for_status()
+            audio_bytes = resp.content
 
         url = await storage_service.upload_bytes(
             data=audio_bytes,
@@ -18,13 +45,21 @@ class TTSService:
             bucket="assets",
             prefix=f"voiceovers/{job_id}",
         )
+        return {"url": url, "characters_used": len(text), "voice_id": voice_id, "model_id": "eleven_multilingual_v2"}
 
-        return {
-            "url": url,
-            "characters_used": len(text),
-            "voice_id": "gtts-th",
-            "model_id": "google-tts",
-        }
+    async def _gtts(self, text: str, job_id: str, lang: str) -> dict:
+        tts = gTTS(text=text, lang=lang, slow=False)
+        buf = io.BytesIO()
+        tts.write_to_fp(buf)
+        audio_bytes = buf.getvalue()
+        url = await storage_service.upload_bytes(
+            data=audio_bytes,
+            filename=f"{job_id}_voiceover.mp3",
+            content_type="audio/mpeg",
+            bucket="assets",
+            prefix=f"voiceovers/{job_id}",
+        )
+        return {"url": url, "characters_used": len(text), "voice_id": "gtts-th", "model_id": "google-tts"}
 
 
 tts_service = TTSService()
