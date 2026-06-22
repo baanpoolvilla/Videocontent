@@ -151,7 +151,7 @@ export default function GeneratePage() {
   const activeUrl = results[activeVer] || "";
 
   return (
-    <div className="page-enter" style={{ padding: "28px 40px", maxWidth: 1100, margin: "0 auto" }}>
+    <div className="page-enter" style={{ padding: "28px 40px 20px", maxWidth: 1100, width: "100%", margin: "0 auto" }}>
 
       {/* Page header */}
       <div style={{ marginBottom: 20 }}>
@@ -185,8 +185,8 @@ export default function GeneratePage() {
         <ChevronDown size={13} color="var(--faint)" />
       </div>
 
-      {/* Body */}
-      <div style={{ display: "flex", gap: 18, alignItems: "stretch" }}>
+      {/* Body — flex:1 stretches to fill remaining height */}
+      <div style={{ display: "flex", gap: 18, alignItems: "stretch", flex: 1, minHeight: 460 }}>
 
         {/* Left */}
         <div style={{ width: 340, flexShrink: 0, display: "flex", flexDirection: "column" }}>
@@ -347,7 +347,7 @@ export default function GeneratePage() {
           position: "relative",
           background: "var(--glass)", borderRadius: 14,
           display: "flex", alignItems: "center", justifyContent: "center",
-          flexDirection: "column", minHeight: 420, flex: 1, overflow: "hidden",
+          flexDirection: "column", flex: 1, overflow: "hidden",
         }}>
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
             background: "radial-gradient(60% 60% at 70% 20%,rgba(0,255,212,.07),transparent),radial-gradient(50% 50% at 30% 80%,rgba(77,127,255,.07),transparent),radial-gradient(40% 40% at 50% 50%,rgba(168,85,247,.04),transparent)" }} />

@@ -49,7 +49,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         backgroundSize: "100% 250%", animation: "frame-v 5.5s linear infinite reverse" }} />
 
       <Sidebar />
-      <main style={{ flex: 1, overflowY: "auto", position: "relative", zIndex: 1 }}>
+      <main style={{ flex: 1, height: "100%", overflowY: "auto", position: "relative", zIndex: 1, display: "flex", flexDirection: "column" }}>
         {children}
         {/* Bottom ambient glow — fades the page bottom nicely on short pages */}
         <div style={{

@@ -486,7 +486,10 @@ textarea.cs-input { font-family: inherit; resize: none; }
 }
 .page-enter {
   animation: pgIn .3s ease;
-  min-height: 100vh;   /* stretch short pages to fill the viewport */
+  flex: 1;             /* fill the flex-column main element */
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;   /* fallback for non-flex contexts */
 }
 
 /* ── View switch ── */
