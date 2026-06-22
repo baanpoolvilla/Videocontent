@@ -41,8 +41,12 @@ export default function LoginPage() {
       localStorage.setItem("refresh_token", res.data.refresh_token);
       router.push("/dashboard");
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { detail?: string } } };
-      setError(axiosErr.response?.data?.detail || "เข้าสู่ระบบไม่สำเร็จ");
+      const axiosErr = err as { response?: { data?: { detail?: string } }; message?: string };
+      if (!axiosErr.response) {
+        setError("เชื่อมต่อ server ไม่ได้ — กรุณาลองใหม่หรือติดต่อผู้ดูแล");
+      } else {
+        setError(axiosErr.response.data?.detail || "อีเมลหรือรหัสผ่านไม่ถูกต้อง");
+      }
     } finally {
       setLoading(false);
     }
