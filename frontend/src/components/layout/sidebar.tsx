@@ -58,7 +58,8 @@ const groups: Group[] = [
   {
     num: "–", label: "ระบบ", color: "#8890AE",
     items: [
-      { href: "/accounts", label: "เชื่อมต่อบัญชี / Token", icon: Link2, step: "13" },
+      { href: "/accounts",      label: "เชื่อมต่อบัญชี / Token", icon: Link2,       step: "13" },
+      { href: "/brand-profile", label: "Brand Profile",            icon: Zap,         step: "14" },
     ],
   },
 ];

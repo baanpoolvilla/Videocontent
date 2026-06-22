@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import CurrentUser
+from app.models.brand_profile import BrandProfile
 from app.models.content_job import ContentJob
 from app.models.script import Script
 from app.models.render_version import RenderVersion
@@ -171,6 +172,16 @@ async def generate_script(
     analysis = analysis_result.scalars().first()
     if not analysis:
         raise HTTPException(status_code=400, detail="No analysis found — run /analyze first")
+
+    # Auto-fill tone/cta from default brand profile when not explicitly passed
+    if not tone_of_voice or not cta_style:
+        bp_result = await db.execute(select(BrandProfile).where(BrandProfile.is_default == True))
+        brand = bp_result.scalars().first()
+        if brand:
+            if not tone_of_voice and brand.tone_of_voice:
+                tone_of_voice = brand.tone_of_voice
+            if not cta_style and brand.cta_style:
+                cta_style = brand.cta_style
 
     analysis_data = {
         "selling_points": analysis.selling_points or [],
