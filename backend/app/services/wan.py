@@ -1,6 +1,9 @@
 import asyncio
+import logging
 import httpx
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 FAL_QUEUE = "https://queue.fal.run"
 WAN_I2V = "wan/v2.6/image-to-video"
@@ -31,14 +34,16 @@ class WanService:
             raise RuntimeError("FAL_KEY not configured")
 
         # Submit to fal.ai queue
+        logger.info(f"fal.ai submit → {FAL_QUEUE}/{model}  payload={payload}")
         async with httpx.AsyncClient(timeout=30) as client:
             r = await client.post(
                 f"{FAL_QUEUE}/{model}",
                 headers=self._headers(),
                 json=payload,
             )
+            logger.info(f"fal.ai submit response {r.status_code}: {r.text[:500]}")
             if not r.is_success:
-                raise RuntimeError(f"fal.ai submit error {r.status_code}: {r.text[:300]}")
+                raise RuntimeError(f"fal.ai submit error {r.status_code}: {r.text[:500]}")
             data = r.json()
 
         request_id = data.get("request_id") or data.get("id")
