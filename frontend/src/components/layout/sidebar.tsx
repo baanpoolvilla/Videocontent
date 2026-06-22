@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Home, Package, BrainCircuit, Clapperboard, FileText, Mic2,
   Film, ShieldCheck, Eye, CheckCircle2, Upload, Calendar, BarChart3,
-  Link2, LogOut, Zap, Plus,
+  Link2, LogOut, Zap, Plus, FolderOpen, BotMessageSquare, Rocket,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -28,9 +28,10 @@ const groups: Group[] = [
   {
     num: "2", label: "AI สร้างคอนเทนต์", color: "#00FFD4",
     items: [
-      { href: "/generate", label: "เทมเพลต / คอนเซ็ปต์", icon: Clapperboard, step: "04" },
-      { href: "/scripts",  label: "แก้ไข Script",          icon: FileText,    step: "05" },
-      { href: "/caption",  label: "Caption · Hashtag · เสียง", icon: Mic2,    step: "06" },
+      { href: "/generate", label: "เทมเพลต / คอนเซ็ปต์",    icon: Clapperboard, step: "04" },
+      { href: "/scripts",  label: "แก้ไข Script",             icon: FileText,     step: "05" },
+      { href: "/caption",  label: "Caption · Hashtag",        icon: Mic2,         step: "06" },
+      { href: "/publish",  label: "Publish Center",           icon: Rocket,       step: "06b" },
     ],
   },
   {
@@ -58,8 +59,10 @@ const groups: Group[] = [
   {
     num: "–", label: "ระบบ", color: "#8890AE",
     items: [
-      { href: "/accounts",      label: "เชื่อมต่อบัญชี / Token", icon: Link2,       step: "13" },
-      { href: "/brand-profile", label: "Brand Profile",            icon: Zap,         step: "14" },
+      { href: "/accounts",       label: "เชื่อมต่อบัญชี / Token", icon: Link2,           step: "13" },
+      { href: "/brand-profile",  label: "Brand Profile",            icon: Zap,             step: "14" },
+      { href: "/asset-library",  label: "Asset Library",            icon: FolderOpen,      step: "15" },
+      { href: "/prompts",        label: "Prompt Management",        icon: BotMessageSquare, step: "16" },
     ],
   },
 ];

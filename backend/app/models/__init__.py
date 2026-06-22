@@ -7,15 +7,11 @@ from app.models.script import Script
 from app.models.render_version import RenderVersion
 from app.models.platform_account import PlatformAccount
 from app.models.scheduled_post import ScheduledPost
+from app.models.asset import Asset
+from app.models.prompt_template import PromptTemplate
 
 __all__ = [
-    "User",
-    "BrandProfile",
-    "Product",
-    "Analysis",
-    "ContentJob",
-    "Script",
-    "RenderVersion",
-    "PlatformAccount",
-    "ScheduledPost",
+    "User", "BrandProfile", "Product", "Analysis", "ContentJob",
+    "Script", "RenderVersion", "PlatformAccount", "ScheduledPost",
+    "Asset", "PromptTemplate",
 ]
