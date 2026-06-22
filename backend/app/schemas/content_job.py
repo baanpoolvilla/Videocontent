@@ -1,6 +1,7 @@
+from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 
 
 class ContentJobCreate(BaseModel):
@@ -20,8 +21,14 @@ class ContentJobOut(BaseModel):
     retry_count: int
     n8n_execution_id: str | None
     created_by: UUID | None
+    created_at: datetime
+    updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_serializer("id", "product_id", "created_by")
+    def serialize_uuid(self, v: UUID | None) -> str | None:
+        return str(v) if v else None
 
 
 class ScriptOut(BaseModel):

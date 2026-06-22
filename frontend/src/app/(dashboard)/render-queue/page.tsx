@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import { Film, Loader2, CheckCircle2, XCircle, Clock, RefreshCw, ThumbsUp, ThumbsDown, Eye } from "lucide-react";
+import { api, fileUrl } from "@/lib/api";
+import { Film, Loader2, CheckCircle2, XCircle, Clock, RefreshCw, ThumbsUp, ThumbsDown, Eye, X, Download } from "lucide-react";
 
 interface Job {
   id: string;
@@ -13,6 +13,18 @@ interface Job {
   error_message: string | null;
   retry_count: number;
   created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface RenderVersion {
+  id: string;
+  content_job_id: string;
+  version_label: string | null;
+  final_video_url: string | null;
+  thumbnail_url: string | null;
+  status: string;
+  cost_usd: number | null;
 }
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
@@ -25,25 +37,34 @@ const STATUS_CFG: Record<string, { label: string; color: string; bg: string; ico
 };
 
 const REVIEW_CFG: Record<string, { label: string; color: string }> = {
-  not_needed:   { label: "—",           color: "var(--faint)" },
-  review_needed: { label: "รอตรวจสอบ", color: "var(--warn)" },
-  approved:     { label: "อนุมัติแล้ว", color: "var(--ok)" },
-  rejected:     { label: "ปฏิเสธ",     color: "var(--err)" },
+  not_needed:    { label: "—",           color: "var(--faint)" },
+  draft:         { label: "—",           color: "var(--faint)" },
+  review_needed: { label: "รอตรวจสอบ",  color: "var(--warn)" },
+  approved:      { label: "อนุมัติแล้ว", color: "var(--ok)" },
+  rejected:      { label: "ปฏิเสธ",     color: "var(--err)" },
 };
 
 const FILTER_TABS = [
-  { val: "",          label: "ทั้งหมด" },
-  { val: "pending",   label: "รอดำเนินการ" },
+  { val: "",           label: "ทั้งหมด" },
+  { val: "pending",    label: "รอดำเนินการ" },
   { val: "processing", label: "กำลังสร้าง" },
-  { val: "completed", label: "เสร็จสิ้น" },
-  { val: "failed",    label: "ล้มเหลว" },
+  { val: "completed",  label: "เสร็จสิ้น" },
+  { val: "failed",     label: "ล้มเหลว" },
 ];
 
+function fmtDate(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleString("th-TH", { day: "2-digit", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
 export default function RenderQueuePage() {
-  const [jobs, setJobs]         = useState<Job[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [filter, setFilter]     = useState("");
+  const [jobs, setJobs]             = useState<Job[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [filter, setFilter]         = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [renders, setRenders]       = useState<RenderVersion[]>([]);
+  const [loadingRender, setLoadingRender] = useState(false);
 
   const load = async () => {
     const params = filter ? `?status=${filter}` : "";
@@ -69,10 +90,23 @@ export default function RenderQueuePage() {
     setJobs((j) => j.map((job) => job.id === id ? { ...job, review_status: "rejected" } : job));
   };
 
-  const pendingCount   = jobs.filter((j) => j.status === "pending").length;
+  const openDetail = async (job: Job) => {
+    setSelectedJob(job);
+    setLoadingRender(true);
+    try {
+      const r = await api.get(`/jobs/${job.id}/renders`);
+      setRenders(r.data);
+    } catch {
+      setRenders([]);
+    } finally {
+      setLoadingRender(false);
+    }
+  };
+
+  const pendingCount    = jobs.filter((j) => j.status === "pending").length;
   const processingCount = jobs.filter((j) => j.status === "processing").length;
-  const completedCount = jobs.filter((j) => j.status === "completed").length;
-  const reviewCount    = jobs.filter((j) => j.review_status === "review_needed").length;
+  const completedCount  = jobs.filter((j) => j.status === "completed").length;
+  const reviewCount     = jobs.filter((j) => j.review_status === "review_needed").length;
 
   return (
     <div className="page-enter" style={{ padding: "32px 40px", minHeight: "100vh" }}>
@@ -97,10 +131,10 @@ export default function RenderQueuePage() {
       {/* Quick stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
         {[
-          { label: "รอดำเนินการ", val: pendingCount,   color: "var(--dim)",   bg: "rgba(255,255,255,.06)" },
-          { label: "กำลังสร้าง",  val: processingCount, color: "var(--blue)",  bg: "rgba(77,127,255,.1)"   },
-          { label: "เสร็จสิ้น",   val: completedCount, color: "var(--ok)",    bg: "rgba(34,212,153,.1)"   },
-          { label: "รอตรวจสอบ",  val: reviewCount,    color: "var(--warn)",  bg: "rgba(255,176,46,.1)"   },
+          { label: "รอดำเนินการ", val: pendingCount,    color: "var(--dim)",  bg: "rgba(255,255,255,.06)" },
+          { label: "กำลังสร้าง",  val: processingCount, color: "var(--blue)", bg: "rgba(77,127,255,.1)"   },
+          { label: "เสร็จสิ้น",   val: completedCount,  color: "var(--ok)",   bg: "rgba(34,212,153,.1)"   },
+          { label: "รอตรวจสอบ",  val: reviewCount,     color: "var(--warn)", bg: "rgba(255,176,46,.1)"   },
         ].map(({ label, val, color, bg }) => (
           <div key={label} style={{ padding: "14px 16px", background: bg, border: `1px solid ${color}25`, borderRadius: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 12, color: "var(--dim)", fontWeight: 600 }}>{label}</span>
@@ -140,14 +174,15 @@ export default function RenderQueuePage() {
                 <th>สถานะ</th>
                 <th>ตรวจสอบ</th>
                 <th>แพลตฟอร์ม</th>
-                <th>ลองใหม่</th>
+                <th>เริ่มเมื่อ</th>
+                <th>อัปเดต</th>
                 <th style={{ paddingRight: 20 }}>การกระทำ</th>
               </tr>
             </thead>
             <tbody>
               {jobs.map((job) => {
                 const sc = STATUS_CFG[job.status] || STATUS_CFG.pending;
-                const rc = REVIEW_CFG[job.review_status] || REVIEW_CFG.not_needed;
+                const rc = REVIEW_CFG[job.review_status] || REVIEW_CFG.draft;
                 const Icon = sc.icon;
                 return (
                   <tr key={job.id}>
@@ -174,9 +209,10 @@ export default function RenderQueuePage() {
                       <span style={{ fontSize: 12, color: "var(--faint)" }}>{job.platform || "—"}</span>
                     </td>
                     <td>
-                      <span style={{ fontSize: 12, color: job.retry_count > 0 ? "var(--warn)" : "var(--faint)" }}>
-                        {job.retry_count}×
-                      </span>
+                      <span style={{ fontSize: 11, color: "var(--faint)" }}>{fmtDate(job.created_at)}</span>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: 11, color: "var(--faint)" }}>{fmtDate(job.updated_at)}</span>
                     </td>
                     <td style={{ paddingRight: 20 }}>
                       <div style={{ display: "flex", gap: 6 }}>
@@ -190,7 +226,9 @@ export default function RenderQueuePage() {
                             </button>
                           </>
                         )}
-                        <button className="icon-btn" title="ดูรายละเอียด"><Eye size={12} /></button>
+                        <button className="icon-btn" title="ดูรายละเอียด" onClick={() => openDetail(job)}>
+                          <Eye size={12} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -200,6 +238,89 @@ export default function RenderQueuePage() {
           </table>
         )}
       </div>
+
+      {/* Detail Modal */}
+      {selectedJob && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 100,
+          background: "rgba(0,0,0,.7)", backdropFilter: "blur(8px)",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+        }} onClick={() => setSelectedJob(null)}>
+          <div style={{
+            background: "var(--surface)", border: "1px solid var(--gb)",
+            borderRadius: 20, padding: 28, width: "100%", maxWidth: 560,
+            maxHeight: "90vh", overflowY: "auto",
+          }} onClick={(e) => e.stopPropagation()}>
+
+            {/* Modal header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>รายละเอียด Job</h2>
+                <p style={{ margin: "4px 0 0", fontSize: 11, fontFamily: "monospace", color: "var(--faint)" }}>{selectedJob.id}</p>
+              </div>
+              <button className="icon-btn" onClick={() => setSelectedJob(null)}><X size={14} /></button>
+            </div>
+
+            {/* Info rows */}
+            {[
+              { label: "สถานะ",    val: STATUS_CFG[selectedJob.status]?.label || selectedJob.status },
+              { label: "ตรวจสอบ", val: REVIEW_CFG[selectedJob.review_status]?.label || selectedJob.review_status },
+              { label: "แพลตฟอร์ม", val: selectedJob.platform || "—" },
+              { label: "เริ่มเมื่อ", val: fmtDate(selectedJob.created_at) },
+              { label: "อัปเดตล่าสุด", val: fmtDate(selectedJob.updated_at) },
+            ].map(({ label, val }) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--gb)", fontSize: 13 }}>
+                <span style={{ color: "var(--faint)" }}>{label}</span>
+                <span style={{ fontWeight: 600 }}>{val}</span>
+              </div>
+            ))}
+
+            {selectedJob.error_message && (
+              <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(255,77,106,.08)", border: "1px solid rgba(255,77,106,.2)", borderRadius: 10, fontSize: 12, color: "var(--err)" }}>
+                {selectedJob.error_message}
+              </div>
+            )}
+
+            {/* Renders */}
+            <div style={{ marginTop: 20 }}>
+              <h3 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 700 }}>วิดีโอที่เรนเดอร์แล้ว</h3>
+              {loadingRender ? (
+                <div style={{ textAlign: "center", padding: "20px 0", color: "var(--faint)", fontSize: 13 }}>
+                  <Loader2 size={20} style={{ animation: "spin 1s linear infinite", margin: "0 auto 8px", display: "block" }} />
+                  กำลังโหลด…
+                </div>
+              ) : renders.length === 0 ? (
+                <p style={{ fontSize: 13, color: "var(--faint)", margin: 0 }}>ยังไม่มีวิดีโอ</p>
+              ) : (
+                renders.map((rv) => (
+                  <div key={rv.id} style={{ background: "var(--glass)", borderRadius: 12, padding: "14px 16px", marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--teal)" }}>{rv.version_label || "v1"}</span>
+                      <span style={{ fontSize: 11, color: rv.status === "completed" ? "var(--ok)" : "var(--faint)" }}>{rv.status}</span>
+                    </div>
+                    {rv.final_video_url && (
+                      <>
+                        <video
+                          src={fileUrl(rv.final_video_url)}
+                          controls
+                          style={{ width: "100%", borderRadius: 8, background: "#000", maxHeight: 280 }}
+                        />
+                        <a
+                          href={fileUrl(rv.final_video_url)}
+                          download
+                          style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 12, color: "var(--teal)", textDecoration: "none", fontWeight: 600 }}
+                        >
+                          <Download size={13} /> ดาวน์โหลดวิดีโอ
+                        </a>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }

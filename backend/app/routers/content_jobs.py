@@ -371,3 +371,17 @@ async def reject_job(
     job.review_status = "rejected"
     await db.commit()
     return {"status": "rejected"}
+
+
+@router.get("/{job_id}/renders", response_model=list[RenderVersionOut])
+async def list_renders(
+    job_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result = await db.execute(
+        select(RenderVersion)
+        .where(RenderVersion.content_job_id == job_id)
+        .order_by(RenderVersion.created_at.desc())
+    )
+    return result.scalars().all()
