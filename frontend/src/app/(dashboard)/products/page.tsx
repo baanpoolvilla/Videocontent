@@ -207,11 +207,11 @@ export default function ProductsPage() {
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {[{ key: "all", label: "ทั้งหมด" }, ...categories.map(c => ({ key: c, label: c }))].map(({ key, label }) => (
               <button key={key} onClick={() => setCatFilter(key)} style={{
-                padding: "5px 12px", borderRadius: 20, fontSize: 11.5, fontWeight: 700, cursor: "pointer", border: "none",
+                padding: "5px 12px", borderRadius: 20, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
                 border: `1px solid ${catFilter === key ? "rgba(0,255,212,.4)" : "var(--gb)"}`,
                 background: catFilter === key ? "rgba(0,255,212,.12)" : "var(--glass)",
                 color: catFilter === key ? "var(--teal)" : "var(--dim)", transition: "all .15s",
-              } as React.CSSProperties}>{label}</button>
+              }}>{label}</button>
             ))}
           </div>
         )}
