@@ -5,6 +5,8 @@ from app.models.analysis import Analysis
 from app.models.content_job import ContentJob
 from app.models.script import Script
 from app.models.render_version import RenderVersion
+from app.models.platform_account import PlatformAccount
+from app.models.scheduled_post import ScheduledPost
 
 __all__ = [
     "User",
@@ -14,4 +16,6 @@ __all__ = [
     "ContentJob",
     "Script",
     "RenderVersion",
+    "PlatformAccount",
+    "ScheduledPost",
 ]
