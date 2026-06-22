@@ -8,6 +8,9 @@ from minio.error import S3Error
 from app.core.config import settings
 
 
+BUCKETS = ["products", "assets", "renders", "exports", "thumbnails"]
+
+
 class StorageService:
     def __init__(self):
         self.client = Minio(
@@ -16,6 +19,15 @@ class StorageService:
             secret_key=settings.MINIO_SECRET_KEY,
             secure=settings.MINIO_SECURE,
         )
+        self._ensure_buckets()
+
+    def _ensure_buckets(self):
+        for bucket in BUCKETS:
+            try:
+                if not self.client.bucket_exists(bucket):
+                    self.client.make_bucket(bucket)
+            except Exception:
+                pass  # non-fatal — bucket may already exist or minio not ready yet
 
     async def upload(self, file: UploadFile, bucket: str, prefix: str = "") -> str:
         data = await file.read()
