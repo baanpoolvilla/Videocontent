@@ -30,6 +30,7 @@ class WanService:
         return await self._run(WAN_T2V, payload)
 
     async def _run(self, model: str, payload: dict) -> dict:
+        print(f"[WAN] _run model={model} key_set={bool(settings.FAL_KEY)} key_preview={settings.FAL_KEY[:8] if settings.FAL_KEY else 'EMPTY'}", flush=True)
         if not settings.FAL_KEY:
             raise RuntimeError("FAL_KEY not configured")
 
