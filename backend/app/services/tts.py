@@ -35,7 +35,9 @@ class TTSService:
                     "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
                 },
             )
-            resp.raise_for_status()
+            if not resp.is_success:
+                # Fall back to gTTS on any ElevenLabs billing/quota error
+                return await self._gtts(text, job_id, "th")
             audio_bytes = resp.content
 
         url = await storage_service.upload_bytes(

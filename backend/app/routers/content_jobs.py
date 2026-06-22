@@ -216,11 +216,14 @@ async def generate_voiceover(
     if not script:
         raise HTTPException(status_code=400, detail="No script found — run /generate-script first")
 
-    tts_result = await tts_service.generate_voiceover(
-        text=script.full_script or "",
-        job_id=str(job_id),
-        voice_style=voice_style,
-    )
+    try:
+        tts_result = await tts_service.generate_voiceover(
+            text=script.full_script or "",
+            job_id=str(job_id),
+            voice_style=voice_style,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"TTS failed: {e}")
 
     return {
         "job_id": str(job_id),
