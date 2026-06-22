@@ -1,83 +1,75 @@
 import asyncio
 import httpx
 from app.core.config import settings
-from app.services.storage import storage_service
 
-FAL_BASE = "https://queue.fal.run"
-
-# fal.ai model IDs for Wan — change WAN_MODEL to switch version
-WAN_I2V_MODEL = "fal-ai/wan-i2v"        # image-to-video (Wan 2.1 — fastest, cheapest)
-WAN_T2V_MODEL = "fal-ai/wan-t2v"        # text-to-video
+FAL_QUEUE = "https://queue.fal.run"
+WAN_I2V = "fal-ai/wan-i2v"
+WAN_T2V = "fal-ai/wan-t2v"
 
 
 class WanService:
     def _headers(self) -> dict:
         return {"Authorization": f"Key {settings.FAL_KEY}", "Content-Type": "application/json"}
 
-    async def image_to_video(
-        self,
-        image_url: str,
-        prompt: str,
-        aspect_ratio: str = "9:16",
-        duration: str = "5",
-    ) -> dict:
-        """Submit image-to-video job and poll until done."""
+    async def image_to_video(self, image_url: str, prompt: str, aspect_ratio: str = "9:16", duration: str = "5") -> dict:
         payload = {
-            "prompt": prompt,
             "image_url": image_url,
-            "aspect_ratio": aspect_ratio,
-            "duration": f"{duration}s",
-            "resolution": "720p",
-        }
-        return await self._run(WAN_I2V_MODEL, payload)
-
-    async def text_to_video(
-        self,
-        prompt: str,
-        aspect_ratio: str = "9:16",
-        duration: str = "5",
-    ) -> dict:
-        payload = {
             "prompt": prompt,
-            "aspect_ratio": aspect_ratio,
-            "duration": f"{duration}s",
-            "resolution": "720p",
         }
-        return await self._run(WAN_T2V_MODEL, payload)
+        return await self._run(WAN_I2V, payload)
+
+    async def text_to_video(self, prompt: str, aspect_ratio: str = "9:16", duration: str = "5") -> dict:
+        payload = {"prompt": prompt}
+        return await self._run(WAN_T2V, payload)
 
     async def _run(self, model: str, payload: dict) -> dict:
-        async with httpx.AsyncClient(timeout=30) as client:
-            # Submit to queue
-            r = await client.post(f"{FAL_BASE}/{model}", headers=self._headers(), json=payload)
-            r.raise_for_status()
-            data = r.json()
-            request_id = data["request_id"]
+        if not settings.FAL_KEY:
+            raise RuntimeError("FAL_KEY not configured")
 
-        # Poll until done (max 5 min)
+        # Submit to fal.ai queue
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                f"{FAL_QUEUE}/{model}",
+                headers=self._headers(),
+                json=payload,
+            )
+            if not r.is_success:
+                raise RuntimeError(f"fal.ai submit error {r.status_code}: {r.text[:300]}")
+            data = r.json()
+
+        request_id = data.get("request_id") or data.get("id")
+        if not request_id:
+            raise RuntimeError(f"fal.ai did not return request_id: {data}")
+
+        # Poll until COMPLETED (max 5 min)
         for _ in range(60):
             await asyncio.sleep(5)
             async with httpx.AsyncClient(timeout=15) as client:
                 r = await client.get(
-                    f"{FAL_BASE}/{model}/requests/{request_id}/status",
+                    f"{FAL_QUEUE}/{model}/requests/{request_id}/status",
                     headers=self._headers(),
                 )
-                r.raise_for_status()
-                status = r.json()
-            if status.get("status") == "COMPLETED":
+                if not r.is_success:
+                    continue
+                status_data = r.json()
+
+            st = status_data.get("status", "")
+            if st == "COMPLETED":
                 break
-            if status.get("status") == "FAILED":
-                raise RuntimeError(f"Wan generation failed: {status}")
+            if st in ("FAILED", "ERROR"):
+                raise RuntimeError(f"fal.ai generation failed: {status_data}")
 
         # Fetch result
         async with httpx.AsyncClient(timeout=15) as client:
             r = await client.get(
-                f"{FAL_BASE}/{model}/requests/{request_id}",
+                f"{FAL_QUEUE}/{model}/requests/{request_id}",
                 headers=self._headers(),
             )
-            r.raise_for_status()
+            if not r.is_success:
+                raise RuntimeError(f"fal.ai result fetch error {r.status_code}: {r.text[:200]}")
             result = r.json()
 
-        video_url = result.get("video", {}).get("url") or ""
+        video_url = (result.get("video") or {}).get("url") or result.get("video_url") or ""
         return {"task_id": request_id, "video_url": video_url, "status": "succeed"}
 
 
