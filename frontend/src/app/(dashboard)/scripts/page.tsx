@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import { api, fileUrl } from "@/lib/api";
@@ -141,7 +141,7 @@ export default function ScriptsPage() {
   ];
 
   return (
-    <div className="page-enter" style={{ padding: "28px 40px", maxWidth: 900, margin: "0 auto" }}>
+    <div className="page-enter" style={{ padding: "28px 40px" }}>
       <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--faint)" }}>05 · กลุ่ม 2</p>
       <h1 style={{ margin: "0 0 4px", fontSize: 24, fontWeight: 800 }}>แก้ไข Script</h1>
       <p style={{ margin: "0 0 20px", fontSize: 13, color: "var(--dim)" }}>ตรวจสอบและแก้ไข Script ที่ AI สร้าง ก่อน render วิดีโอ</p>

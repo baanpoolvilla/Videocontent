@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { api, fileUrl } from "@/lib/api";
@@ -54,7 +54,7 @@ export default function ManualPostPage() {
   }, []);
 
   return (
-    <div className="page-enter" style={{ padding: "32px 40px", maxWidth: 900, margin: "0 auto" }}>
+    <div className="page-enter" style={{ padding: "32px 40px" }}>
       <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--faint)" }}>10b · โพสต์เอง</p>
       <h1 style={{ margin: "0 0 4px", fontSize: 26, fontWeight: 800 }}>โพสต์เอง</h1>
       <p style={{ margin: "0 0 24px", fontSize: 13, color: "var(--dim)" }}>ดาวน์โหลดวิดีโอที่อนุมัติแล้ว พร้อม caption และ hashtag สำหรับโพสต์ด้วยตัวเอง</p>

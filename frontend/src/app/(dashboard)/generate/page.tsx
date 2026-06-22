@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -151,7 +151,7 @@ export default function GeneratePage() {
   const activeUrl = results[activeVer] || "";
 
   return (
-    <div className="page-enter" style={{ padding: "28px 40px 20px", maxWidth: 1100, width: "100%", margin: "0 auto" }}>
+    <div className="page-enter" style={{ padding: "28px 40px 20px" }}>
 
       {/* Page header */}
       <div style={{ marginBottom: 20 }}>

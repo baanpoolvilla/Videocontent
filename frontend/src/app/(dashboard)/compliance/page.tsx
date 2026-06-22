@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { ShieldCheck, CheckCircle2, Circle, AlertTriangle, Info } from "lucide-react";
@@ -71,7 +71,7 @@ export default function CompliancePage() {
   const readyColor = pct >= 80 ? "var(--ok)" : pct >= 50 ? "var(--warn)" : "var(--err)";
 
   return (
-    <div className="page-enter" style={{ padding: "32px 40px", maxWidth: 860, margin: "0 auto" }}>
+    <div className="page-enter" style={{ padding: "32px 40px" }}>
       <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--faint)" }}>08 · มาตรฐาน</p>
       <h1 style={{ margin: "0 0 4px", fontSize: 26, fontWeight: 800 }}>ตรวจสอบมาตรฐาน</h1>
       <p style={{ margin: "0 0 24px", fontSize: 13, color: "var(--dim)" }}>ตรวจสอบคอนเทนต์ให้ผ่านมาตรฐานก่อนโพสต์</p>

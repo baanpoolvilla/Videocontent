@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { Link2, CheckCircle2, Plus, Zap } from "lucide-react";
@@ -52,7 +52,7 @@ export default function AccountsPage() {
   };
 
   return (
-    <div className="page-enter" style={{ padding: "32px 40px", maxWidth: 860, margin: "0 auto" }}>
+    <div className="page-enter" style={{ padding: "32px 40px" }}>
       <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--faint)" }}>13 · ระบบ</p>
       <h1 style={{ margin: "0 0 4px", fontSize: 26, fontWeight: 800 }}>เชื่อมต่อบัญชี</h1>
       <p style={{ margin: "0 0 28px", fontSize: 13, color: "var(--dim)" }}>เชื่อมต่อ Social Media เพื่อโพสต์อัตโนมัติ</p>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { api, fileUrl } from "@/lib/api";
@@ -130,7 +130,7 @@ export default function CaptionPage() {
   const hasScripts = jobsWithScripts.length > 0;
 
   return (
-    <div className="page-enter" style={{ padding: "32px 40px", maxWidth: 920, margin: "0 auto" }}>
+    <div className="page-enter" style={{ padding: "32px 40px" }}>
       <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--faint)" }}>
         06 · Caption & Hashtag
       </p>
