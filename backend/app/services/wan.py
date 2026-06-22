@@ -3,8 +3,8 @@ import httpx
 from app.core.config import settings
 
 FAL_QUEUE = "https://queue.fal.run"
-WAN_I2V = "fal-ai/wan-i2v"
-WAN_T2V = "fal-ai/wan-t2v"
+WAN_I2V = "wan/v2.6/image-to-video"
+WAN_T2V = "wan/v2.6/text-to-video"
 
 
 class WanService:
@@ -15,11 +15,15 @@ class WanService:
         payload = {
             "image_url": image_url,
             "prompt": prompt,
+            "duration": int(duration) if str(duration).isdigit() else 5,
         }
         return await self._run(WAN_I2V, payload)
 
     async def text_to_video(self, prompt: str, aspect_ratio: str = "9:16", duration: str = "5") -> dict:
-        payload = {"prompt": prompt}
+        payload = {
+            "prompt": prompt,
+            "duration": int(duration) if str(duration).isdigit() else 5,
+        }
         return await self._run(WAN_T2V, payload)
 
     async def _run(self, model: str, payload: dict) -> dict:
