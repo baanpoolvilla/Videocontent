@@ -31,8 +31,8 @@ export default function ProductsPage() {
   // ── Add modal state ──────────────────────────────────────────────
   const [showAdd, setShowAdd]         = useState(false);
   const [addForm, setAddForm]         = useState<Form>(EMPTY);
-  const [addFile, setAddFile]         = useState<File | null>(null);
-  const [addPreview, setAddPreview]   = useState("");
+  const [addFiles, setAddFiles]       = useState<File[]>([]);
+  const [addPreviews, setAddPreviews] = useState<string[]>([]);
   const [addBusy, setAddBusy]         = useState(false);
   const [addProgress, setAddProgress] = useState<string | null>(null);
 
@@ -48,16 +48,27 @@ export default function ProductsPage() {
     api.get("/products/").then(r => setProducts(r.data)).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  // ── Add dropzone ─────────────────────────────────────────────────
-  const onAddDrop = useCallback((files: File[]) => {
-    const f = files[0]; if (!f) return;
-    setAddFile(f); setAddPreview(URL.createObjectURL(f));
+  // ── Add dropzone (multiple) ───────────────────────────────────────
+  const onAddDrop = useCallback((newFiles: File[]) => {
+    const newPreviews = newFiles.map(f => URL.createObjectURL(f));
+    setAddFiles(prev => [...prev, ...newFiles].slice(0, 8));
+    setAddPreviews(prev => {
+      const all = [...prev, ...newPreviews];
+      all.slice(8).forEach(u => URL.revokeObjectURL(u));
+      return all.slice(0, 8);
+    });
   }, []);
   const { getRootProps: addRoot, getInputProps: addInput, isDragActive: addDrag } = useDropzone({
-    onDrop: onAddDrop, accept: { "image/*": [] }, maxFiles: 1, maxSize: 10 * 1024 * 1024,
+    onDrop: onAddDrop, accept: { "image/*": [] }, maxFiles: 8, maxSize: 10 * 1024 * 1024, multiple: true,
   });
+  const removeAddFile = (i: number) => {
+    URL.revokeObjectURL(addPreviews[i]);
+    setAddFiles(prev => prev.filter((_, j) => j !== i));
+    setAddPreviews(prev => prev.filter((_, j) => j !== i));
+  };
   const clearAdd = () => {
-    setAddFile(null); if (addPreview) { URL.revokeObjectURL(addPreview); setAddPreview(""); }
+    addPreviews.forEach(u => URL.revokeObjectURL(u));
+    setAddFiles([]); setAddPreviews([]);
   };
 
   // ── Edit dropzone ─────────────────────────────────────────────────
@@ -91,11 +102,14 @@ export default function ProductsPage() {
         category: addForm.category || null, price: addForm.price ? parseFloat(addForm.price) : null,
       });
       const product: Product = res.data;
-      if (addFile) {
-        setAddProgress("กำลังอัปโหลดรูป…");
-        const fd = new FormData(); fd.append("file", addFile);
-        const up = await api.post(`/products/${product.id}/upload`, fd, { headers: { "Content-Type": "multipart/form-data" } });
-        product.media_urls = [up.data.url];
+      if (addFiles.length > 0) {
+        for (let i = 0; i < addFiles.length; i++) {
+          setAddProgress(`กำลังอัปโหลดรูป ${i + 1}/${addFiles.length}…`);
+          const fd = new FormData(); fd.append("file", addFiles[i]);
+          const up = await api.post(`/products/${product.id}/upload`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+          if (i === 0) product.media_urls = [up.data.url];
+          else product.media_urls = [...product.media_urls, up.data.url];
+        }
       }
       setProducts(prev => [product, ...prev]);
       setAddForm(EMPTY); clearAdd(); setShowAdd(false);
@@ -227,21 +241,31 @@ export default function ProductsPage() {
               {!addBusy && <button className="icon-btn" onClick={() => { setShowAdd(false); clearAdd(); }}><X size={14} /></button>}
             </div>
 
-            {/* Image upload */}
-            {!addPreview ? (
-              <div {...addRoot()} className={`upload-zone${addDrag ? " drag-over" : ""}`} style={{ marginBottom: 16 }}>
-                <input {...addInput()} />
-                <ImgIcon size={28} color="var(--faint)" style={{ margin: "0 auto 10px", display: "block" }} />
-                <p style={{ margin: "0 0 4px", fontSize: 13, color: "var(--dim)", fontWeight: 600 }}>{addDrag ? "วางรูปที่นี่…" : "ลากรูปมาวาง หรือคลิกเลือก"}</p>
-                <p style={{ margin: 0, fontSize: 11, color: "var(--faint)" }}>PNG, JPG, WEBP สูงสุด 10MB</p>
-              </div>
-            ) : (
-              <div style={{ marginBottom: 16, position: "relative" }}>
-                <img src={addPreview} alt="preview" style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 12, border: "1px solid var(--gb)" }} />
-                <button className="icon-btn" onClick={clearAdd} style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,.7)" }}><X size={12} /></button>
-                <p style={{ margin: "6px 0 0", fontSize: 11, color: "var(--ok)", fontWeight: 700 }}>✓ {addFile?.name}</p>
-              </div>
-            )}
+            {/* Image upload — multiple (up to 8) */}
+            <div style={{ marginBottom: 16 }}>
+              {addPreviews.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 8 }}>
+                  {addPreviews.map((src, i) => (
+                    <div key={i} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", border: "1px solid var(--gb)" }}>
+                      <img src={src} alt={`รูป ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <button onClick={() => removeAddFile(i)} style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, padding: 0, border: "none", borderRadius: 5, cursor: "pointer", background: "rgba(0,0,0,.75)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {addPreviews.length < 8 && (
+                <div {...addRoot()} className={`upload-zone${addDrag ? " drag-over" : ""}`} style={addPreviews.length > 0 ? { padding: "14px 16px" } : {}}>
+                  <input {...addInput()} />
+                  <ImgIcon size={addPreviews.length > 0 ? 18 : 28} color="var(--faint)" style={{ margin: "0 auto 6px", display: "block" }} />
+                  <p style={{ margin: "0 0 4px", fontSize: addPreviews.length > 0 ? 11 : 13, color: "var(--dim)", fontWeight: 600 }}>
+                    {addDrag ? "วางรูปที่นี่…" : addPreviews.length > 0 ? `+ เพิ่มรูปได้อีก ${8 - addPreviews.length} รูป` : "ลากรูปมาวาง หรือคลิกเลือก"}
+                  </p>
+                  {addPreviews.length === 0 && <p style={{ margin: 0, fontSize: 11, color: "var(--faint)" }}>PNG, JPG, WEBP สูงสุด 10MB · ใส่ได้สูงสุด 8 รูป</p>}
+                </div>
+              )}
+            </div>
 
             <FormFields form={addForm} setForm={setAddForm} categories={categories} />
 
@@ -329,6 +353,11 @@ export default function ProductsPage() {
                     ? <img src={imgSrc} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><Package size={36} color="var(--faint)" strokeWidth={1} style={{ opacity: .4 }} /></div>
                   }
+                  {p.media_urls?.length > 1 && (
+                    <div style={{ position: "absolute", bottom: 8, left: 8, background: "rgba(0,0,0,.65)", backdropFilter: "blur(4px)", borderRadius: 6, padding: "2px 8px", fontSize: 10.5, fontWeight: 700, color: "#fff", display: "flex", alignItems: "center", gap: 4 }}>
+                      <ImgIcon size={10} />{p.media_urls.length}
+                    </div>
+                  )}
                   <div className="img-actions">
                     <button className="icon-btn-sm" onClick={e => openEdit(p, e)} title="แก้ไข"><Pencil size={11} /></button>
                     <button className="icon-btn-sm danger" onClick={e => handleDelete(p.id, e)} title="ลบ"><Trash2 size={11} /></button>
