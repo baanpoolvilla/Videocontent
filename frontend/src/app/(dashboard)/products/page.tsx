@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { api, fileUrl } from "@/lib/api";
-import { Package, Plus, X, Loader2, Search, Zap, Image as ImgIcon, Trash2, ArrowRight, Pencil, SlidersHorizontal, Camera } from "lucide-react";
+import { Package, Plus, X, Loader2, Search, Zap, Image as ImgIcon, Trash2, ArrowRight, Pencil, SlidersHorizontal } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 
 interface Product {
@@ -37,12 +37,13 @@ export default function ProductsPage() {
   const [addProgress, setAddProgress] = useState<string | null>(null);
 
   // ── Edit modal state ─────────────────────────────────────────────
-  const [editProduct, setEditProduct]       = useState<Product | null>(null);
-  const [editForm, setEditForm]             = useState<Form>(EMPTY);
-  const [editFile, setEditFile]             = useState<File | null>(null);
-  const [editPreview, setEditPreview]       = useState("");
-  const [editImgDeleted, setEditImgDeleted] = useState(false);
-  const [editBusy, setEditBusy]             = useState(false);
+  const [editProduct, setEditProduct]           = useState<Product | null>(null);
+  const [editForm, setEditForm]                 = useState<Form>(EMPTY);
+  const [editExistingUrls, setEditExistingUrls] = useState<string[]>([]);
+  const [editNewFiles, setEditNewFiles]         = useState<File[]>([]);
+  const [editNewPreviews, setEditNewPreviews]   = useState<string[]>([]);
+  const [editBusy, setEditBusy]                 = useState(false);
+  const [editProgress, setEditProgress]         = useState<string | null>(null);
 
   useEffect(() => {
     api.get("/products/").then(r => setProducts(r.data)).catch(() => {}).finally(() => setLoading(false));
@@ -71,25 +72,38 @@ export default function ProductsPage() {
     setAddFiles([]); setAddPreviews([]);
   };
 
-  // ── Edit dropzone ─────────────────────────────────────────────────
-  const onEditDrop = useCallback((files: File[]) => {
-    const f = files[0]; if (!f) return;
-    if (editPreview && !editProduct?.media_urls?.[0]) URL.revokeObjectURL(editPreview);
-    setEditFile(f); setEditPreview(URL.createObjectURL(f)); setEditImgDeleted(false);
-  }, [editPreview, editProduct]);
+  // ── Edit dropzone (multiple) ──────────────────────────────────────
+  const onEditDrop = useCallback((newFiles: File[]) => {
+    const newPreviews = newFiles.map(f => URL.createObjectURL(f));
+    setEditNewFiles(prev => [...prev, ...newFiles].slice(0, 8));
+    setEditNewPreviews(prev => {
+      const all = [...prev, ...newPreviews];
+      all.slice(8).forEach(u => URL.revokeObjectURL(u));
+      return all.slice(0, 8);
+    });
+  }, []);
   const { getRootProps: editRoot, getInputProps: editInput, isDragActive: editDrag } = useDropzone({
-    onDrop: onEditDrop, accept: { "image/*": [] }, maxFiles: 1, maxSize: 10 * 1024 * 1024,
+    onDrop: onEditDrop, accept: { "image/*": [] }, multiple: true, maxFiles: 8, maxSize: 10 * 1024 * 1024,
   });
+
+  const removeExisting = (i: number) => setEditExistingUrls(prev => prev.filter((_, j) => j !== i));
+  const removeEditNew = (i: number) => {
+    URL.revokeObjectURL(editNewPreviews[i]);
+    setEditNewFiles(prev => prev.filter((_, j) => j !== i));
+    setEditNewPreviews(prev => prev.filter((_, j) => j !== i));
+  };
 
   const openEdit = (p: Product, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditProduct(p);
     setEditForm({ name: p.name, description: p.description || "", category: p.category || "", price: p.price != null ? String(p.price) : "" });
-    setEditFile(null); setEditPreview(""); setEditImgDeleted(false);
+    setEditExistingUrls(p.media_urls || []);
+    setEditNewFiles([]); setEditNewPreviews([]);
   };
   const closeEdit = () => {
-    if (editPreview && !editProduct?.media_urls?.[0]) URL.revokeObjectURL(editPreview);
-    setEditProduct(null); setEditFile(null); setEditPreview(""); setEditImgDeleted(false);
+    editNewPreviews.forEach(u => URL.revokeObjectURL(u));
+    setEditProduct(null);
+    setEditExistingUrls([]); setEditNewFiles([]); setEditNewPreviews([]);
   };
 
   // ── Handlers ─────────────────────────────────────────────────────
@@ -121,17 +135,13 @@ export default function ProductsPage() {
     if (!editProduct || !editForm.name.trim()) return;
     setEditBusy(true);
     try {
-      let media_urls = editProduct.media_urls;
-
-      if (editFile) {
-        // Upload new image → get URL → replace media_urls
-        const fd = new FormData(); fd.append("file", editFile);
+      let media_urls = [...editExistingUrls];
+      for (let i = 0; i < editNewFiles.length; i++) {
+        setEditProgress(`กำลังอัปโหลดรูป ${i + 1}/${editNewFiles.length}…`);
+        const fd = new FormData(); fd.append("file", editNewFiles[i]);
         const up = await api.post(`/products/${editProduct.id}/upload`, fd, { headers: { "Content-Type": "multipart/form-data" } });
-        media_urls = [up.data.url];
-      } else if (editImgDeleted) {
-        media_urls = [];
+        media_urls = [...media_urls, up.data.url];
       }
-
       const res = await api.patch(`/products/${editProduct.id}`, {
         name: editForm.name, description: editForm.description || null,
         category: editForm.category || null, price: editForm.price ? parseFloat(editForm.price) : null,
@@ -140,7 +150,7 @@ export default function ProductsPage() {
       setProducts(prev => prev.map(p => p.id === editProduct.id ? { ...p, ...res.data } : p));
       closeEdit();
     } catch (e) { console.error(e); }
-    finally { setEditBusy(false); }
+    finally { setEditBusy(false); setEditProgress(null); }
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
@@ -175,13 +185,7 @@ export default function ProductsPage() {
     return list;
   }, [products, search, catFilter, sort]);
 
-  // ── Current edit image display ────────────────────────────────────
-  const editCurrentImg = (() => {
-    if (editFile) return editPreview;           // new file chosen
-    if (editImgDeleted) return null;            // user deleted
-    if (editProduct?.media_urls?.[0]) return fileUrl(editProduct.media_urls[0]); // existing
-    return null;
-  })();
+  const editTotalImages = editExistingUrls.length + editNewPreviews.length;
 
   return (
     <div className="page-enter" style={{ padding: "32px 40px", minHeight: "100vh" }}>
@@ -294,29 +298,49 @@ export default function ProductsPage() {
               {!editBusy && <button className="icon-btn" onClick={closeEdit}><X size={14} /></button>}
             </div>
 
-            {/* Edit image area */}
-            {editCurrentImg ? (
-              <div style={{ marginBottom: 16, position: "relative" }}>
-                <img src={editCurrentImg} alt="product" style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 12, border: "1px solid var(--gb)" }} />
-                <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6 }}>
-                  <div {...editRoot()}>
-                    <input {...editInput()} />
-                    <button className="icon-btn" style={{ background: "rgba(0,0,0,.7)" }} title="เปลี่ยนรูป"><Camera size={12} /></button>
-                  </div>
-                  <button className="icon-btn" style={{ background: "rgba(0,0,0,.7)" }} onClick={() => { setEditImgDeleted(true); setEditFile(null); setEditPreview(""); }} title="ลบรูป">
-                    <Trash2 size={12} color="var(--err)" />
-                  </button>
+            {/* Edit image area — multi-image */}
+            <div style={{ marginBottom: 16 }}>
+              {editExistingUrls.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 8 }}>
+                  {editExistingUrls.map((url, i) => (
+                    <div key={i} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", border: "1px solid var(--gb)" }}>
+                      <img src={fileUrl(url)} alt={`รูป ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <button onClick={() => removeExisting(i)} style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, padding: 0, border: "none", borderRadius: 5, cursor: "pointer", background: "rgba(0,0,0,.75)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-                {editFile && <p style={{ margin: "6px 0 0", fontSize: 11, color: "var(--ok)", fontWeight: 700 }}>✓ {editFile.name}</p>}
-              </div>
-            ) : (
-              <div {...editRoot()} className={`upload-zone${editDrag ? " drag-over" : ""}`} style={{ marginBottom: 16 }}>
-                <input {...editInput()} />
-                <ImgIcon size={28} color="var(--faint)" style={{ margin: "0 auto 10px", display: "block" }} />
-                <p style={{ margin: "0 0 4px", fontSize: 13, color: "var(--dim)", fontWeight: 600 }}>{editDrag ? "วางรูปที่นี่…" : "ลากรูปมาวาง หรือคลิกเลือก"}</p>
-                <p style={{ margin: 0, fontSize: 11, color: "var(--faint)" }}>PNG, JPG, WEBP สูงสุด 10MB</p>
-              </div>
-            )}
+              )}
+              {editNewPreviews.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 8 }}>
+                  {editNewPreviews.map((src, i) => (
+                    <div key={i} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", border: "1px solid rgba(0,255,212,.35)" }}>
+                      <img src={src} alt={`ใหม่ ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <button onClick={() => removeEditNew(i)} style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, padding: 0, border: "none", borderRadius: 5, cursor: "pointer", background: "rgba(0,0,0,.75)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {editTotalImages < 8 && (
+                <div {...editRoot()} className={`upload-zone${editDrag ? " drag-over" : ""}`} style={editTotalImages > 0 ? { padding: "14px 16px" } : {}}>
+                  <input {...editInput()} />
+                  <ImgIcon size={editTotalImages > 0 ? 18 : 28} color="var(--faint)" style={{ margin: "0 auto 6px", display: "block" }} />
+                  <p style={{ margin: "0 0 4px", fontSize: editTotalImages > 0 ? 11 : 13, color: "var(--dim)", fontWeight: 600 }}>
+                    {editDrag ? "วางรูปที่นี่…" : editTotalImages > 0 ? `+ เพิ่มรูปได้อีก ${8 - editTotalImages} รูป` : "ลากรูปมาวาง หรือคลิกเลือก"}
+                  </p>
+                  {editTotalImages === 0 && <p style={{ margin: 0, fontSize: 11, color: "var(--faint)" }}>PNG, JPG, WEBP สูงสุด 10MB · ใส่ได้สูงสุด 8 รูป</p>}
+                </div>
+              )}
+              {editProgress && (
+                <div style={{ marginTop: 8, padding: "8px 12px", background: "rgba(0,255,212,.06)", border: "1px solid rgba(0,255,212,.2)", borderRadius: 8, display: "flex", alignItems: "center", gap: 8 }}>
+                  <Loader2 size={12} color="var(--teal)" style={{ animation: "spin 1s linear infinite" }} />
+                  <span style={{ fontSize: 12, color: "var(--teal)", fontWeight: 600 }}>{editProgress}</span>
+                </div>
+              )}
+            </div>
 
             <FormFields form={editForm} setForm={setEditForm} categories={categories} />
 
