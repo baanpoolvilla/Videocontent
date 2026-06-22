@@ -1,538 +1,476 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { api, fileUrl } from "@/lib/api";
-import {
-  Zap, FileText, Mic2, Film, CheckCircle2, Loader2, ChevronRight,
-  Package, Copy, RotateCcw, Play,
-} from "lucide-react";
+import { ChevronDown, Film, Image, Layers, Pen, Loader2, Download, RefreshCw, X, Sparkles } from "lucide-react";
 
-interface Product {
-  id: string;
-  name: string;
-  category: string | null;
-  media_urls: string[];
-}
+interface Product { id: string; name: string; media_urls: string[]; }
 
-interface Job {
-  id: string;
-  product_id: string;
-  status: string;
-}
-
-interface Script {
-  id: string;
-  hook: string | null;
-  body: string | null;
-  cta: string | null;
-  full_script: string | null;
-  version: number;
-}
-
-type Step = "product" | "analyze" | "script" | "voice" | "render" | "done";
-
-const STEPS: { id: Step; label: string; icon: React.ElementType }[] = [
-  { id: "product", label: "เลือกสินค้า",   icon: Package },
-  { id: "analyze", label: "วิเคราะห์ AI",  icon: Zap },
-  { id: "script",  label: "สร้าง Script",  icon: FileText },
-  { id: "voice",   label: "เสียงพากย์",    icon: Mic2 },
-  { id: "render",  label: "เรนเดอร์วิดีโอ", icon: Film },
-  { id: "done",    label: "เสร็จสิ้น",      icon: CheckCircle2 },
+const TEMPLATES = [
+  { id: "friend",  emoji: "🤝", label: "รีวิวเพื่อนสนิท",     desc: "เสียงเป็นกันเอง · โทนสบายๆ · เหมาะกับสกินแคร์",   tone: "สนุก กระชับ เป็นกันเอง",        cta: "ลองดูได้เลย" },
+  { id: "luxury",  emoji: "✨", label: "ลักชัวรี่ซีเนมาติก",  desc: "โทนหรู · พรีเมียม · เน้นคุณค่าและความพิเศษ",       tone: "หรู พรีเมียม มีระดับ ซีเนมาติก", cta: "สัมผัสความพิเศษ" },
+  { id: "promo",   emoji: "🔥", label: "โปรโมชั่นเร่งด่วน",   desc: "เร่งด่วน · มีส่วนลด · กระตุ้นการซื้อสูง",           tone: "เร่งด่วน กระตุ้น โปรโมชั่น ลด", cta: "สั่งเลยวันนี้" },
+  { id: "unbox",   emoji: "📦", label: "มีมเปิดกล่อง",         desc: "ตลก · สนุก · สไตล์ UGC ถ่ายเอง",                   tone: "ตลก สนุก UGC เป็นธรรมชาติ",     cta: "ลิงก์ใน bio" },
+  { id: "pro",     emoji: "💼", label: "รีวิวมืออาชีพ",        desc: "หนักแน่น · มีข้อมูล · น่าเชื่อถือสูง",             tone: "มืออาชีพ หนักแน่น ข้อมูลชัดเจน",cta: "เปรียบเทียบแล้วซื้อ" },
 ];
 
-const STEP_INDEX: Record<Step, number> = {
-  product: 0, analyze: 1, script: 2, voice: 3, render: 4, done: 5,
-};
+const TABS = [
+  { id: "video",   label: "สร้างวิดีโอ",           Icon: Film },
+  { id: "image",   label: "สร้างภาพ",              Icon: Image },
+  { id: "img2vid", label: "รูปนิ่ง → วิดีโอ",     Icon: Layers },
+  { id: "sketch",  label: "สเก็ตช์ → ภาพ/วิดีโอ", Icon: Pen },
+];
+
+const STEPS = [
+  "AI วิเคราะห์สินค้า...",
+  "สร้าง Script...",
+  "สร้างเสียงพากย์...",
+  "เรนเดอร์วิดีโอ...",
+];
+
+const VER_LABELS = ["A", "B", "C", "D", "E"];
+
+type Status = "idle" | "running" | "done" | "error";
 
 export default function GeneratePage() {
-  const [step, setStep]       = useState<Step>("product");
-  const [products, setProducts] = useState<Product[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [job, setJob]         = useState<Job | null>(null);
-  const [script, setScript]   = useState<Script | null>(null);
-  const [voiceUrl, setVoiceUrl] = useState<string>("");
-  const [renderUrl, setRenderUrl] = useState<string>("");
-  const [busy, setBusy]       = useState(false);
-  const [error, setError]     = useState<string>("");
-  const [tone, setTone]       = useState("สนุก, กระชับ, ดึงดูด");
-  const [cta, setCta]         = useState("สั่งซื้อเลย");
-  const [duration, setDuration] = useState(30);
-  const [analysis, setAnalysis] = useState<Record<string, unknown> | null>(null);
+  const router = useRouter();
+
+  const [tab, setTab]                  = useState("video");
+  const [tpl, setTpl]                  = useState(TEMPLATES[0]);
+  const [showTplModal, setShowTplModal] = useState(false);
+  const [concept, setConcept]          = useState("");
+  const [multiVer, setMultiVer]        = useState(false);
+  const [verCount, setVerCount]        = useState(3);
+  const [resolution, setResolution]    = useState("1080p·30s");
+  const [voice, setVoice]              = useState("เป็นกันเอง (หญิง)");
+
+  const [products, setProducts]        = useState<Product[]>([]);
+  const [product, setProduct]          = useState<Product | null>(null);
+  const [showPicker, setShowPicker]    = useState(false);
+
+  const [status, setStatus]    = useState<Status>("idle");
+  const [step, setStep]        = useState(0);
+  const [errMsg, setErrMsg]    = useState("");
+  const [results, setResults]  = useState<Record<string, string>>({});
+  const [activeVer, setActiveVer] = useState("A");
 
   useEffect(() => {
-    api.get("/products/").then((r) => setProducts(r.data)).catch(() => {});
+    api.get("/products/").then(r => setProducts(r.data)).catch(() => {});
   }, []);
 
-  const curIdx = STEP_INDEX[step];
+  const durSec = parseInt(resolution.split("·")[1]) || 30;
 
-  const runStep = async () => {
-    setBusy(true);
-    setError("");
+  const runOne = async (vLabel: string, toneExtra: string) => {
+    if (!product) return "";
+    const tone = `${tpl.tone}. ${toneExtra}`.trim();
+
+    setStep(0);
+    const jobRes = await api.post("/jobs/", { product_id: product.id, platform: "tiktok" });
+    const jobId = jobRes.data.id;
+
+    try { await api.post(`/products/${product.id}/analyze`); } catch { /* already analyzed */ }
+
+    setStep(1);
+    await api.post(`/jobs/${jobId}/generate-script`, null, {
+      params: { tone_of_voice: tone, cta_style: tpl.cta, duration_sec: durSec },
+    });
+
+    setStep(2);
+    const voiceRes = await api.post(`/jobs/${jobId}/voiceover`);
+
+    setStep(3);
+    const renderRes = await api.post(`/jobs/${jobId}/render`, null, {
+      params: { voiceover_url: voiceRes.data.voiceover_url, duration_sec: durSec },
+    });
+
+    return renderRes.data.video_url || "";
+  };
+
+  const handleGenerate = async () => {
+    if (!product) { setShowPicker(true); return; }
+    setStatus("running");
+    setResults({});
+    setErrMsg("");
+    setActiveVer("A");
+
     try {
-      if (step === "product") {
-        if (!selectedProduct) { setError("กรุณาเลือกสินค้าก่อน"); return; }
-        const res = await api.post("/jobs/", {
-          product_id: selectedProduct.id,
-          platform: "tiktok",
-          target_duration_sec: duration,
-        });
-        setJob(res.data);
-        setStep("analyze");
+      const count = multiVer ? verCount : 1;
+      const variants = [
+        concept,
+        `${concept} (เวอร์ชันสั้นกระชับ)`,
+        `${concept} (เวอร์ชันใช้ตัวเลข)`,
+        `${concept} (เวอร์ชัน storytelling)`,
+        `${concept} (เวอร์ชัน hook แปลก)`,
+      ];
+      const acc: Record<string, string> = {};
+      for (let i = 0; i < count; i++) {
+        const url = await runOne(VER_LABELS[i], variants[i]);
+        acc[VER_LABELS[i]] = url;
+        setResults({ ...acc });
       }
-      else if (step === "analyze") {
-        if (!selectedProduct) return;
-        const res = await api.post(`/products/${selectedProduct.id}/analyze`);
-        setAnalysis(res.data);
-        setStep("script");
-      }
-      else if (step === "script") {
-        if (!job) return;
-        const res = await api.post(
-          `/jobs/${job.id}/generate-script?tone_of_voice=${encodeURIComponent(tone)}&cta_style=${encodeURIComponent(cta)}&duration_sec=${duration}`
-        );
-        setScript(res.data);
-        setStep("voice");
-      }
-      else if (step === "voice") {
-        if (!job) return;
-        const res = await api.post(`/jobs/${job.id}/voiceover`);
-        setVoiceUrl(res.data.voiceover_url || "");
-        setStep("render");
-      }
-      else if (step === "render") {
-        if (!job) return;
-        const res = await api.post(`/jobs/${job.id}/render?voiceover_url=${encodeURIComponent(voiceUrl)}&duration_sec=${duration}`);
-        setRenderUrl(res.data.video_url || "");
-        setStep("done");
-      }
+      setStatus("done");
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "เกิดข้อผิดพลาด";
-      setError(typeof msg === "string" ? msg : JSON.stringify(msg));
-    } finally {
-      setBusy(false);
+      setErrMsg(e instanceof Error ? e.message : "เกิดข้อผิดพลาด กรุณาลองใหม่");
+      setStatus("error");
     }
   };
 
-  const reset = () => {
-    setStep("product"); setSelectedProduct(null); setJob(null);
-    setScript(null); setVoiceUrl(""); setRenderUrl(""); setError(""); setAnalysis(null);
-  };
-
-  const btnLabel: Record<Step, string> = {
-    product: "สร้าง Job & ต่อไป",
-    analyze: "วิเคราะห์สินค้า",
-    script:  "สร้าง Script",
-    voice:   "สร้างเสียงพากย์",
-    render:  "เรนเดอร์วิดีโอ",
-    done:    "สร้างใหม่",
-  };
+  const reset = () => { setStatus("idle"); setResults({}); setErrMsg(""); };
+  const activeUrl = results[activeVer] || "";
 
   return (
-    <div className="page-enter" style={{ padding: "32px 40px", minHeight: "100vh" }}>
+    <div className="page-enter" style={{ padding: "28px 40px", maxWidth: 1100, margin: "0 auto" }}>
 
-      {/* Header */}
-      <div style={{ marginBottom: 28 }}>
-        <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--faint)" }}>
-          04 · สร้างคอนเทนต์
-        </p>
-        <h1 style={{ margin: "0 0 4px", fontSize: 26, fontWeight: 800, color: "var(--text)", letterSpacing: "-.02em" }}>
-          Generate Studio
-        </h1>
-        <p style={{ margin: 0, fontSize: 13, color: "var(--dim)" }}>
-          ครบวงจร — เลือกสินค้า → AI วิเคราะห์ → Script → เสียง → วิดีโอ
-        </p>
+      <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--faint)" }}>
+        กลุ่ม 2 · AI สร้างคอนเทนต์
+      </p>
+
+      {/* Top tabs */}
+      <div style={{ display: "flex", gap: 26, marginBottom: 18, borderBottom: "1px solid var(--gb)" }}>
+        {TABS.map(({ id, label, Icon }) => (
+          <button key={id} onClick={() => setTab(id)} style={{
+            background: "none", border: "none", cursor: "pointer",
+            fontSize: 13.5, fontWeight: tab === id ? 800 : 600,
+            color: tab === id ? "var(--text)" : "var(--faint)",
+            paddingBottom: 14, marginBottom: -1,
+            borderBottom: `2px solid ${tab === id ? "var(--teal)" : "transparent"}`,
+            display: "flex", alignItems: "center", gap: 7, transition: "all .15s",
+          }}>
+            <Icon size={14} strokeWidth={2} />{label}
+          </button>
+        ))}
       </div>
 
-      {/* Steps progress */}
-      <div style={{ display: "flex", gap: 0, marginBottom: 32, alignItems: "center" }}>
-        {STEPS.map(({ id, label, icon: Icon }, i) => {
-          const done    = i < curIdx;
-          const current = i === curIdx;
-          return (
-            <div key={id} style={{ display: "flex", alignItems: "center", flex: i < STEPS.length - 1 ? 1 : undefined }}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                <div style={{
-                  width: 38, height: 38, borderRadius: "50%",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  background: done ? "var(--teal)" : current ? "rgba(0,255,212,.15)" : "var(--glass)",
-                  border: done ? "2px solid var(--teal)" : current ? "2px solid var(--teal)" : "2px solid var(--gb)",
-                  boxShadow: current ? "0 0 20px rgba(0,255,212,.3)" : "none",
-                  transition: "all .3s ease",
-                }}>
-                  {done
-                    ? <CheckCircle2 size={16} color="#06060A" strokeWidth={2.5} />
-                    : <Icon size={15} color={current ? "var(--teal)" : "var(--faint)"} strokeWidth={2} />
-                  }
-                </div>
-                <span style={{ fontSize: 10.5, fontWeight: 700, color: done ? "var(--teal)" : current ? "var(--text)" : "var(--faint)", whiteSpace: "nowrap" }}>
-                  {label}
-                </span>
-              </div>
-              {i < STEPS.length - 1 && (
-                <div style={{
-                  flex: 1, height: 2, margin: "0 6px", marginBottom: 18,
-                  background: i < curIdx ? "var(--teal)" : "var(--gb)",
-                  transition: "background .3s ease",
-                }} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 20 }}>
-
-        {/* Main panel */}
-        <div>
-
-          {/* Step: Select Product */}
-          {step === "product" && (
-            <div className="card">
-              <h2 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "var(--text)" }}>เลือกสินค้า</h2>
-              <p style={{ margin: "0 0 18px", fontSize: 12.5, color: "var(--dim)" }}>เลือกสินค้าที่ต้องการสร้างวิดีโอโปรโมท</p>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10, marginBottom: 16 }}>
-                {products.map((p) => (
-                  <div
-                    key={p.id}
-                    onClick={() => setSelectedProduct(p)}
-                    style={{
-                      padding: 14, borderRadius: 14, cursor: "pointer",
-                      border: `2px solid ${selectedProduct?.id === p.id ? "var(--teal)" : "var(--gb)"}`,
-                      background: selectedProduct?.id === p.id ? "rgba(0,255,212,.06)" : "var(--glass)",
-                      transition: "var(--tr)",
-                      boxShadow: selectedProduct?.id === p.id ? "0 0 20px rgba(0,255,212,.12)" : "none",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{
-                        width: 40, height: 40, borderRadius: 10, overflow: "hidden", flexShrink: 0,
-                        background: "rgba(255,255,255,.06)", display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>
-                        {p.media_urls?.length > 0
-                          ? <img src={fileUrl(p.media_urls[0])} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          : <Package size={18} color="var(--faint)" />
-                        }
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {p.name}
-                        </p>
-                        {p.category && <p style={{ margin: "2px 0 0", fontSize: 11, color: "var(--faint)" }}>{p.category}</p>}
-                      </div>
-                      {selectedProduct?.id === p.id && <CheckCircle2 size={16} color="var(--teal)" />}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {products.length === 0 && (
-                <div style={{ textAlign: "center", padding: "32px 0", color: "var(--faint)" }}>
-                  <Package size={32} strokeWidth={1} style={{ margin: "0 auto 10px", display: "block", opacity: .3 }} />
-                  <p style={{ margin: 0, fontSize: 13 }}>ยังไม่มีสินค้า — ไปเพิ่มสินค้าก่อน</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Step: Analyze */}
-          {step === "analyze" && (
-            <div className="card">
-              <h2 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "var(--text)" }}>วิเคราะห์สินค้าด้วย AI</h2>
-              <p style={{ margin: "0 0 18px", fontSize: 12.5, color: "var(--dim)" }}>
-                Groq llama-3.3-70b จะวิเคราะห์ข้อมูลสินค้า <b style={{ color: "var(--text)" }}>{selectedProduct?.name}</b> เพื่อหาจุดขายและกลุ่มเป้าหมาย
-              </p>
-              {analysis && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {(Object.entries(analysis) as [string, unknown][])
-                    .filter(([k]) => !["analysis_id", "product_id"].includes(k))
-                    .map(([k, v]) => (
-                      <div key={k} style={{ padding: "12px 14px", background: "var(--glass)", borderRadius: 12, border: "1px solid var(--gb)" }}>
-                        <p style={{ margin: "0 0 6px", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--faint)" }}>{k}</p>
-                        <p style={{ margin: 0, fontSize: 13, color: "var(--text)", lineHeight: 1.6 }}>
-                          {Array.isArray(v) ? (v as string[]).join(" · ") : String(v)}
-                        </p>
-                      </div>
-                    ))
-                  }
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Step: Script */}
-          {step === "script" && (
-            <div className="card">
-              <h2 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "var(--text)" }}>Script Settings</h2>
-              <p style={{ margin: "0 0 18px", fontSize: 12.5, color: "var(--dim)" }}>ปรับแต่งโทนและ CTA ก่อนสร้าง Script</p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: "var(--dim)", display: "block", marginBottom: 6 }}>โทนเสียง (Tone of Voice)</label>
-                  <input className="cs-input" value={tone} onChange={(e) => setTone(e.target.value)} placeholder="เช่น สนุก, กระชับ, น่าเชื่อถือ" />
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: "var(--dim)", display: "block", marginBottom: 6 }}>Call to Action</label>
-                  <input className="cs-input" value={cta} onChange={(e) => setCta(e.target.value)} placeholder="เช่น สั่งซื้อเลย, ลองฟรีวันนี้" />
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: "var(--dim)", display: "block", marginBottom: 6 }}>ความยาววิดีโอ (วินาที)</label>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {[15, 30, 60].map((d) => (
-                      <button
-                        key={d}
-                        className={`btn btn-sm ${duration === d ? "btn-soft" : "btn-ghost"}`}
-                        onClick={() => setDuration(d)}
-                      >{d}s</button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              {script && (
-                <div style={{ marginTop: 20 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: "var(--teal)" }}>Script Version {script.version}</p>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button className="icon-btn" onClick={() => navigator.clipboard.writeText(script.full_script || "")} title="คัดลอก"><Copy size={12} /></button>
-                    </div>
-                  </div>
-                  {script.hook && (
-                    <div style={{ padding: "12px 14px", background: "rgba(0,255,212,.06)", border: "1px solid rgba(0,255,212,.18)", borderRadius: 12, marginBottom: 10 }}>
-                      <p style={{ margin: "0 0 4px", fontSize: 10.5, fontWeight: 700, color: "var(--teal)" }}>HOOK</p>
-                      <p style={{ margin: 0, fontSize: 13.5, color: "var(--text)", lineHeight: 1.7 }}>{script.hook}</p>
-                    </div>
-                  )}
-                  {script.body && (
-                    <div style={{ padding: "12px 14px", background: "var(--glass)", border: "1px solid var(--gb)", borderRadius: 12, marginBottom: 10 }}>
-                      <p style={{ margin: "0 0 4px", fontSize: 10.5, fontWeight: 700, color: "var(--dim)" }}>BODY</p>
-                      <p style={{ margin: 0, fontSize: 13, color: "var(--text)", lineHeight: 1.7 }}>{script.body}</p>
-                    </div>
-                  )}
-                  {script.cta && (
-                    <div style={{ padding: "12px 14px", background: "rgba(77,127,255,.06)", border: "1px solid rgba(77,127,255,.18)", borderRadius: 12 }}>
-                      <p style={{ margin: "0 0 4px", fontSize: 10.5, fontWeight: 700, color: "var(--blue)" }}>CTA</p>
-                      <p style={{ margin: 0, fontSize: 13, color: "var(--text)", lineHeight: 1.7 }}>{script.cta}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Step: Voice */}
-          {step === "voice" && (
-            <div className="card">
-              <h2 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "var(--text)" }}>เสียงพากย์ (TTS)</h2>
-              <p style={{ margin: "0 0 18px", fontSize: 12.5, color: "var(--dim)" }}>สร้างไฟล์เสียงด้วย Google TTS (ภาษาไทย)</p>
-              <div style={{ padding: "16px", background: "var(--glass)", borderRadius: 12, border: "1px solid var(--gb)", marginBottom: 14 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(34,212,153,.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Mic2 size={18} color="var(--ok)" />
-                  </div>
-                  <div>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "var(--text)" }}>Google TTS — ภาษาไทย</p>
-                    <p style={{ margin: "2px 0 0", fontSize: 11, color: "var(--faint)" }}>ฟรี · ไม่จำกัดตัวอักษร · คุณภาพดี</p>
-                  </div>
-                  <span className="tag tag-ok" style={{ marginLeft: "auto" }}>พร้อมใช้</span>
-                </div>
-              </div>
-              {voiceUrl && (
-                <div style={{ padding: "14px 16px", background: "rgba(0,255,212,.06)", border: "1px solid rgba(0,255,212,.2)", borderRadius: 12 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div className="voice-dot" />
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "var(--ok)" }}>สร้างเสียงสำเร็จ</p>
-                  </div>
-                  <p style={{ margin: "6px 0 0", fontSize: 11, color: "var(--faint)", fontFamily: "monospace", wordBreak: "break-all" }}>{voiceUrl}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Step: Render */}
-          {step === "render" && (
-            <div className="card">
-              <h2 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "var(--text)" }}>เรนเดอร์วิดีโอ</h2>
-              <p style={{ margin: "0 0 18px", fontSize: 12.5, color: "var(--dim)" }}>FFmpeg จะรวมภาพสินค้า + เสียงพากย์ → MP4 (9:16, 1080×1920)</p>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-                {[
-                  { label: "Resolution", val: "1080×1920" },
-                  { label: "Format",     val: "MP4 (H.264)" },
-                  { label: "Ratio",      val: "9:16 (TikTok)" },
-                  { label: "Duration",   val: `${duration}s` },
-                ].map(({ label, val }) => (
-                  <div key={label} style={{ padding: "10px 14px", background: "var(--glass)", border: "1px solid var(--gb)", borderRadius: 10 }}>
-                    <p style={{ margin: "0 0 3px", fontSize: 10.5, color: "var(--faint)", fontWeight: 700 }}>{label}</p>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{val}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Step: Done */}
-          {step === "done" && (
-            <div className="card" style={{ textAlign: "center", padding: "40px 28px" }}>
-              <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(0,255,212,.12)", border: "2px solid var(--teal)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", boxShadow: "0 0 40px rgba(0,255,212,.2)" }}>
-                <CheckCircle2 size={28} color="var(--teal)" />
-              </div>
-              <h2 style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 800, color: "var(--text)" }}>สร้างวิดีโอสำเร็จ!</h2>
-              <p style={{ margin: "0 0 24px", fontSize: 13, color: "var(--dim)" }}>วิดีโออยู่ใน Render Queue พร้อมสำหรับการอนุมัติและโพสต์</p>
-              {renderUrl && (
-                <div style={{ padding: "14px 16px", background: "var(--glass)", border: "1px solid var(--gb)", borderRadius: 12, marginBottom: 20, textAlign: "left" }}>
-                  <p style={{ margin: "0 0 6px", fontSize: 11.5, fontWeight: 700, color: "var(--dim)" }}>วิดีโอ URL</p>
-                  <p style={{ margin: 0, fontSize: 11, color: "var(--faint)", fontFamily: "monospace", wordBreak: "break-all" }}>{renderUrl}</p>
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-                <button className="btn btn-ghost" onClick={reset}><RotateCcw size={14} />สร้างใหม่</button>
-                <a href="/render-queue">
-                  <button className="btn btn-primary"><Play size={14} />ดูใน Queue</button>
-                </a>
-              </div>
-            </div>
-          )}
-
-          {/* Error */}
-          {error && (
-            <div style={{ margin: "16px 0 0", padding: "12px 16px", background: "rgba(255,77,106,.08)", border: "1px solid rgba(255,77,106,.2)", borderRadius: 12 }}>
-              <p style={{ margin: 0, fontSize: 13, color: "var(--err)", fontWeight: 600 }}>⚠ {error}</p>
-            </div>
-          )}
+      {/* Template bar */}
+      <div onClick={() => setShowTplModal(true)} style={{
+        display: "flex", alignItems: "center", gap: 12,
+        background: "var(--glass)", border: "1px solid var(--gb)", borderRadius: 13,
+        padding: "11px 16px", marginBottom: 16, cursor: "pointer",
+      }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+          background: "linear-gradient(135deg,var(--teal),var(--blue))",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 11, fontWeight: 900, color: "#06060A",
+        }}>AI</div>
+        <div style={{ flex: 1 }}>
+          <b style={{ fontSize: 12.5 }}>{tpl.emoji} เทมเพลต {tpl.label}</b>
+          <div style={{ fontSize: 11, color: "var(--faint)", marginTop: 1 }}>{tpl.desc}</div>
         </div>
+        <span style={{ fontSize: 11, color: "var(--faint)" }}>เปลี่ยน</span>
+        <ChevronDown size={13} color="var(--faint)" />
+      </div>
 
-        {/* Right panel */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Body */}
+      <div style={{ display: "flex", gap: 18, alignItems: "stretch" }}>
 
-          {/* Video canvas preview */}
-          <div className="gs-canvas" style={{ minHeight: 320 }}>
-            <div className="gs-canvas-bg" />
-            {/* Animated border lights */}
-            <div style={{
-              position: "absolute", inset: 0, borderRadius: 16, pointerEvents: "none",
-              background: "transparent",
-              boxShadow: step === "done"
-                ? "inset 0 0 0 2px var(--teal), 0 0 30px rgba(0,255,212,.25)"
-                : "inset 0 0 0 1px var(--gb)",
+        {/* Left */}
+        <div style={{ width: 340, flexShrink: 0, display: "flex", flexDirection: "column" }}>
+          <div style={{
+            background: "var(--glass)", border: "1px solid var(--gb)", borderRadius: 14,
+            padding: 18, flex: 1, display: "flex", flexDirection: "column", gap: 10,
+          }}>
+
+            {/* Product selector */}
+            <div onClick={() => setShowPicker(v => !v)} style={{
+              background: "var(--bg)", border: `1px solid ${product ? "rgba(0,255,212,.3)" : "var(--gb)"}`,
+              borderRadius: 10, padding: "9px 14px", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              fontSize: 13, color: product ? "var(--text)" : "var(--faint)",
             }}>
-              {/* Running light border */}
+              <span>{product ? `📦 ${product.name}` : "เลือกสินค้า..."}</span>
+              <ChevronDown size={13} />
+            </div>
+
+            {showPicker && (
               <div style={{
-                position: "absolute", inset: 0, borderRadius: 16, overflow: "hidden",
+                background: "var(--surface)", border: "1px solid var(--gb)",
+                borderRadius: 10, overflow: "hidden", maxHeight: 160, overflowY: "auto",
+              }}>
+                {products.length === 0 ? (
+                  <div style={{ padding: "12px 14px", fontSize: 12, color: "var(--faint)" }}>
+                    ยังไม่มีสินค้า —{" "}
+                    <span onClick={() => router.push("/products")} style={{ color: "var(--teal)", cursor: "pointer" }}>
+                      อัปโหลดสินค้าก่อน
+                    </span>
+                  </div>
+                ) : products.map(p => (
+                  <div key={p.id} onClick={() => { setProduct(p); setShowPicker(false); }} style={{
+                    padding: "10px 14px", cursor: "pointer", fontSize: 13,
+                    background: product?.id === p.id ? "rgba(0,255,212,.06)" : "transparent",
+                    color: product?.id === p.id ? "var(--teal)" : "var(--text)",
+                    borderBottom: "1px solid var(--gb)",
+                  }}>{p.name}</div>
+                ))}
+              </div>
+            )}
+
+            {/* Reference image */}
+            <div style={{
+              border: "1.5px dashed var(--gb)", borderRadius: 11, padding: "18px 12px",
+              textAlign: "center", color: "var(--faint)", fontSize: 12, cursor: "pointer",
+              background: "rgba(255,255,255,.01)",
+            }}>
+              <div style={{ fontSize: 20, marginBottom: 6, opacity: .5 }}>🖼</div>
+              เพิ่มรูปสินค้าอ้างอิง<br />
+              <span style={{ fontSize: 10.5 }}>(ไม่บังคับ)</span>
+            </div>
+
+            {/* Hint */}
+            <p style={{ margin: 0, fontSize: 11, color: "var(--teal)", lineHeight: 1.6, opacity: .85 }}>
+              ใช้เครื่องหมายคำพูดสำหรับบทพูด เช่น พูดว่า &quot;เซรั่มตัวนี้ใช้มา 2 อาทิตย์&quot; รองรับหลายภาษาและสำเนียง
+            </p>
+
+            {/* Concept */}
+            <textarea value={concept} onChange={e => setConcept(e.target.value)}
+              placeholder={`อธิบายคลิปที่อยากได้ เช่น "รีวิว${tpl.label}โทนสบายๆ เน้นจุดเด่นสินค้า"`}
+              style={{
+                flex: 1, width: "100%", background: "transparent", border: "none",
+                color: "var(--text)", fontSize: 13, lineHeight: 1.7, resize: "none",
+                outline: "none", minHeight: 90, fontFamily: "inherit",
+              }}
+            />
+
+            {/* Multi-version */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 10,
+              borderTop: "1px solid var(--gb)", paddingTop: 12, marginTop: "auto",
+            }}>
+              <div onClick={() => setMultiVer(v => !v)} style={{
+                width: 34, height: 19, borderRadius: 10, flexShrink: 0, cursor: "pointer", position: "relative",
+                background: multiVer ? "linear-gradient(90deg,var(--teal),var(--blue))" : "var(--glass2)",
+                transition: "background .2s", boxShadow: multiVer ? "0 0 10px rgba(0,255,212,.25)" : "none",
               }}>
                 <div style={{
-                  position: "absolute",
-                  top: 0, left: 0, right: 0, height: 2,
-                  background: `linear-gradient(90deg, transparent, ${step === "render" || step === "done" ? "var(--teal)" : "rgba(77,127,255,.5)"}, transparent)`,
-                  animation: busy ? "scanX 1.5s ease-in-out infinite" : "scanX 3s ease-in-out infinite",
-                }} />
-                <div style={{
-                  position: "absolute",
-                  bottom: 0, left: 0, right: 0, height: 2,
-                  background: "linear-gradient(90deg, transparent, var(--purple), transparent)",
-                  animation: busy ? "scanX 1.5s ease-in-out infinite reverse" : "scanX 3s ease-in-out infinite reverse",
-                }} />
-                <div style={{
-                  position: "absolute",
-                  left: 0, top: 0, bottom: 0, width: 2,
-                  background: "linear-gradient(180deg, transparent, var(--blue), transparent)",
-                  animation: "scanY 2.5s ease-in-out infinite",
-                }} />
-                <div style={{
-                  position: "absolute",
-                  right: 0, top: 0, bottom: 0, width: 2,
-                  background: "linear-gradient(180deg, transparent, var(--teal), transparent)",
-                  animation: "scanY 2.5s ease-in-out infinite reverse",
+                  position: "absolute", top: 2, width: 15, height: 15, borderRadius: "50%",
+                  left: multiVer ? "auto" : 2, right: multiVer ? 2 : "auto",
+                  background: multiVer ? "#06060A" : "var(--faint)", transition: "all .2s",
                 }} />
               </div>
-            </div>
-
-            {step === "done" && renderUrl ? (
-              <div style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
-                <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(0,255,212,.15)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", boxShadow: "0 0 30px rgba(0,255,212,.3)" }}>
-                  <Film size={24} color="var(--teal)" />
+              <span style={{ fontSize: 11.5, color: "var(--dim)", fontWeight: 600 }}>สร้างหลายเวอร์ชัน</span>
+              {multiVer && (
+                <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
+                  {[2, 3, 5].map(n => (
+                    <button key={n} onClick={() => setVerCount(n)} style={{
+                      padding: "2px 7px", borderRadius: 5, fontSize: 10, fontWeight: 700, cursor: "pointer",
+                      border: `1px solid ${verCount === n ? "rgba(0,255,212,.4)" : "var(--gb)"}`,
+                      background: verCount === n ? "rgba(0,255,212,.15)" : "transparent",
+                      color: verCount === n ? "var(--teal)" : "var(--faint)",
+                    }}>{n}</button>
+                  ))}
+                  <span style={{ fontSize: 10.5, color: "var(--teal)", fontWeight: 700, marginLeft: 2 }}>
+                    เวอร์ชัน ({VER_LABELS.slice(0, verCount).join("–")}) ›
+                  </span>
                 </div>
-                <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 700, color: "var(--teal)" }}>วิดีโอพร้อมแล้ว</p>
-                <p style={{ margin: 0, fontSize: 11, color: "var(--faint)" }}>MP4 · 1080×1920 · {duration}s</p>
-              </div>
-            ) : busy ? (
-              <div style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
-                <Loader2 size={32} color="var(--teal)" style={{ animation: "spin 1s linear infinite", display: "block", margin: "0 auto 12px" }} />
-                <p style={{ margin: 0, fontSize: 13, color: "var(--dim)" }}>กำลังประมวลผล…</p>
-              </div>
-            ) : (
-              <div style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
-                {selectedProduct?.media_urls?.[0] ? (
-                  <img src={fileUrl(selectedProduct.media_urls[0])} alt="" style={{ width: 120, height: 160, objectFit: "cover", borderRadius: 12, marginBottom: 12, boxShadow: "0 8px 30px rgba(0,0,0,.5)" }} />
-                ) : (
-                  <div style={{ width: 90, height: 120, background: "rgba(255,255,255,.04)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
-                    <Film size={28} color="var(--faint)" />
-                  </div>
-                )}
-                <p style={{ margin: 0, fontSize: 12, color: "var(--faint)" }}>
-                  {selectedProduct ? selectedProduct.name : "เลือกสินค้าเพื่อเริ่ม"}
-                </p>
-              </div>
-            )}
+              )}
+            </div>
+          </div>
+        </div>
 
-            {/* Voice badge */}
-            {(step === "voice" || step === "render" || step === "done") && (
-              <div className="voice-badge">
-                <span className="voice-dot" />
-                TH · Google TTS
-              </div>
-            )}
+        {/* Canvas */}
+        <div style={{
+          position: "relative", flex: 1,
+          background: "var(--glass)", border: "1px solid var(--gb)", borderRadius: 14,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexDirection: "column", minHeight: 420, overflow: "hidden",
+        }}>
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
+            background: "radial-gradient(60% 60% at 70% 20%,rgba(0,255,212,.06),transparent),radial-gradient(50% 50% at 30% 80%,rgba(77,127,255,.06),transparent)" }} />
+
+          {/* Voice badge */}
+          <div style={{
+            position: "absolute", top: 14, left: 14, zIndex: 2,
+            background: "rgba(34,212,153,.1)", border: "1px solid rgba(34,212,153,.2)",
+            borderRadius: 8, padding: "5px 11px", fontSize: 11, color: "var(--ok)",
+            fontWeight: 700, display: "flex", alignItems: "center", gap: 6,
+          }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--ok)", display: "inline-block", animation: "vpulse 1.5s ease-in-out infinite" }} />
+            🎙 {voice}
           </div>
 
-          {/* Action button */}
-          {step !== "done" ? (
-            <button
-              className="gen-btn"
-              onClick={runStep}
-              disabled={busy || (step === "product" && !selectedProduct)}
-              style={{ width: "100%", opacity: (busy || (step === "product" && !selectedProduct)) ? .5 : 1 }}
-            >
-              {busy
-                ? <span style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> กำลังทำงาน…</span>
-                : <span style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}>{btnLabel[step]} <ChevronRight size={16} /></span>
-              }
-            </button>
-          ) : (
-            <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center" }} onClick={reset}>
-              <RotateCcw size={14} /> สร้างใหม่อีกครั้ง
-            </button>
+          {/* Version tabs */}
+          {status === "done" && Object.keys(results).length > 1 && (
+            <div style={{ position: "absolute", top: 14, right: 14, zIndex: 2, display: "flex", gap: 4 }}>
+              {Object.keys(results).map(v => (
+                <button key={v} onClick={() => setActiveVer(v)} style={{
+                  padding: "4px 10px", borderRadius: 7, fontSize: 11, fontWeight: 800, cursor: "pointer",
+                  border: `1px solid ${activeVer === v ? "rgba(0,255,212,.4)" : "var(--gb)"}`,
+                  background: activeVer === v ? "rgba(0,255,212,.15)" : "var(--glass)",
+                  color: activeVer === v ? "var(--teal)" : "var(--faint)",
+                }}>Ver. {v}</button>
+              ))}
+            </div>
           )}
 
-          {/* Pipeline info */}
-          <div className="card" style={{ padding: 16 }}>
-            <p style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 700, color: "var(--dim)" }}>ข้อมูล Job</p>
-            {[
-              { label: "สินค้า",   val: selectedProduct?.name || "—" },
-              { label: "Job ID",   val: job ? job.id.slice(0, 8) + "…" : "—" },
-              { label: "Duration", val: `${duration}s` },
-              { label: "Platform", val: "TikTok · 9:16" },
-            ].map(({ label, val }) => (
-              <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid var(--gb)" }}>
-                <span style={{ fontSize: 12, color: "var(--faint)" }}>{label}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right" }}>{val}</span>
+          <div style={{ position: "relative", zIndex: 1, textAlign: "center", padding: 24, width: "100%" }}>
+
+            {status === "idle" && (
+              <>
+                <div style={{ fontSize: 36, opacity: .35, marginBottom: 10 }}>🎬</div>
+                <div style={{ fontSize: 12.5, color: "var(--faint)", marginBottom: 16 }}>พรีวิวคลิปจะแสดงตรงนี้หลังกดสร้าง</div>
+                <button onClick={() => router.push("/render-queue")} style={{
+                  background: "var(--glass)", border: "1px solid var(--gb)", color: "var(--text)",
+                  padding: "9px 18px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                }}>ดูเทมเพลตที่เคยใช้ →</button>
+              </>
+            )}
+
+            {status === "running" && (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+                <div style={{ position: "relative", width: 64, height: 64 }}>
+                  <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "3px solid rgba(0,255,212,.15)" }} />
+                  <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "3px solid transparent", borderTopColor: "var(--teal)", animation: "spin 1s linear infinite" }} />
+                  <Sparkles size={22} color="var(--teal)" style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", marginBottom: 4 }}>{STEPS[step]}</div>
+                  {multiVer && <div style={{ fontSize: 12, color: "var(--faint)" }}>เวอร์ชัน {Object.keys(results).length + 1} / {verCount}</div>}
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {STEPS.map((_, i) => (
+                    <div key={i} style={{
+                      width: 50, height: 3, borderRadius: 2,
+                      background: i < step ? "var(--teal)" : i === step ? "rgba(0,255,212,.5)" : "rgba(255,255,255,.1)",
+                      transition: "background .3s",
+                    }} />
+                  ))}
+                </div>
               </div>
-            ))}
+            )}
+
+            {status === "done" && (
+              <div style={{ width: "100%", maxWidth: 280, margin: "0 auto" }}>
+                {activeUrl ? (
+                  <>
+                    <video src={fileUrl(activeUrl)} controls style={{ width: "100%", borderRadius: 10, background: "#000", maxHeight: 320 }} />
+                    <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 12 }}>
+                      <a href={fileUrl(activeUrl)} download style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        padding: "7px 14px", borderRadius: 8, background: "var(--glass)", border: "1px solid var(--gb)",
+                        color: "var(--teal)", textDecoration: "none", fontSize: 12, fontWeight: 700,
+                      }}><Download size={12} /> ดาวน์โหลด</a>
+                      <button onClick={reset} style={{
+                        display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer",
+                        padding: "7px 14px", borderRadius: 8, background: "var(--glass)", border: "1px solid var(--gb)",
+                        color: "var(--dim)", fontSize: 12, fontWeight: 700,
+                      }}><RefreshCw size={12} /> สร้างใหม่</button>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ color: "var(--faint)", fontSize: 13 }}>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
+                    สร้างสำเร็จ — ดูใน Render Queue
+                  </div>
+                )}
+              </div>
+            )}
+
+            {status === "error" && (
+              <div>
+                <div style={{ fontSize: 30, marginBottom: 8 }}>⚠️</div>
+                <div style={{ fontSize: 13, color: "var(--err)", marginBottom: 12, maxWidth: 280 }}>{errMsg}</div>
+                <button onClick={reset} style={{
+                  padding: "8px 20px", borderRadius: 9, cursor: "pointer",
+                  background: "rgba(255,77,106,.1)", border: "1px solid rgba(255,77,106,.2)",
+                  color: "var(--err)", fontSize: 12.5, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6,
+                }}><RefreshCw size={12} /> ลองใหม่</button>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* CSS for light animations */}
+      {/* Bottom bar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 16 }}>
+        <select value={resolution} onChange={e => setResolution(e.target.value)} style={{
+          background: "var(--glass)", border: "1px solid var(--gb)", color: "var(--text)",
+          padding: "10px 14px", borderRadius: 11, fontSize: 12, fontWeight: 600, cursor: "pointer",
+        }}>
+          <option value="720p·15s">720p · 15s · 9:16</option>
+          <option value="1080p·30s">1080p · 30s · 9:16</option>
+          <option value="1080p·60s">1080p · 60s · 9:16</option>
+        </select>
+
+        <select value={voice} onChange={e => setVoice(e.target.value)} style={{
+          background: "var(--glass)", border: "1px solid var(--gb)", color: "var(--text)",
+          padding: "10px 14px", borderRadius: 11, fontSize: 12, fontWeight: 600, cursor: "pointer",
+        }}>
+          <option>เป็นกันเอง (หญิง)</option>
+          <option>มืออาชีพ (ชาย)</option>
+          <option>สดใส (หญิง)</option>
+          <option>หนักแน่น (ชาย)</option>
+        </select>
+
+        <button onClick={handleGenerate} disabled={status === "running"} style={{
+          marginLeft: "auto",
+          background: status === "running" ? "var(--glass2)" : "linear-gradient(90deg,#22D499,#00FFD4,#4D7FFF)",
+          backgroundSize: "200% 200%",
+          color: status === "running" ? "var(--faint)" : "#06060A",
+          border: "none", padding: "12px 40px", borderRadius: 12,
+          fontSize: 14, fontWeight: 900,
+          cursor: status === "running" ? "not-allowed" : "pointer",
+          boxShadow: status === "running" ? "none" : "0 6px 20px rgba(34,212,153,.35)",
+          display: "flex", alignItems: "center", gap: 8,
+          animation: status !== "running" ? "gbg 3s ease infinite" : "none",
+          transition: "all .2s",
+        }}>
+          {status === "running"
+            ? <><Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> กำลังสร้าง...</>
+            : <><Sparkles size={15} /> Generate</>}
+        </button>
+      </div>
+
+      <p style={{ fontSize: 12, color: "var(--faint)", marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,.04)", lineHeight: 1.6 }}>
+        เลือกเสียงเร็วๆ ได้ตรงนี้ — ถ้าจะตั้งค่าละเอียด (สำเนียง/อารมณ์/บันทึกเสียงใหม่) ไปที่{" "}
+        <span onClick={() => router.push("/caption")} style={{ color: "var(--teal)", cursor: "pointer", fontWeight: 700 }}>
+          06 Caption · Hashtag · เสียง
+        </span>
+      </p>
+
+      {/* Template Modal */}
+      {showTplModal && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 100,
+          background: "rgba(0,0,0,.72)", backdropFilter: "blur(8px)",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+        }} onClick={() => setShowTplModal(false)}>
+          <div style={{
+            background: "var(--surface)", border: "1px solid var(--gb)",
+            borderRadius: 20, padding: 28, width: "100%", maxWidth: 580,
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>เลือกเทมเพลต</h2>
+              <button onClick={() => setShowTplModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--faint)" }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {TEMPLATES.map(t => (
+                <div key={t.id} onClick={() => { setTpl(t); setShowTplModal(false); }} style={{
+                  padding: 16, borderRadius: 14, cursor: "pointer",
+                  border: `1.5px solid ${tpl.id === t.id ? "rgba(0,255,212,.4)" : "var(--gb)"}`,
+                  background: tpl.id === t.id ? "rgba(0,255,212,.05)" : "var(--glass)",
+                }}>
+                  <div style={{ fontSize: 22, marginBottom: 8 }}>{t.emoji}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 4 }}>{t.label}</div>
+                  <div style={{ fontSize: 11, color: "var(--faint)" }}>{t.desc}</div>
+                  {tpl.id === t.id && (
+                    <div style={{ marginTop: 8, display: "inline-block", fontSize: 10, color: "var(--teal)", fontWeight: 700, background: "rgba(0,255,212,.1)", padding: "2px 8px", borderRadius: 5 }}>
+                      ✓ กำลังใช้งาน
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
-        @keyframes scanX {
-          0%   { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
-        }
-        @keyframes scanY {
-          0%   { transform: translateY(-100%); }
-          100% { transform: translateY(100%); }
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-        @keyframes pulse {
-          0%,100% { opacity: .6; }
-          50% { opacity: 1; }
-        }
+        @keyframes gbg { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+        @keyframes spin { to{transform:rotate(360deg)} }
+        @keyframes vpulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.75)} }
       `}</style>
     </div>
   );

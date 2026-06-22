@@ -3,60 +3,62 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, Home, Package, BrainCircuit, FileText, Mic2,
-  Film, Eye, CheckCircle2, Calendar, BarChart3,
-  Link2, LogOut, Sparkles, Plus, Zap,
+  LayoutDashboard, Home, Package, BrainCircuit, Clapperboard, FileText, Mic2,
+  Film, ShieldCheck, Eye, CheckCircle2, Upload, Calendar, BarChart3,
+  Link2, LogOut, Zap, Plus,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 const quickNav = [
-  { href: "/dashboard", label: "Dashboard",  icon: LayoutDashboard },
-  { href: "/",          label: "หน้าแรก",    icon: Home },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/",          label: "หน้าแรก",   icon: Home },
 ];
 
 type GroupItem = { href: string; label: string; icon: LucideIcon; step: string };
-type Group     = { num: number; label: string; color: string; items: GroupItem[] };
+type Group     = { num: string; label: string; color: string; items: GroupItem[] };
 
 const groups: Group[] = [
   {
-    num: 1, label: "อัปโหลด & วิเคราะห์", color: "#00FFD4",
+    num: "1", label: "อัปโหลด & วิเคราะห์", color: "#22D499",
     items: [
       { href: "/products", label: "อัปโหลดสินค้า",  icon: Package,      step: "02" },
       { href: "/analysis", label: "ผลวิเคราะห์ AI", icon: BrainCircuit, step: "03" },
     ],
   },
   {
-    num: 2, label: "สร้างคอนเทนต์ AI", color: "#4D7FFF",
+    num: "2", label: "AI สร้างคอนเทนต์", color: "#00FFD4",
     items: [
-      { href: "/generate", label: "Generate Studio", icon: Sparkles, step: "04" },
-      { href: "/scripts",  label: "แก้ไข Script",    icon: FileText, step: "05" },
-      { href: "/voice",    label: "Caption & เสียง",  icon: Mic2,     step: "06" },
+      { href: "/generate", label: "เทมเพลต / คอนเซ็ปต์", icon: Clapperboard, step: "04" },
+      { href: "/scripts",  label: "แก้ไข Script",          icon: FileText,    step: "05" },
+      { href: "/caption",  label: "Caption · Hashtag · เสียง", icon: Mic2,    step: "06" },
     ],
   },
   {
-    num: 3, label: "เรนเดอร์ & ตรวจสอบ", color: "#FFB02E",
+    num: "3", label: "เรนเดอร์ & ตรวจสอบ", color: "#FFB02E",
     items: [
-      { href: "/render-queue", label: "Render Queue",   icon: Film,        step: "07" },
+      { href: "/render-queue", label: "คิวเรนเดอร์",       icon: Film,       step: "07" },
+      { href: "/compliance",   label: "ตรวจสอบมาตรฐาน",   icon: ShieldCheck, step: "08" },
     ],
   },
   {
-    num: 4, label: "พรีวิว & ตั้งเวลา", color: "#9B6FFF",
+    num: "4", label: "พรีวิว & ตั้งเวลา", color: "#4D7FFF",
     items: [
-      { href: "/preview",  label: "พรีวิว",    icon: Eye,          step: "08" },
-      { href: "/approval", label: "อนุมัติ",   icon: CheckCircle2, step: "09" },
-      { href: "/schedule", label: "Schedule",  icon: Calendar,     step: "10" },
+      { href: "/preview",     label: "พรีวิวเวอร์ชัน A–E", icon: Eye,          step: "09" },
+      { href: "/approval",    label: "อนุมัติ",             icon: CheckCircle2, step: "10" },
+      { href: "/manual-post", label: "โพสต์เอง",            icon: Upload,       step: "10b" },
+      { href: "/schedule",    label: "Schedule",            icon: Calendar,     step: "11" },
     ],
   },
   {
-    num: 5, label: "ผลตอบรับ", color: "#FF6FB7",
+    num: "5", label: "ผลตอบรับ", color: "#FF6FB7",
     items: [
-      { href: "/analytics", label: "Analytics", icon: BarChart3, step: "11" },
+      { href: "/analytics", label: "ผลตอบรับหลังโพสต์", icon: BarChart3, step: "12" },
     ],
   },
   {
-    num: 0, label: "ระบบ", color: "#8890AE",
+    num: "–", label: "ระบบ", color: "#8890AE",
     items: [
-      { href: "/accounts", label: "บัญชี / Token", icon: Link2, step: "12" },
+      { href: "/accounts", label: "เชื่อมต่อบัญชี / Token", icon: Link2, step: "13" },
     ],
   },
 ];
@@ -110,40 +112,29 @@ export function Sidebar() {
         {groups.map((group) => (
           <div key={group.num} style={{ marginBottom: 4 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 14px 4px" }}>
-              {group.num > 0 ? (
-                <span style={{
-                  width: 17, height: 17, borderRadius: 5, flexShrink: 0,
-                  background: `${group.color}22`, border: `1px solid ${group.color}44`,
-                  color: group.color, fontSize: 9, fontWeight: 800,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>{group.num}</span>
-              ) : (
-                <span style={{
-                  width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
-                  background: group.color, boxShadow: `0 0 6px ${group.color}99`,
-                  marginLeft: 5,
-                }} />
-              )}
+              <span style={{
+                width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
+                background: group.color, boxShadow: `0 0 6px ${group.color}99`,
+                marginLeft: 2,
+              }} />
               <span style={{
                 fontSize: 9.5, fontWeight: 700, textTransform: "uppercase",
-                letterSpacing: ".07em", color: "var(--faint)",
-                flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              }}>{group.label}</span>
+                letterSpacing: ".07em", color: "var(--faint)", flex: 1,
+              }}>{group.num !== "–" ? `${group.num}. ` : ""}{group.label}</span>
             </div>
 
             <div style={{ padding: "0 6px 2px 20px" }}>
               {group.items.map((item) => (
                 <Link key={item.href} href={item.href}
                   className={`nav-item${isActive(item.href) ? " active" : ""}`}
-                  style={{ border: "none" }}
                 >
                   <span style={{
-                    width: 24, height: 24, borderRadius: 7,
+                    width: 22, height: 22, borderRadius: 6,
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    background: "var(--glass2)", flexShrink: 0,
-                  }}><item.icon size={12} strokeWidth={2} /></span>
+                    background: "var(--glass2)", flexShrink: 0, fontSize: 9, fontWeight: 800,
+                    color: isActive(item.href) ? "var(--teal)" : "var(--faint)",
+                  }}>{item.step}</span>
                   <span style={{ flex: 1 }}>{item.label}</span>
-                  <span className="nav-step">{item.step}</span>
                 </Link>
               ))}
             </div>
@@ -175,9 +166,9 @@ export function Sidebar() {
           style={{ width: "100%", border: "none", background: "none", cursor: "pointer" }}
         >
           <span style={{
-            width: 24, height: 24, borderRadius: 7, display: "flex",
+            width: 22, height: 22, borderRadius: 6, display: "flex",
             alignItems: "center", justifyContent: "center", background: "var(--glass2)", flexShrink: 0,
-          }}><LogOut size={12} strokeWidth={2} /></span>
+          }}><LogOut size={11} strokeWidth={2} /></span>
           <span style={{ flex: 1, textAlign: "left" }}>ออกจากระบบ</span>
         </button>
       </div>
