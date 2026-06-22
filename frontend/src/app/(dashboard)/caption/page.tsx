@@ -72,7 +72,7 @@ export default function CaptionPage() {
   const [selectedJob, setSelectedJob] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [loadingScripts, setLoadingScripts] = useState(false);
-  const [usePoolVilla, setUsePoolVilla] = useState(false);
+  const [usePoolVilla, setUsePoolVilla] = useState(true);
 
   const fetchScripts = async (jobId: string) => {
     if (scripts[jobId]) return;
