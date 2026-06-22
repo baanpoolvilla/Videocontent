@@ -253,12 +253,15 @@ async def render_video(
 
     image_urls = list(product.media_urls or []) if product else []
 
-    render_result = await video_service.render_video(
-        job_id=str(job_id),
-        voiceover_url=voiceover_url,
-        image_urls=image_urls,
-        duration_sec=duration_sec,
-    )
+    try:
+        render_result = await video_service.render_video(
+            job_id=str(job_id),
+            voiceover_url=voiceover_url,
+            image_urls=image_urls,
+            duration_sec=duration_sec,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Render failed: {e}")
 
     render = RenderVersion(
         content_job_id=job_id,
