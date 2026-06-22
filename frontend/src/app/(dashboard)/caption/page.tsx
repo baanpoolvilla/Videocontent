@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api, fileUrl } from "@/lib/api";
 import { Loader2, Copy, Check, Mic2, Hash, ChevronDown, RefreshCw } from "lucide-react";
 
+
 interface Product { id: string; name: string; media_urls: string[]; category: string | null; }
 interface Script {
   id: string; hook: string | null; body: string | null; cta: string | null;
@@ -72,7 +73,6 @@ export default function CaptionPage() {
   const [selectedJob, setSelectedJob] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [loadingScripts, setLoadingScripts] = useState(false);
-  const [usePoolVilla, setUsePoolVilla] = useState(true);
 
   const fetchScripts = async (jobId: string) => {
     if (scripts[jobId]) return;
@@ -123,9 +123,7 @@ export default function CaptionPage() {
   const product  = job ? products[job.product_id] : null;
   const jobScripts = selectedJob ? (scripts[selectedJob] || []) : [];
   const script   = jobScripts[0] || null;
-  const hashtags = usePoolVilla
-    ? POOL_VILLA_TAGS
-    : product ? genHashtags(product.category, product.name) : HASHTAG_POOL.default;
+  const hashtags = POOL_VILLA_TAGS;
   const caption  = script ? buildCaption(script, hashtags) : "";
 
   const jobsWithScripts = jobs.filter(j => scripts[j.id]?.length > 0);
@@ -194,29 +192,6 @@ export default function CaptionPage() {
               </div>
             )}
 
-            {/* Pool Villa hashtag toggle */}
-            <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--gb)" }}>
-              <p style={{ margin: "0 0 8px", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--faint)" }}>Hashtag Mode</p>
-              <div onClick={() => setUsePoolVilla(v => !v)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-                <div style={{
-                  width: 34, height: 19, borderRadius: 10, flexShrink: 0, position: "relative",
-                  background: usePoolVilla ? "linear-gradient(90deg,var(--teal),var(--blue))" : "var(--glass2)",
-                  transition: "background .2s",
-                }}>
-                  <div style={{
-                    position: "absolute", top: 2, width: 15, height: 15, borderRadius: "50%",
-                    left: usePoolVilla ? "auto" : 2, right: usePoolVilla ? 2 : "auto",
-                    background: usePoolVilla ? "#06060A" : "var(--faint)", transition: "all .2s",
-                  }} />
-                </div>
-                <div>
-                  <p style={{ margin: 0, fontSize: 11.5, fontWeight: 700, color: usePoolVilla ? "var(--teal)" : "var(--dim)" }}>
-                    🏊 Pool Villa Mode
-                  </p>
-                  <p style={{ margin: 0, fontSize: 10.5, color: "var(--faint)" }}>ใช้ hashtag Banana Pool Villa</p>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Right: caption builder */}
@@ -277,7 +252,6 @@ export default function CaptionPage() {
                     <h2 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}>
                       <Hash size={15} color="var(--teal)" />
                       Hashtags
-                      {usePoolVilla && <span style={{ fontSize: 10.5, color: "var(--teal)", background: "rgba(0,255,212,.1)", border: "1px solid rgba(0,255,212,.2)", padding: "2px 8px", borderRadius: 6 }}>Pool Villa Mode</span>}
                     </h2>
                     <CopyBtn text={hashtags.join(" ")} label="คัดลอก hashtag" />
                   </div>
