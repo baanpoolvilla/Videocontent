@@ -1,4 +1,6 @@
-from pydantic import BaseModel, EmailStr
+from uuid import UUID
+
+from pydantic import BaseModel, EmailStr, field_serializer
 
 
 class LoginRequest(BaseModel):
@@ -17,13 +19,17 @@ class RefreshRequest(BaseModel):
 
 
 class UserOut(BaseModel):
-    id: str
+    id: UUID
     email: str
     full_name: str | None
     is_active: bool
     is_superuser: bool
 
     model_config = {"from_attributes": True}
+
+    @field_serializer("id")
+    def serialize_id(self, v: UUID) -> str:
+        return str(v)
 
 
 class RegisterRequest(BaseModel):
