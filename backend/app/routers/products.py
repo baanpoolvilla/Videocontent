@@ -86,6 +86,33 @@ async def delete_product(
     await db.commit()
 
 
+@router.get("/{product_id}/analysis", response_model=dict)
+async def get_latest_analysis(
+    product_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result = await db.execute(
+        select(Analysis)
+        .where(Analysis.product_id == product_id)
+        .order_by(Analysis.created_at.desc())
+    )
+    analysis = result.scalars().first()
+    if not analysis:
+        return {}
+    return {
+        "analysis_id": str(analysis.id),
+        "key_features": analysis.key_features or [],
+        "selling_points": analysis.selling_points or [],
+        "target_audience": analysis.target_audience or "",
+        "mood": analysis.mood or "",
+        "suggested_hooks": analysis.suggested_hooks or [],
+        "model_used": analysis.model_used or "",
+        "tokens_used": analysis.tokens_used,
+        "created_at": analysis.created_at.isoformat() if analysis.created_at else None,
+    }
+
+
 @router.post("/{product_id}/analyze", response_model=dict)
 async def analyze_product(
     product_id: UUID,
