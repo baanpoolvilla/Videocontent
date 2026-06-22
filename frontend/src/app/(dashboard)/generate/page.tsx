@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { api, fileUrl } from "@/lib/api";
-import { ChevronDown, Film, Image, Layers, Pen, Loader2, Download, RefreshCw, X, Sparkles } from "lucide-react";
+import { ChevronDown, Film, Image, Layers, Pen, Loader2, Download, RefreshCw, X, Sparkles, ImagePlus } from "lucide-react";
+import { useDropzone } from "react-dropzone";
 
 interface Product { id: string; name: string; media_urls: string[]; }
 
@@ -62,9 +63,24 @@ export default function GeneratePage() {
   const [results, setResults]  = useState<Record<string, string>>({});
   const [activeVer, setActiveVer] = useState("A");
 
+  const [refImgFile, setRefImgFile]   = useState<File | null>(null);
+  const [refImgUrl, setRefImgUrl]     = useState("");
+
   useEffect(() => {
     api.get("/products/").then(r => setProducts(r.data)).catch(() => {});
   }, []);
+
+  const onRefDrop = useCallback((files: File[]) => {
+    const f = files[0]; if (!f) return;
+    if (refImgUrl) URL.revokeObjectURL(refImgUrl);
+    setRefImgFile(f); setRefImgUrl(URL.createObjectURL(f));
+  }, [refImgUrl]);
+  const { getRootProps: refRoot, getInputProps: refInput, isDragActive: refDrag } = useDropzone({
+    onDrop: onRefDrop, accept: { "image/*": [] }, maxFiles: 1, maxSize: 10 * 1024 * 1024,
+  });
+  const clearRef = () => {
+    setRefImgFile(null); if (refImgUrl) { URL.revokeObjectURL(refImgUrl); setRefImgUrl(""); }
+  };
 
   const durSec = parseInt(resolution.split("·")[1]) || 30;
 
@@ -214,15 +230,32 @@ export default function GeneratePage() {
             )}
 
             {/* Reference image */}
-            <div style={{
-              border: "1.5px dashed var(--gb)", borderRadius: 11, padding: "18px 12px",
-              textAlign: "center", color: "var(--faint)", fontSize: 12, cursor: "pointer",
-              background: "rgba(255,255,255,.01)",
-            }}>
-              <div style={{ fontSize: 20, marginBottom: 6, opacity: .5 }}>🖼</div>
-              เพิ่มรูปสินค้าอ้างอิง<br />
-              <span style={{ fontSize: 10.5 }}>(ไม่บังคับ)</span>
-            </div>
+            {refImgUrl ? (
+              <div style={{ position: "relative", borderRadius: 11, overflow: "hidden" }}>
+                <img src={refImgUrl} alt="ref" style={{ width: "100%", height: 100, objectFit: "cover", borderRadius: 11, border: "1px solid rgba(0,255,212,.2)", display: "block" }} />
+                <button onClick={clearRef} style={{
+                  position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: 6,
+                  background: "rgba(0,0,0,.7)", border: "none", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <X size={11} color="var(--text)" />
+                </button>
+                <p style={{ margin: "5px 0 0", fontSize: 10.5, color: "var(--ok)", fontWeight: 700 }}>✓ {refImgFile?.name}</p>
+              </div>
+            ) : (
+              <div {...refRoot()} style={{
+                border: `1.5px dashed ${refDrag ? "rgba(0,255,212,.5)" : "var(--gb)"}`,
+                borderRadius: 11, padding: "16px 12px",
+                textAlign: "center", cursor: "pointer",
+                background: refDrag ? "rgba(0,255,212,.04)" : "rgba(255,255,255,.01)",
+                transition: "all .15s",
+              }}>
+                <input {...refInput()} />
+                <ImagePlus size={18} color="var(--faint)" style={{ margin: "0 auto 7px", display: "block", opacity: .5 }} />
+                <p style={{ margin: 0, fontSize: 11.5, color: "var(--faint)", fontWeight: 600 }}>{refDrag ? "วางรูปที่นี่…" : "เพิ่มรูปสินค้าอ้างอิง"}</p>
+                <p style={{ margin: "3px 0 0", fontSize: 10.5, color: "var(--faint)", opacity: .7 }}>ไม่บังคับ · PNG, JPG สูงสุด 10MB</p>
+              </div>
+            )}
 
             {/* Hint */}
             <p style={{ margin: 0, fontSize: 11, color: "var(--teal)", lineHeight: 1.6, opacity: .85 }}>
