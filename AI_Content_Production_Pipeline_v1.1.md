@@ -40,10 +40,35 @@
 - Grafana
 - Prometheus
 
+## Reporting (No-Code)
+- Metabase — ให้ทีมดู Dashboard, Cost Report, Analytics ได้โดยไม่ต้องเขียนโค้ด
+  - เชื่อมตรงกับ PostgreSQL
+  - ใช้ภายในองค์กรเท่านั้น ไม่ expose สู่สาธารณะ
+
 ## Container
 - Docker Compose
 - Portainer
 - Traefik
+
+---
+
+# Upload Flow (สำคัญมาก — อย่าให้ผ่าน Vercel)
+
+```
+Browser → FastAPI (บน server เดิม) → MinIO (บน server เดิม)
+```
+
+**ข้อกำหนดเด็ดขาด:** ไฟล์อัปโหลดจาก browser ตรงไปยัง FastAPI/MinIO บน server เดิม **ไม่ผ่าน Vercel function**
+
+เหตุผล:
+- Vercel Serverless Function มี limit **4.5 MB** ต่อ request — วิดีโอสินค้าและรูปขนาดเต็มจะชน limit นี้ทันที
+- Next.js App Router ฝั่ง Vercel **ห้าม** รับไฟล์แล้วส่งต่อ (proxy upload)
+- Frontend เรียก `NEXT_PUBLIC_API_URL` (ชี้ตรงไปยัง FastAPI) สำหรับ `/api/v1/files/upload` ทุกครั้ง
+
+Implementation:
+- Frontend: `axios.post(API_URL + '/api/v1/files/upload', formData)` — ไม่ใช้ Next.js API Route
+- FastAPI: รับ `UploadFile`, stream ตรงไป MinIO
+- ห้ามเขียน Next.js API Route (`app/api/...`) รับไฟล์ไม่ว่ากรณีใด
 
 ---
 
@@ -217,6 +242,25 @@ Analytics
 
 ---
 
+## Platform Video Specifications (Reference สำหรับ Compliance Check)
+
+| Platform | Max Duration | Ratio | Resolution | Format | Max Size |
+|---|---|---|---|---|---|
+| TikTok | 60s (standard) / 10 min (verified) | 9:16 | 1080×1920 | MP4 / MOV | 500 MB |
+| Instagram Reels | 90s | 9:16 | 1080×1920 | MP4 | 1 GB |
+| Facebook Reels | 90s | 9:16 | 1080×1920 | MP4 | 1 GB |
+| YouTube Shorts | 60s | 9:16 (vertical) | 1080×1920 | MP4 | 256 GB |
+
+กฎเพิ่มเติม:
+- **TikTok:** min 3s, audio required, frame rate ≤60fps, no letterbox
+- **Instagram Reels:** safe zone 14% top/bottom (UI overlay), ห้ามมีข้อความในโซนนี้
+- **Facebook:** ต้องการ audio track (muted video อาจ reach ต่ำ)
+- **YouTube Shorts:** vertical ratio สำคัญที่สุด — 1:1 หรือ 16:9 จะไม่แสดงใน Shorts feed
+
+Compliance Check ต้องตรวจ: duration, resolution, aspect ratio, file size, audio presence
+
+---
+
 ## Dead Letter Queue
 
 รองรับ
@@ -246,25 +290,37 @@ Grafana + Prometheus
 
 # Database Tables
 
-products
-analysis
-templates
-template_versions
-brand_profiles
-assets
-content_jobs
-scripts
-voices
-render_versions
-compliance_checks
-approvals
-manual_posts
-schedule
-post_results
-platform_accounts
-api_costs
-notifications
-users
+| ตาราง | คำอธิบาย | หมายเหตุ |
+|---|---|---|
+| `users` | บัญชีผู้ใช้, role, refresh_token | |
+| `products` | สินค้าที่อัปโหลด | |
+| `analysis` | ผล AI วิเคราะห์สินค้า | |
+| `templates` | เทมเพลตวิดีโอ | |
+| `template_versions` | เวอร์ชัน template | |
+| `brand_profiles` | Tone / Audience / CTA / Forbidden Words | is_default flag |
+| `assets` | Asset Library (รูป/วิดีโอ/เสียง/โลโก้) | |
+| `content_jobs` | งานผลิตคอนเทนต์แต่ละชิ้น | status, pipeline state |
+| `scripts` | Script ที่ AI สร้าง | |
+| `voices` | ไฟล์เสียง TTS | |
+| `render_versions` | แต่ละเวอร์ชันที่ render (A–E) | **has_audio** BOOLEAN, **audio_status** ENUM('present','missing','error') |
+| `compliance_checks` | ผลตรวจ platform spec | duration, resolution, ratio, size |
+| `approvals` | การอนุมัติ/ปฏิเสธ | comment, reviewer |
+| `manual_posts` | โพสต์ที่ทำมือ | |
+| `schedule` | ตารางโพสต์อัตโนมัติ | |
+| `post_results` | ผลหลังโพสต์ | likes, views, CTR |
+| `platform_accounts` | Token บัญชี Social Media | expires_at, refresh_token |
+| `api_costs` | ต้นทุน API ต่อ job | provider, tokens, cost_usd |
+| `notifications` | การแจ้งเตือน | channel (telegram/line/discord) |
+| `prompt_versions` | เวอร์ชัน Prompt ที่ใช้สร้าง Script | version_name, template_text, active |
+| `ab_tests` | A/B Test configuration และผล | variant_a_id, variant_b_id, winner, metric |
+
+### render_versions — audio fields
+```sql
+has_audio     BOOLEAN NOT NULL DEFAULT FALSE,
+audio_status  VARCHAR(10) NOT NULL DEFAULT 'missing'
+              -- CHECK (audio_status IN ('present', 'missing', 'error'))
+```
+ใช้สำหรับ Compliance Check (บาง platform บังคับมีเสียง) และ UI แสดง badge เสียง/ไม่มีเสียง
 
 ---
 
@@ -275,7 +331,10 @@ Phase 1
 - PostgreSQL
 - MinIO
 - n8n
-- Authentication
+- Authentication (JWT — email/password สำหรับ internal team)
+  - **Option A (ใช้แล้ว):** JWT login ธรรมดา — email + password → `access_token` อายุ 30 นาที + `refresh_token` อายุ 7 วัน เก็บใน localStorage/httpOnly cookie
+  - **Option B (แนะนำถ้ามี Google Workspace):** Google OAuth 2.0 — redirect ไป Google → รับ `id_token` → verify กับ Google API → ออก JWT ของระบบ
+  - ระบบปัจจุบันใช้ Option A, สามารถเพิ่ม Option B ในภายหลังโดยไม่กระทบ schema
 
 Phase 2
 - Upload Product
