@@ -288,6 +288,8 @@ async def _do_render(
 ):
     from app.services.wan import MODELS as WAN_MODELS
     fal_model = WAN_MODELS.get(ai_model, WAN_MODELS["kling3s"])
+    # frontend sends "9x16" to avoid URL colon issue — convert back for fal.ai
+    aspect_ratio = aspect_ratio.replace("x", ":")
 
     async with AsyncSessionLocal() as db:
         try:
@@ -305,6 +307,7 @@ async def _do_render(
                 prompt = video_prompt.strip() or _STYLE_PROMPTS.get(style, _STYLE_PROMPTS["playful"])
                 n_clips = min(len(image_urls), 3)
                 images_to_use = [image_urls[i % len(image_urls)] for i in range(n_clips)]
+                logger.info(f"[RENDER] AI mode ai_model={ai_model} fal_model={fal_model} aspect={aspect_ratio} n_clips={n_clips}")
 
                 async def _gen_clip(img_path: str) -> str:
                     raw = img_path.strip("/")
