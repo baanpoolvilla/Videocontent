@@ -227,8 +227,18 @@ export default function GeneratePage() {
 
       setElapsed(Math.round((Date.now() - start) / 1000));
       setPhase("done");
-    } catch (e) {
-      setErrMsg(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
+    } catch (e: unknown) {
+      // Extract the real API error detail from Axios response
+      let msg = "เกิดข้อผิดพลาด";
+      if (e && typeof e === "object") {
+        const axErr = e as { response?: { data?: { detail?: string }; status?: number }; message?: string };
+        if (axErr.response?.data?.detail) {
+          msg = `[${axErr.response.status}] ${axErr.response.data.detail}`;
+        } else if (axErr.message) {
+          msg = axErr.message;
+        }
+      }
+      setErrMsg(msg);
       setPhase("error");
     }
   };
