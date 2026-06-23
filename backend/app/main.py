@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import make_asgi_app
 
 from app.core.config import settings
-from app.routers import assets, auth, brand_profiles, content_jobs, dashboard, files, image_to_video, products, prompts, schedule
+from app.routers import assets, auth, brand_profiles, content_jobs, dashboard, files, image_to_video, products, prompts, schedule, voice
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -36,6 +36,7 @@ app.include_router(schedule.router, prefix=settings.API_PREFIX)
 app.include_router(assets.router, prefix=settings.API_PREFIX)
 app.include_router(prompts.router, prefix=settings.API_PREFIX)
 app.include_router(image_to_video.router, prefix=settings.API_PREFIX)
+app.include_router(voice.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/health")

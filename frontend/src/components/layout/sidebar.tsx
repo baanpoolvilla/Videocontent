@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Home, Package, BrainCircuit, Clapperboard, FileText, Mic2,
   Film, ShieldCheck, Eye, CheckCircle2, Upload, Calendar, BarChart3,
-  Link2, LogOut, Zap, Plus, FolderOpen, BotMessageSquare, Rocket,
+  Link2, LogOut, Zap, Plus, FolderOpen, BotMessageSquare, Rocket, Volume2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -30,6 +30,7 @@ const groups: Group[] = [
     items: [
       { href: "/generate", label: "เทมเพลต / คอนเซ็ปต์",    icon: Clapperboard, step: "04" },
       { href: "/scripts",  label: "แก้ไข Script",             icon: FileText,     step: "05" },
+      { href: "/voice",    label: "Voice Generator",          icon: Volume2,      step: "05b" },
       { href: "/caption",  label: "Caption · Hashtag",        icon: Mic2,         step: "06" },
       { href: "/publish",  label: "Publish Center",           icon: Rocket,       step: "06b" },
     ],
