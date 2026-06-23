@@ -3,7 +3,14 @@
 import { useState, useRef } from "react";
 import { Mic2, Play, Download, Loader2, Volume2, Copy, Check } from "lucide-react";
 
-const API = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1`;
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API = `${BASE}/api/v1`;
+
+// Storage paths (/assets/...) must go through the files proxy endpoint
+function toAudioUrl(path: string) {
+  if (path.startsWith("http")) return path;
+  return `${BASE}/api/v1/files${path}`;
+}
 
 const VOICE_STYLES = [
   { id: "เป็นกันเอง (หญิง)", label: "เป็นกันเอง", sublabel: "หญิง · Rachel", emoji: "👩" },
@@ -58,7 +65,7 @@ export default function VoicePage() {
 
   function copyUrl() {
     if (!result?.url) return;
-    navigator.clipboard.writeText(result.url);
+    navigator.clipboard.writeText(toAudioUrl(result.url));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -266,7 +273,7 @@ export default function VoicePage() {
               {/* Audio player */}
               <audio
                 ref={audioRef}
-                src={result.url}
+                src={toAudioUrl(result.url)}
                 controls
                 style={{ width: "100%", borderRadius: 8 }}
               />
@@ -290,7 +297,7 @@ export default function VoicePage() {
               {/* Action buttons */}
               <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
                 <a
-                  href={result.url}
+                  href={toAudioUrl(result.url)}
                   download="voiceover.mp3"
                   style={{
                     flex: 1, padding: "9px 0", borderRadius: 9, textDecoration: "none",
