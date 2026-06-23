@@ -9,15 +9,14 @@ FAL_QUEUE = "https://queue.fal.run"
 
 # Model IDs on fal.ai (verified from fal.ai sandbox)
 MODELS = {
-    "seedance2":     "bytedance/seedance-2.0/fast/image-to-video",  # fast, affordable
-    "seedance2_pro": "bytedance/seedance-2.0/image-to-video",        # full quality
-    "wan":           "bytedance/seedance-2.0/fast/image-to-video",   # alias → same as seedance2
-    "wan_t2v":       "bytedance/seedance-2.0/fast/image-to-video",
+    "kling3s":       "fal-ai/kling-video/v3/standard/image-to-video",  # $1.89/คลิป — ถูกสุด
+    "seedance2":     "bytedance/seedance-2.0/fast/image-to-video",      # $2.43/คลิป
+    "seedance2_pro": "bytedance/seedance-2.0/image-to-video",            # $4.25/คลิป
     "kenburs":       "kenburs",
 }
 
-DEFAULT_I2V = MODELS["seedance2"]
-DEFAULT_T2V = MODELS["seedance2"]
+DEFAULT_I2V = MODELS["kling3s"]
+DEFAULT_T2V = MODELS["kling3s"]
 
 
 class WanService:

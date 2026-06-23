@@ -13,7 +13,7 @@ interface Product { id: string; name: string; media_urls: string[]; }
 type Phase = "home" | "story" | "generating" | "prompt_edit" | "rendering" | "done" | "error";
 type Mode  = "assets" | "script" | "audio" | "ads";
 type AspectRatio = "9:16" | "1:1" | "16:9";
-type AIModel = "kenburs" | "seedance2" | "seedance2_pro";
+type AIModel = "kenburs" | "kling3s" | "seedance2" | "seedance2_pro";
 
 interface ChatMsg {
   role: "user" | "ai" | "loading";
@@ -90,29 +90,40 @@ const MODE_TABS = [
 ];
 
 const ASPECT_OPTIONS: AspectRatio[] = ["9:16", "1:1", "16:9"];
-const MODEL_OPTIONS: { id: AIModel; label: string; desc: string; price30s: string; badge?: string; color: string }[] = [
+const MODEL_OPTIONS: { id: AIModel; label: string; desc: string; priceClip: string; price3clips: string; badge?: string; color: string }[] = [
   {
     id: "kenburs",
     label: "Ken Burns",
-    desc: "รูปภาพ + zoom/pan effect — ไม่ใช้ AI",
-    price30s: "ฟรี",
+    desc: "รูปนิ่ง + zoom/pan — ไม่ใช้ AI",
+    priceClip: "ฟรี",
+    price3clips: "ฟรี",
     badge: "FREE",
     color: "#22D499",
   },
   {
+    id: "kling3s",
+    label: "Kling v3 Standard",
+    desc: "AI motion จริง — คุณภาพสูง",
+    priceClip: "$1.89 / คลิป",
+    price3clips: "~$5.67 / วิดีโอ",
+    badge: "ถูกสุด",
+    color: "#00FFD4",
+  },
+  {
     id: "seedance2",
     label: "Seedance 2.0 Fast",
-    desc: "AI สร้าง motion จริงจากรูป — คุณภาพดี",
-    price30s: "~$3–5 / วิดีโอ",
-    badge: "แนะนำ",
-    color: "#00FFD4",
+    desc: "AI ByteDance — motion ลื่น",
+    priceClip: "$2.43 / คลิป",
+    price3clips: "~$7.29 / วิดีโอ",
+    color: "#4D7FFF",
   },
   {
     id: "seedance2_pro",
     label: "Seedance 2.0 Pro",
-    desc: "AI คุณภาพสูงสุด — 4K cinematic",
-    price30s: "~$25 / วิดีโอ",
-    badge: "แพงมาก",
+    desc: "คุณภาพสูงสุด — 4K",
+    priceClip: "$4.25 / คลิป",
+    price3clips: "~$12.75 / วิดีโอ",
+    badge: "แพง",
     color: "#FF6B6B",
   },
 ];
@@ -146,7 +157,7 @@ export default function GeneratePage() {
 
   // badge state
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("9:16");
-  const [aiModel, setAiModel]         = useState<AIModel>("kenburs");
+  const [aiModel, setAiModel]         = useState<AIModel>("kling3s");
   const [captions, setCaptions]       = useState(false);
   const [showAspectMenu, setShowAspectMenu] = useState(false);
   const [showModelMenu, setShowModelMenu]   = useState(false);
@@ -578,8 +589,9 @@ export default function GeneratePage() {
                   {active ? "✓ " : ""}{m.label}
                 </div>
                 <div style={{ fontSize: 10.5, color: "var(--faint)", marginBottom: 6, lineHeight: 1.4 }}>{m.desc}</div>
-                <div style={{ fontSize: 13, fontWeight: 900, color: active ? m.color : "var(--dim)" }}>{m.price30s}</div>
-                <div style={{ fontSize: 9.5, color: "var(--faint)" }}>ต่อวิดีโอ 30 วิ</div>
+                <div style={{ fontSize: 11, color: "var(--faint)", marginBottom: 2 }}>{m.priceClip}</div>
+                <div style={{ fontSize: 13, fontWeight: 900, color: active ? m.color : "var(--dim)" }}>{m.price3clips}</div>
+                <div style={{ fontSize: 9.5, color: "var(--faint)" }}>3 คลิป (30 วิ)</div>
               </button>
             );
           })}

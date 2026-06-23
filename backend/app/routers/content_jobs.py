@@ -305,7 +305,8 @@ async def render_video(
         if settings.FAL_KEY and image_urls and ai_model != "kenburs":
             # Generate AI video clips using Seedance 2.0, then mix with audio
             prompt = video_prompt.strip() or _STYLE_PROMPTS.get(style, _STYLE_PROMPTS["playful"])
-            n_clips = min(len(image_urls), max(1, duration_sec // 5))
+            # Cap at 3 AI clips to control cost ($1.89×3=$5.67 max per video)
+            n_clips = min(len(image_urls), 3)
             images_to_use = [image_urls[i % len(image_urls)] for i in range(n_clips)]
 
             async def _gen_clip(img_path: str) -> str:
