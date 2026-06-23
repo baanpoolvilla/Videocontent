@@ -355,7 +355,7 @@ export default function GeneratePage() {
           style:         pendingStyle,
           video_prompt:  videoPrompt,
           ai_model:      aiModel,
-          aspect_ratio:  aspectRatio,
+          aspect_ratio:  aspectRatio.replace(/:/g, "x"),
         },
       });
       setElapsed(Math.round((Date.now() - start) / 1000));

@@ -65,22 +65,26 @@ class WanService:
             if not r.is_success:
                 raise RuntimeError(f"fal.ai submit error {r.status_code}: {r.text[:600]}")
             data = r.json()
+            logger.info(f"[FAL] submit response: {str(data)[:300]}")
 
         request_id = data.get("request_id") or data.get("id")
         if not request_id:
             raise RuntimeError(f"fal.ai did not return request_id: {data}")
 
-        logger.info(f"[FAL] request_id={request_id} — polling...")
+        # Use URLs returned by fal.ai — don't construct manually
+        status_url   = data.get("status_url")   or f"{FAL_QUEUE}/{model}/requests/{request_id}/status"
+        response_url = data.get("response_url") or f"{FAL_QUEUE}/{model}/requests/{request_id}"
+        logger.info(f"[FAL] request_id={request_id}")
+        logger.info(f"[FAL] status_url={status_url}")
+        logger.info(f"[FAL] response_url={response_url}")
 
         # Poll until COMPLETED (max 5 min)
         for attempt in range(60):
             await asyncio.sleep(5)
             async with httpx.AsyncClient(timeout=15) as client:
-                r = await client.get(
-                    f"{FAL_QUEUE}/{model}/requests/{request_id}/status",
-                    headers=self._headers(),
-                )
+                r = await client.get(status_url, headers=self._headers())
                 if not r.is_success:
+                    logger.warning(f"[FAL] status check {r.status_code}: {r.text[:200]}")
                     continue
                 status_data = r.json()
 
@@ -93,10 +97,7 @@ class WanService:
 
         # Fetch result
         async with httpx.AsyncClient(timeout=15) as client:
-            r = await client.get(
-                f"{FAL_QUEUE}/{model}/requests/{request_id}",
-                headers=self._headers(),
-            )
+            r = await client.get(response_url, headers=self._headers())
             if not r.is_success:
                 raise RuntimeError(f"fal.ai result error {r.status_code}: {r.text[:200]}")
             result = r.json()
