@@ -210,8 +210,15 @@ export default function GeneratePage() {
         params: { tone_of_voice: tone, duration_sec: durSec, concept: brandUrl ? `แบรนด์: ${brandUrl}` : "" },
       });
 
+      const VOICE_FOR_STYLE: Record<string, string> = {
+        luxury:  "หนักแน่น (ชาย)",
+        party:   "สดใส (หญิง)",
+        minimal: "มืออาชีพ (ชาย)",
+        playful: "เป็นกันเอง (หญิง)",
+      };
+      const voiceStyle = VOICE_FOR_STYLE[styleId] ?? "เป็นกันเอง (หญิง)";
       const voiceRes = await api.post(`/jobs/${jobId}/voiceover`, null, {
-        params: { voice_style: "เป็นกันเอง (หญิง)" },
+        params: { voice_style: voiceStyle },
       });
 
       await api.post(`/jobs/${jobId}/render`, null, {

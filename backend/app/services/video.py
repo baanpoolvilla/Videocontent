@@ -1,22 +1,61 @@
 import asyncio
 import os
 import tempfile
-import uuid
 import httpx
 from app.services.storage import storage_service
 
+# Output size
+OUT_W, OUT_H = 1080, 1920
+# Pre-scale size (30% larger for Ken Burns headroom)
+PRE_W, PRE_H = int(OUT_W * 1.3), int(OUT_H * 1.3)   # 1404 x 2496
 
-# Ken Burns presets — alternate per image for visual variety
-_KB_EFFECTS = [
-    # zoom in from center
-    "scale=1296:2304,zoompan=z='min(zoom+0.0012,1.2)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={d}:s=1080x1920:fps=25",
-    # pan left-to-right at slight zoom
-    "scale=1296:2304,zoompan=z=1.15:x='if(gte(on,1),x+1.0,0)':y='ih/2-(ih/zoom/2)':d={d}:s=1080x1920:fps=25",
-    # zoom out from top
-    "scale=1296:2304,zoompan=z='if(lte(zoom,1.0),1.2,max(1.001,zoom-0.0012))':x='iw/2-(iw/zoom/2)':y='0':d={d}:s=1080x1920:fps=25",
-    # pan right-to-left
-    "scale=1296:2304,zoompan=z=1.15:x='if(gte(on,1),x-1.0,iw-ow)':y='ih/2-(ih/zoom/2)':d={d}:s=1080x1920:fps=25",
-]
+# Scale+crop any image to PRE_W x PRE_H preserving aspect ratio, then Ken Burns
+_SCALE_CROP = (
+    f"scale={PRE_W}:{PRE_H}:force_original_aspect_ratio=increase,"
+    f"crop={PRE_W}:{PRE_H}:(iw-{PRE_W})/2:(ih-{PRE_H})/2"
+)
+
+def _kb_zoom_in(d: int) -> str:
+    """Zoom in: wide → close-up"""
+    return (
+        f"{_SCALE_CROP},"
+        f"zoompan=z='min(1+0.3*on/{d},1.3)':"
+        f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+        f"d={d}:s={OUT_W}x{OUT_H}:fps=25"
+    )
+
+def _kb_zoom_out(d: int) -> str:
+    """Zoom out: close-up → wide"""
+    return (
+        f"{_SCALE_CROP},"
+        f"zoompan=z='max(1.3-0.3*on/{d},1.0)':"
+        f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+        f"d={d}:s={OUT_W}x{OUT_H}:fps=25"
+    )
+
+def _kb_pan_left(d: int) -> str:
+    """Pan: left edge → right edge at fixed zoom 1.2"""
+    z = 1.2
+    max_x = int(PRE_W - PRE_W / z)   # max x offset in input space
+    return (
+        f"{_SCALE_CROP},"
+        f"zoompan=z={z}:"
+        f"x='min(on*{max_x}/{d},{max_x})':"
+        f"y='ih/2-(ih/{z}/2)':"
+        f"d={d}:s={OUT_W}x{OUT_H}:fps=25"
+    )
+
+def _kb_pan_right(d: int) -> str:
+    """Pan: right edge → left edge at fixed zoom 1.2"""
+    z = 1.2
+    max_x = int(PRE_W - PRE_W / z)
+    return (
+        f"{_SCALE_CROP},"
+        f"zoompan=z={z}:"
+        f"x='max({max_x}-on*{max_x}/{d},0)':"
+        f"y='ih/2-(ih/{z}/2)':"
+        f"d={d}:s={OUT_W}x{OUT_H}:fps=25"
+    )
 
 
 class VideoService:
@@ -51,7 +90,6 @@ class VideoService:
                 bucket="renders",
                 prefix=job_id,
             )
-
             return {"url": url, "size_bytes": len(video_bytes)}
 
     async def _download_file(self, url: str, dest: str):
@@ -75,23 +113,24 @@ class VideoService:
         fps = 25
         d = int(per_image * fps)
 
-        # Create individual Ken Burns clips per image
+        # Ken Burns effect rotates per image
+        kb_builders = [_kb_zoom_in, _kb_zoom_out, _kb_pan_left, _kb_pan_right]
+
         clip_paths = []
         for i, img_path in enumerate(image_paths):
             clip_path = os.path.join(tmpdir, f"clip_{i}.mp4")
-            vf = _KB_EFFECTS[i % len(_KB_EFFECTS)].format(d=d)
-            cmd = [
+            vf = kb_builders[i % len(kb_builders)](d)
+            await self._run_ffmpeg([
                 "ffmpeg", "-y",
                 "-loop", "1", "-i", img_path,
                 "-vf", vf,
                 "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
                 "-t", str(per_image),
                 clip_path,
-            ]
-            await self._run_ffmpeg(cmd)
+            ])
             clip_paths.append(clip_path)
 
-        # Concatenate all clips (no re-encode)
+        # Concat clips without re-encode
         concat_file = os.path.join(tmpdir, "concat.txt")
         with open(concat_file, "w") as f:
             for cp in clip_paths:
@@ -116,15 +155,14 @@ class VideoService:
 
     async def _text_to_video(self, audio_path: str, tmpdir: str, duration_sec: int) -> str:
         output_path = os.path.join(tmpdir, "output.mp4")
-        cmd = [
+        await self._run_ffmpeg([
             "ffmpeg", "-y",
-            "-f", "lavfi", "-i", f"color=c=black:size=1080x1920:rate=25:duration={duration_sec}",
+            "-f", "lavfi", "-i", f"color=c=black:size={OUT_W}x{OUT_H}:rate=25:duration={duration_sec}",
             "-i", audio_path,
             "-c:v", "libx264", "-c:a", "aac",
             "-shortest", "-movflags", "+faststart",
             output_path,
-        ]
-        await self._run_ffmpeg(cmd)
+        ])
         return output_path
 
     async def _run_ffmpeg(self, cmd: list[str]):
@@ -135,7 +173,7 @@ class VideoService:
         )
         _, stderr = await proc.communicate()
         if proc.returncode != 0:
-            raise RuntimeError(f"FFmpeg failed: {stderr.decode()[-500:]}")
+            raise RuntimeError(f"FFmpeg failed: {stderr.decode()[-600:]}")
 
 
 video_service = VideoService()
