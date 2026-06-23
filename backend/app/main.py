@@ -1,6 +1,10 @@
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import make_asgi_app
+
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("app").setLevel(logging.INFO)
 
 from app.core.config import settings
 from app.routers import assets, auth, brand_profiles, content_jobs, dashboard, files, image_to_video, products, prompts, schedule, voice
