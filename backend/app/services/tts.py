@@ -1,8 +1,11 @@
 import io
+import logging
 import httpx
 from gtts import gTTS
 from app.core.config import settings
 from app.services.storage import storage_service
+
+logger = logging.getLogger(__name__)
 
 # ElevenLabs voice IDs (multilingual v2 — all support Thai)
 VOICE_MAP = {
@@ -19,8 +22,10 @@ class TTSService:
         voice_style: str = "เป็นกันเอง (หญิง)",
         lang: str = "th",
     ) -> dict:
+        logger.info(f"[TTS] elevenlabs_key={'set' if settings.ELEVENLABS_API_KEY else 'NOT SET'} voice_style={voice_style}")
         if settings.ELEVENLABS_API_KEY:
             return await self._elevenlabs(text, job_id, voice_style)
+        logger.warning("[TTS] No ElevenLabs key — using gTTS fallback (lower quality)")
         return await self._gtts(text, job_id, lang)
 
     async def _elevenlabs(self, text: str, job_id: str, voice_style: str) -> dict:
