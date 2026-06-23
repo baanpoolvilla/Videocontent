@@ -182,7 +182,17 @@ export default function GeneratePage() {
                     : (ans.style || "").includes("Party")  ? "party"
                     : (ans.style || "").includes("Minimal") ? "minimal"
                     : "playful";
-      const platform = (ans.platform || "tiktok").toLowerCase().replace(/ /g, "_").replace("_reel", "");
+      const PLATFORM_MAP: Record<string, string> = {
+        "tiktok": "tiktok",
+        "instagram reel": "instagram",
+        "instagram": "instagram",
+        "facebook": "facebook",
+        "youtube short": "youtube_shorts",
+        "youtube shorts": "youtube_shorts",
+        "youtube_short": "youtube_shorts",
+      };
+      const platformRaw = (ans.platform || "").toLowerCase().trim();
+      const platform = PLATFORM_MAP[platformRaw] ?? "tiktok";
 
       const jobRes = await api.post("/jobs/", { product_id: product.id, platform });
       const jobId  = jobRes.data.id;

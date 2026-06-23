@@ -6,6 +6,19 @@ import httpx
 from app.services.storage import storage_service
 
 
+# Ken Burns presets — alternate per image for visual variety
+_KB_EFFECTS = [
+    # zoom in from center
+    "scale=1296:2304,zoompan=z='min(zoom+0.0012,1.2)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={d}:s=1080x1920:fps=25",
+    # pan left-to-right at slight zoom
+    "scale=1296:2304,zoompan=z=1.15:x='if(gte(on,1),x+1.0,0)':y='ih/2-(ih/zoom/2)':d={d}:s=1080x1920:fps=25",
+    # zoom out from top
+    "scale=1296:2304,zoompan=z='if(lte(zoom,1.0),1.2,max(1.001,zoom-0.0012))':x='iw/2-(iw/zoom/2)':y='0':d={d}:s=1080x1920:fps=25",
+    # pan right-to-left
+    "scale=1296:2304,zoompan=z=1.15:x='if(gte(on,1),x-1.0,iw-ow)':y='ih/2-(ih/zoom/2)':d={d}:s=1080x1920:fps=25",
+]
+
+
 class VideoService:
     async def render_video(
         self,
@@ -53,27 +66,52 @@ class VideoService:
                 with open(dest, "wb") as f:
                     f.write(resp.content)
 
-    async def _images_to_video(self, image_paths: list[str], audio_path: str, tmpdir: str, duration_sec: int) -> str:
+    async def _images_to_video(
+        self, image_paths: list[str], audio_path: str, tmpdir: str, duration_sec: int
+    ) -> str:
         output_path = os.path.join(tmpdir, "output.mp4")
-        per_image = duration_sec / len(image_paths)
+        n = len(image_paths)
+        per_image = max(2.0, duration_sec / n)
+        fps = 25
+        d = int(per_image * fps)
 
+        # Create individual Ken Burns clips per image
+        clip_paths = []
+        for i, img_path in enumerate(image_paths):
+            clip_path = os.path.join(tmpdir, f"clip_{i}.mp4")
+            vf = _KB_EFFECTS[i % len(_KB_EFFECTS)].format(d=d)
+            cmd = [
+                "ffmpeg", "-y",
+                "-loop", "1", "-i", img_path,
+                "-vf", vf,
+                "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
+                "-t", str(per_image),
+                clip_path,
+            ]
+            await self._run_ffmpeg(cmd)
+            clip_paths.append(clip_path)
+
+        # Concatenate all clips (no re-encode)
         concat_file = os.path.join(tmpdir, "concat.txt")
         with open(concat_file, "w") as f:
-            for img in image_paths:
-                f.write(f"file '{img}'\n")
-                f.write(f"duration {per_image}\n")
-            f.write(f"file '{image_paths[-1]}'\n")
+            for cp in clip_paths:
+                f.write(f"file '{cp}'\n")
 
-        cmd = [
+        merged = os.path.join(tmpdir, "merged.mp4")
+        await self._run_ffmpeg([
             "ffmpeg", "-y",
             "-f", "concat", "-safe", "0", "-i", concat_file,
-            "-i", audio_path,
-            "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black",
-            "-c:v", "libx264", "-c:a", "aac",
+            "-c", "copy", merged,
+        ])
+
+        # Mix with audio
+        await self._run_ffmpeg([
+            "ffmpeg", "-y",
+            "-i", merged, "-i", audio_path,
+            "-c:v", "copy", "-c:a", "aac",
             "-shortest", "-movflags", "+faststart",
             output_path,
-        ]
-        await self._run_ffmpeg(cmd)
+        ])
         return output_path
 
     async def _text_to_video(self, audio_path: str, tmpdir: str, duration_sec: int) -> str:
