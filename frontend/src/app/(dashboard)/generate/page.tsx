@@ -13,7 +13,7 @@ interface Product { id: string; name: string; media_urls: string[]; }
 type Phase = "home" | "story" | "generating" | "prompt_edit" | "rendering" | "done" | "error";
 type Mode  = "assets" | "script" | "audio" | "ads";
 type AspectRatio = "9:16" | "1:1" | "16:9";
-type AIModel = "seedance2" | "seedance2_pro" | "kenburs" | "wan";
+type AIModel = "kenburs" | "seedance2" | "seedance2_pro";
 
 interface ChatMsg {
   role: "user" | "ai" | "loading";
@@ -90,11 +90,31 @@ const MODE_TABS = [
 ];
 
 const ASPECT_OPTIONS: AspectRatio[] = ["9:16", "1:1", "16:9"];
-const MODEL_OPTIONS: { id: AIModel; label: string; cost: string; warning?: string }[] = [
-  { id: "kenburs",       label: "Ken Burns (ฟรี)",         cost: "ไม่เสีย credit — เร็วมาก" },
-  { id: "seedance2",     label: "Seedance 2.0 Fast",       cost: "~$0.50–1/คลิป · AI motion จริง" },
-  { id: "seedance2_pro", label: "Seedance 2.0 Pro",        cost: "~$4.25/คลิป · คุณภาพสูงสุด", warning: "แพงมาก" },
-  { id: "wan",           label: "Wan 2.1 (ถูกสุด)",        cost: "~$0.05/คลิป · AI motion" },
+const MODEL_OPTIONS: { id: AIModel; label: string; desc: string; price30s: string; badge?: string; color: string }[] = [
+  {
+    id: "kenburs",
+    label: "Ken Burns",
+    desc: "รูปภาพ + zoom/pan effect — ไม่ใช้ AI",
+    price30s: "ฟรี",
+    badge: "FREE",
+    color: "#22D499",
+  },
+  {
+    id: "seedance2",
+    label: "Seedance 2.0 Fast",
+    desc: "AI สร้าง motion จริงจากรูป — คุณภาพดี",
+    price30s: "~$3–5 / วิดีโอ",
+    badge: "แนะนำ",
+    color: "#00FFD4",
+  },
+  {
+    id: "seedance2_pro",
+    label: "Seedance 2.0 Pro",
+    desc: "AI คุณภาพสูงสุด — 4K cinematic",
+    price30s: "~$25 / วิดีโอ",
+    badge: "แพงมาก",
+    color: "#FF6B6B",
+  },
 ];
 
 const PLATFORM_MAP: Record<string, string> = {
@@ -126,7 +146,7 @@ export default function GeneratePage() {
 
   // badge state
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("9:16");
-  const [aiModel, setAiModel]         = useState<AIModel>("wan");
+  const [aiModel, setAiModel]         = useState<AIModel>("kenburs");
   const [captions, setCaptions]       = useState(false);
   const [showAspectMenu, setShowAspectMenu] = useState(false);
   const [showModelMenu, setShowModelMenu]   = useState(false);
@@ -501,44 +521,17 @@ export default function GeneratePage() {
             )}
           </div>
 
-          {/* AI model */}
-          <div ref={modelRef} style={{ position: "relative" }}>
-            <button
-              onMouseDown={e => { e.stopPropagation(); setShowModelMenu(v => !v); setShowAspectMenu(false); setShowPicker(false); }}
-              style={{
-                display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
-                borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
-                background: "rgba(255,255,255,.06)", border: "1px solid var(--gb)", color: "var(--dim)",
-              }}>
-              ✨ {MODEL_OPTIONS.find(m => m.id === aiModel)?.label} {showModelMenu ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-            </button>
-            {showModelMenu && (
-              <div style={{
-                position: "absolute", bottom: "calc(100% + 6px)", left: 0, zIndex: 99,
-                background: "#1e1e2a", border: "1px solid var(--gb)",
-                borderRadius: 10, overflow: "hidden", minWidth: 240,
-                boxShadow: "0 6px 24px rgba(0,0,0,.7)",
-              }}>
-                {MODEL_OPTIONS.map(m => (
-                  <div key={m.id}
-                    onMouseDown={() => { setAiModel(m.id); setShowModelMenu(false); }}
-                    style={{
-                      padding: "11px 16px", cursor: "pointer",
-                      background: aiModel === m.id ? "rgba(0,255,212,.08)" : "transparent",
-                      borderBottom: "1px solid var(--gb)",
-                    }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: aiModel === m.id ? "var(--teal)" : "var(--text)" }}>
-                        {aiModel === m.id ? "✓ " : ""}{m.label}
-                      </span>
-                      {m.warning && <span style={{ fontSize: 9, background: "rgba(255,77,106,.15)", color: "#ff4d6a", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>{m.warning}</span>}
-                    </div>
-                    <div style={{ fontSize: 10.5, color: "var(--faint)", marginTop: 2 }}>{m.cost}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* AI model badge (compact, opens full picker below card) */}
+          <button
+            onMouseDown={() => setShowModelMenu(v => !v)}
+            style={{
+              display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
+              borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
+              background: "rgba(255,255,255,.06)", border: "1px solid var(--gb)", color: "var(--dim)",
+            }}>
+            ✨ {MODEL_OPTIONS.find(m => m.id === aiModel)?.label}
+            {showModelMenu ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          </button>
 
           <div style={{ flex: 1 }} />
 
@@ -554,6 +547,42 @@ export default function GeneratePage() {
             }}>
             <ArrowUp size={18} color={(prompt.trim() || product) ? "#000" : "#555"} strokeWidth={2.5} />
           </button>
+        </div>
+      </div>
+
+      {/* Model cards — always visible */}
+      <div style={{ width: "100%", maxWidth: 700, marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>
+          เลือก AI Model
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+          {MODEL_OPTIONS.map(m => {
+            const active = aiModel === m.id;
+            return (
+              <button key={m.id} onMouseDown={() => setAiModel(m.id)} style={{
+                padding: "12px 14px", borderRadius: 12, cursor: "pointer", textAlign: "left",
+                background: active ? `${m.color}14` : "rgba(255,255,255,.04)",
+                border: `1.5px solid ${active ? m.color : "var(--gb)"}`,
+                transition: "all .15s", position: "relative", overflow: "hidden",
+              }}>
+                {/* badge */}
+                {m.badge && (
+                  <span style={{
+                    position: "absolute", top: 8, right: 8,
+                    fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: 5,
+                    background: active ? m.color + "33" : "rgba(255,255,255,.08)",
+                    color: active ? m.color : "var(--faint)",
+                  }}>{m.badge}</span>
+                )}
+                <div style={{ fontSize: 12, fontWeight: 800, color: active ? m.color : "var(--text)", marginBottom: 3 }}>
+                  {active ? "✓ " : ""}{m.label}
+                </div>
+                <div style={{ fontSize: 10.5, color: "var(--faint)", marginBottom: 6, lineHeight: 1.4 }}>{m.desc}</div>
+                <div style={{ fontSize: 13, fontWeight: 900, color: active ? m.color : "var(--dim)" }}>{m.price30s}</div>
+                <div style={{ fontSize: 9.5, color: "var(--faint)" }}>ต่อวิดีโอ 30 วิ</div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
