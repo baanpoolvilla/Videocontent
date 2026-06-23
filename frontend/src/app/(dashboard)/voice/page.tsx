@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { Mic2, Play, Download, Loader2, Volume2, Copy, Check } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1`;
 
 const VOICE_STYLES = [
   { id: "เป็นกันเอง (หญิง)", label: "เป็นกันเอง", sublabel: "หญิง · Rachel", emoji: "👩" },

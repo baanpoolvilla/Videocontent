@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Calendar, Clock, CheckCircle2, AlertCircle, X, Plus, RefreshCw } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1`;
 
 interface ScheduledPost {
   id: string;
