@@ -1,15 +1,18 @@
 import asyncio
+import logging
 from typing import Annotated
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import get_db, AsyncSessionLocal
 from app.core.deps import CurrentUser
+
+logger = logging.getLogger(__name__)
 from app.models.brand_profile import BrandProfile
 from app.models.content_job import ContentJob
 from app.models.script import Script
@@ -274,106 +277,137 @@ _STYLE_PROMPTS = {
 }
 
 
-@router.post("/{job_id}/render", response_model=dict)
-async def render_video(
+async def _do_render(
     job_id: UUID,
-    current_user: CurrentUser,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    voiceover_url: str = "",
-    duration_sec: int = 30,
-    style: str = "playful",
-    video_prompt: str = "",
-    ai_model: str = "seedance2",
-    aspect_ratio: str = "9:16",
+    voiceover_url: str,
+    duration_sec: int,
+    style: str,
+    video_prompt: str,
+    ai_model: str,
+    aspect_ratio: str,
 ):
-    result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
-    job = result.scalar_one_or_none()
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    product_result = await db.execute(select(Product).where(Product.id == job.product_id))
-    product = product_result.scalar_one_or_none()
-
-    image_urls = list(product.media_urls or []) if product else []
-    provider = "ffmpeg-kenburs"
-
-    # Model lookup
     from app.services.wan import MODELS as WAN_MODELS
-    fal_model = WAN_MODELS.get(ai_model, WAN_MODELS["seedance2"])
+    fal_model = WAN_MODELS.get(ai_model, WAN_MODELS["kling3s"])
 
-    try:
-        if settings.FAL_KEY and image_urls and ai_model != "kenburs":
-            # Generate AI video clips using Seedance 2.0, then mix with audio
-            prompt = video_prompt.strip() or _STYLE_PROMPTS.get(style, _STYLE_PROMPTS["playful"])
-            # Cap at 3 AI clips to control cost ($1.89×3=$5.67 max per video)
-            n_clips = min(len(image_urls), 3)
-            images_to_use = [image_urls[i % len(image_urls)] for i in range(n_clips)]
+    async with AsyncSessionLocal() as db:
+        try:
+            result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+            job = result.scalar_one_or_none()
+            if not job:
+                return
 
-            async def _gen_clip(img_path: str) -> str:
-                raw = img_path.strip("/")
-                public_url = f"{settings.API_BASE_URL}/api/v1/files/{raw}"
-                try:
-                    r = await wan_service.image_to_video(
-                        image_url=public_url,
-                        prompt=prompt,
-                        aspect_ratio=aspect_ratio,
-                        duration="5",
-                        model=fal_model,
+            product_result = await db.execute(select(Product).where(Product.id == job.product_id))
+            product = product_result.scalar_one_or_none()
+            image_urls = list(product.media_urls or []) if product else []
+            provider = "ffmpeg-kenburs"
+
+            if settings.FAL_KEY and image_urls and ai_model != "kenburs":
+                prompt = video_prompt.strip() or _STYLE_PROMPTS.get(style, _STYLE_PROMPTS["playful"])
+                n_clips = min(len(image_urls), 3)
+                images_to_use = [image_urls[i % len(image_urls)] for i in range(n_clips)]
+
+                async def _gen_clip(img_path: str) -> str:
+                    raw = img_path.strip("/")
+                    public_url = f"{settings.API_BASE_URL}/api/v1/files/{raw}"
+                    try:
+                        r = await wan_service.image_to_video(
+                            image_url=public_url,
+                            prompt=prompt,
+                            aspect_ratio=aspect_ratio,
+                            duration="5",
+                            model=fal_model,
+                        )
+                        return r.get("video_url", "")
+                    except Exception as ex:
+                        logger.warning(f"[RENDER] clip failed: {ex}")
+                        return ""
+
+                clip_urls_raw = await asyncio.gather(*[_gen_clip(img) for img in images_to_use])
+                clip_urls = [u for u in clip_urls_raw if u]
+
+                if clip_urls:
+                    render_result = await video_service.compose_from_clips(
+                        job_id=str(job_id),
+                        clip_urls=clip_urls,
+                        voiceover_url=voiceover_url,
+                        duration_sec=duration_sec,
                     )
-                    return r.get("video_url", "")
-                except Exception:
-                    return ""
-
-            clip_urls_raw = await asyncio.gather(*[_gen_clip(img) for img in images_to_use])
-            clip_urls = [u for u in clip_urls_raw if u]
-
-            if clip_urls:
-                render_result = await video_service.compose_from_clips(
-                    job_id=str(job_id),
-                    clip_urls=clip_urls,
-                    voiceover_url=voiceover_url,
-                    duration_sec=duration_sec,
-                )
-                provider = "seedance2"
+                    provider = ai_model
+                else:
+                    logger.warning("[RENDER] all AI clips failed — falling back to Ken Burns")
+                    render_result = await video_service.render_video(
+                        job_id=str(job_id),
+                        voiceover_url=voiceover_url,
+                        image_urls=image_urls,
+                        duration_sec=duration_sec,
+                    )
             else:
-                # All clips failed — fall back to Ken Burns
                 render_result = await video_service.render_video(
                     job_id=str(job_id),
                     voiceover_url=voiceover_url,
                     image_urls=image_urls,
                     duration_sec=duration_sec,
                 )
-        else:
-            render_result = await video_service.render_video(
-                job_id=str(job_id),
-                voiceover_url=voiceover_url,
-                image_urls=image_urls,
-                duration_sec=duration_sec,
+
+            render = RenderVersion(
+                content_job_id=job_id,
+                version_label="v1",
+                final_video_url=render_result["url"],
+                status="completed",
+                ffmpeg_config={"duration_sec": duration_sec, "images": len(image_urls), "provider": provider},
             )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Render failed: {e}")
+            db.add(render)
+            job.status = "completed"
+            job.review_status = "review_needed"
+            await db.commit()
+            logger.info(f"[RENDER] done job={job_id} provider={provider} url={render_result['url'][:60]}")
 
-    render = RenderVersion(
-        content_job_id=job_id,
-        version_label="v1",
-        final_video_url=render_result["url"],
-        status="completed",
-        ffmpeg_config={"duration_sec": duration_sec, "images": len(image_urls), "provider": provider},
-    )
-    db.add(render)
-    job.status = "completed"
-    job.review_status = "review_needed"
+        except Exception as e:
+            logger.error(f"[RENDER] failed job={job_id}: {e}")
+            try:
+                result2 = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+                job2 = result2.scalar_one_or_none()
+                if job2:
+                    job2.status = "failed"
+                    job2.error_message = str(e)[:500]
+                    await db.commit()
+            except Exception:
+                pass
+
+
+@router.post("/{job_id}/render", response_model=dict, status_code=202)
+async def render_video(
+    job_id: UUID,
+    background_tasks: BackgroundTasks,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    voiceover_url: str = "",
+    duration_sec: int = 30,
+    style: str = "playful",
+    video_prompt: str = "",
+    ai_model: str = "kling3s",
+    aspect_ratio: str = "9x16",
+):
+    result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    job.status = "rendering"
     await db.commit()
-    await db.refresh(render)
 
-    return {
-        "render_id": str(render.id),
-        "job_id": str(job_id),
-        "video_url": render_result["url"],
-        "size_bytes": render_result["size_bytes"],
-        "provider": provider,
-        "status": "completed",
-    }
+    background_tasks.add_task(
+        _do_render,
+        job_id=job_id,
+        voiceover_url=voiceover_url,
+        duration_sec=duration_sec,
+        style=style,
+        video_prompt=video_prompt,
+        ai_model=ai_model,
+        aspect_ratio=aspect_ratio,
+    )
+
+    return {"status": "rendering", "job_id": str(job_id)}
 
 
 @router.post("/{job_id}/kling-render", response_model=dict)

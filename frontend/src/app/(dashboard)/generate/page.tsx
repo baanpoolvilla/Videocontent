@@ -178,8 +178,9 @@ export default function GeneratePage() {
   const [pendingDurSec, setPendingDurSec]     = useState(30);
   const [pendingStyle, setPendingStyle]       = useState("playful");
 
-  const [elapsed, setElapsed] = useState(0);
-  const [errMsg, setErrMsg]   = useState("");
+  const [elapsed, setElapsed]         = useState(0);
+  const [errMsg, setErrMsg]           = useState("");
+  const [renderVideoUrl, setRenderVideoUrl] = useState("");
 
   const bottomRef   = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -348,6 +349,7 @@ export default function GeneratePage() {
     setPhase("rendering");
     const start = Date.now();
     try {
+      // POST returns 202 immediately — render runs in background
       await api.post(`/jobs/${pendingJobId}/render`, null, {
         params: {
           voiceover_url: pendingVoiceUrl,
@@ -358,6 +360,26 @@ export default function GeneratePage() {
           aspect_ratio:  aspectRatio.replace(/:/g, "x"),
         },
       });
+
+      // Poll job status every 5s until completed or failed (max 10 min)
+      for (let i = 0; i < 120; i++) {
+        await new Promise(r => setTimeout(r, 5000));
+        const jobRes = await api.get(`/jobs/${pendingJobId}`);
+        const status = jobRes.data.status as string;
+        if (status === "failed") {
+          throw new Error(jobRes.data.error_message || "Render failed on server");
+        }
+        if (status === "completed") {
+          const rendersRes = await api.get(`/jobs/${pendingJobId}/renders`);
+          const renders: Array<{ final_video_url?: string; status: string }> = rendersRes.data;
+          const done = renders.find(r => r.status === "completed" && r.final_video_url);
+          if (done?.final_video_url) {
+            setRenderVideoUrl(imgProxy(done.final_video_url));
+          }
+          break;
+        }
+      }
+
       setElapsed(Math.round((Date.now() - start) / 1000));
       setPhase("done");
     } catch (e: unknown) {
@@ -375,6 +397,7 @@ export default function GeneratePage() {
     setPhase("home"); setMessages([]); setQIndex(0); setAnswers({});
     setChatInput(""); setErrMsg(""); setElapsed(0);
     setVideoPrompt(""); setPendingJobId(""); setPendingVoiceUrl("");
+    setRenderVideoUrl("");
   };
 
   const currentQ = questions[qIndex];
@@ -874,6 +897,16 @@ export default function GeneratePage() {
         <p style={{ margin: "0 0 4px", fontSize: 14, color: "var(--dim)" }}>{product?.name} · {answers.style || mode} · {answers.platform}</p>
         {elapsed > 0 && <p style={{ margin: 0, fontSize: 12, color: "var(--faint)" }}>ใช้เวลา {elapsed >= 60 ? `${Math.floor(elapsed / 60)} นาที ${elapsed % 60} วิ` : `${elapsed} วินาที`}</p>}
       </div>
+      {renderVideoUrl && (
+        <video
+          src={renderVideoUrl}
+          controls
+          autoPlay
+          loop
+          playsInline
+          style={{ width: "100%", maxWidth: 340, borderRadius: 16, border: "1px solid var(--gb)" }}
+        />
+      )}
       <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: 340 }}>
         <button onClick={() => router.push("/preview")} style={{
           padding: "14px 20px", borderRadius: 14, cursor: "pointer",
