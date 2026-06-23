@@ -59,6 +59,57 @@ def _kb_pan_right(d: int) -> str:
 
 
 class VideoService:
+    async def compose_from_clips(
+        self,
+        job_id: str,
+        clip_urls: list[str],
+        voiceover_url: str,
+        duration_sec: int = 30,
+    ) -> dict:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            clip_paths = []
+            for i, url in enumerate(clip_urls):
+                p = os.path.join(tmpdir, f"clip_{i}.mp4")
+                await self._download_file(url, p)
+                clip_paths.append(p)
+
+            audio_path = os.path.join(tmpdir, "audio.mp3")
+            await self._download_file(voiceover_url, audio_path)
+
+            concat_file = os.path.join(tmpdir, "concat.txt")
+            with open(concat_file, "w") as f:
+                for cp in clip_paths:
+                    f.write(f"file '{cp}'\n")
+
+            merged = os.path.join(tmpdir, "merged.mp4")
+            await self._run_ffmpeg([
+                "ffmpeg", "-y",
+                "-f", "concat", "-safe", "0", "-i", concat_file,
+                "-c", "copy", merged,
+            ])
+
+            output_path = os.path.join(tmpdir, "output.mp4")
+            await self._run_ffmpeg([
+                "ffmpeg", "-y",
+                "-i", merged, "-i", audio_path,
+                "-c:v", "copy", "-c:a", "aac",
+                "-t", str(duration_sec),
+                "-shortest", "-movflags", "+faststart",
+                output_path,
+            ])
+
+            with open(output_path, "rb") as f:
+                video_bytes = f.read()
+
+        url = await storage_service.upload_bytes(
+            data=video_bytes,
+            filename=f"{job_id}_render.mp4",
+            content_type="video/mp4",
+            bucket="renders",
+            prefix=job_id,
+        )
+        return {"url": url, "size_bytes": len(video_bytes)}
+
     async def render_video(
         self,
         job_id: str,

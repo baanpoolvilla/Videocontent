@@ -86,7 +86,7 @@ async def generate_clips(req: ImageToVideoRequest):
         provider = "kling"
     else:
         tasks = [_generate_one_wan(img, prompt, req.aspect_ratio) for img in images]
-        provider = "wan"
+        provider = "seedance2"
 
     clip_urls = await asyncio.gather(*tasks)
 

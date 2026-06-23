@@ -6,40 +6,63 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 FAL_QUEUE = "https://queue.fal.run"
-WAN_I2V = "wan/v2.6/image-to-video"
-WAN_T2V = "wan/v2.6/text-to-video"
+
+# Model IDs on fal.ai
+MODELS = {
+    "seedance2": "fal-ai/seedance-video-lite",   # Seedance 2.0 Lite (faster, cheaper)
+    "seedance2_pro": "fal-ai/seedance-video",     # Seedance 2.0 Pro (higher quality)
+    "wan":       "wan/v2.6/image-to-video",
+    "wan_t2v":   "wan/v2.6/text-to-video",
+}
+
+# Default model — Seedance 2.0 Lite (best quality/price ratio)
+DEFAULT_I2V = MODELS["seedance2"]
+DEFAULT_T2V = MODELS["wan_t2v"]
 
 
 class WanService:
     def _headers(self) -> dict:
         return {"Authorization": f"Key {settings.FAL_KEY}", "Content-Type": "application/json"}
 
-    async def image_to_video(self, image_url: str, prompt: str, aspect_ratio: str = "9:16", duration: str = "5") -> dict:
+    async def image_to_video(
+        self,
+        image_url: str,
+        prompt: str,
+        aspect_ratio: str = "9:16",
+        duration: str = "5",
+        model: str = DEFAULT_I2V,
+    ) -> dict:
         payload = {
             "image_url": image_url,
             "prompt": prompt,
             "duration": int(duration) if str(duration).isdigit() else 5,
+            "aspect_ratio": aspect_ratio,
         }
-        return await self._run(WAN_I2V, payload)
+        return await self._run(model, payload)
 
-    async def text_to_video(self, prompt: str, aspect_ratio: str = "9:16", duration: str = "5") -> dict:
+    async def text_to_video(
+        self,
+        prompt: str,
+        aspect_ratio: str = "9:16",
+        duration: str = "5",
+    ) -> dict:
         payload = {
             "prompt": prompt,
             "duration": int(duration) if str(duration).isdigit() else 5,
+            "aspect_ratio": aspect_ratio,
         }
-        return await self._run(WAN_T2V, payload)
+        return await self._run(DEFAULT_T2V, payload)
 
     async def _run(self, model: str, payload: dict) -> dict:
-        print(f"[WAN] _run model={model} key_set={bool(settings.FAL_KEY)} key_preview={settings.FAL_KEY[:8] if settings.FAL_KEY else 'EMPTY'}", flush=True)
+        logger.info(f"[FAL] model={model} key_set={bool(settings.FAL_KEY)}")
         if not settings.FAL_KEY:
             raise RuntimeError("FAL_KEY not configured")
 
-        # Submit to fal.ai queue
         url = f"{FAL_QUEUE}/{model}"
-        print(f"[WAN] POST {url}  payload={payload}", flush=True)
+        logger.info(f"[FAL] POST {url}")
+
         async with httpx.AsyncClient(timeout=30) as client:
             r = await client.post(url, headers=self._headers(), json=payload)
-            print(f"[WAN] response {r.status_code}: {r.text[:600]}", flush=True)
             if not r.is_success:
                 raise RuntimeError(f"fal.ai submit error {r.status_code}: {r.text[:600]}")
             data = r.json()
@@ -48,8 +71,10 @@ class WanService:
         if not request_id:
             raise RuntimeError(f"fal.ai did not return request_id: {data}")
 
+        logger.info(f"[FAL] request_id={request_id} — polling...")
+
         # Poll until COMPLETED (max 5 min)
-        for _ in range(60):
+        for attempt in range(60):
             await asyncio.sleep(5)
             async with httpx.AsyncClient(timeout=15) as client:
                 r = await client.get(
@@ -61,6 +86,7 @@ class WanService:
                 status_data = r.json()
 
             st = status_data.get("status", "")
+            logger.info(f"[FAL] attempt {attempt+1} status={st}")
             if st == "COMPLETED":
                 break
             if st in ("FAILED", "ERROR"):
@@ -73,10 +99,15 @@ class WanService:
                 headers=self._headers(),
             )
             if not r.is_success:
-                raise RuntimeError(f"fal.ai result fetch error {r.status_code}: {r.text[:200]}")
+                raise RuntimeError(f"fal.ai result error {r.status_code}: {r.text[:200]}")
             result = r.json()
 
-        video_url = (result.get("video") or {}).get("url") or result.get("video_url") or ""
+        video_url = (
+            (result.get("video") or {}).get("url")
+            or result.get("video_url")
+            or ""
+        )
+        logger.info(f"[FAL] done video_url={video_url[:60] if video_url else 'EMPTY'}")
         return {"task_id": request_id, "video_url": video_url, "status": "succeed"}
 
 

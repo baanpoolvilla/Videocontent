@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated
 from uuid import UUID
 
@@ -265,6 +266,14 @@ async def generate_voiceover(
     }
 
 
+_STYLE_PROMPTS = {
+    "playful": "playful animated overlay, vibrant colors, energetic motion, pool villa",
+    "luxury":  "luxury cinematic, slow elegant motion, golden hour lighting, premium pool villa",
+    "party":   "party vibes, dynamic movement, festive colorful lights, pool party",
+    "minimal": "minimal clean motion, smooth transitions, modern sleek, pool villa",
+}
+
+
 @router.post("/{job_id}/render", response_model=dict)
 async def render_video(
     job_id: UUID,
@@ -272,6 +281,10 @@ async def render_video(
     db: Annotated[AsyncSession, Depends(get_db)],
     voiceover_url: str = "",
     duration_sec: int = 30,
+    style: str = "playful",
+    video_prompt: str = "",
+    ai_model: str = "seedance2",
+    aspect_ratio: str = "9:16",
 ):
     result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
     job = result.scalar_one_or_none()
@@ -282,14 +295,60 @@ async def render_video(
     product = product_result.scalar_one_or_none()
 
     image_urls = list(product.media_urls or []) if product else []
+    provider = "ffmpeg-kenburs"
+
+    # Model lookup
+    from app.services.wan import MODELS as WAN_MODELS
+    fal_model = WAN_MODELS.get(ai_model, WAN_MODELS["seedance2"])
 
     try:
-        render_result = await video_service.render_video(
-            job_id=str(job_id),
-            voiceover_url=voiceover_url,
-            image_urls=image_urls,
-            duration_sec=duration_sec,
-        )
+        if settings.FAL_KEY and image_urls and ai_model != "kenburs":
+            # Generate AI video clips using Seedance 2.0, then mix with audio
+            prompt = video_prompt.strip() or _STYLE_PROMPTS.get(style, _STYLE_PROMPTS["playful"])
+            n_clips = min(len(image_urls), max(1, duration_sec // 5))
+            images_to_use = [image_urls[i % len(image_urls)] for i in range(n_clips)]
+
+            async def _gen_clip(img_path: str) -> str:
+                raw = img_path.strip("/")
+                public_url = f"{settings.API_BASE_URL}/api/v1/files/{raw}"
+                try:
+                    r = await wan_service.image_to_video(
+                        image_url=public_url,
+                        prompt=prompt,
+                        aspect_ratio=aspect_ratio,
+                        duration="5",
+                        model=fal_model,
+                    )
+                    return r.get("video_url", "")
+                except Exception:
+                    return ""
+
+            clip_urls_raw = await asyncio.gather(*[_gen_clip(img) for img in images_to_use])
+            clip_urls = [u for u in clip_urls_raw if u]
+
+            if clip_urls:
+                render_result = await video_service.compose_from_clips(
+                    job_id=str(job_id),
+                    clip_urls=clip_urls,
+                    voiceover_url=voiceover_url,
+                    duration_sec=duration_sec,
+                )
+                provider = "seedance2"
+            else:
+                # All clips failed — fall back to Ken Burns
+                render_result = await video_service.render_video(
+                    job_id=str(job_id),
+                    voiceover_url=voiceover_url,
+                    image_urls=image_urls,
+                    duration_sec=duration_sec,
+                )
+        else:
+            render_result = await video_service.render_video(
+                job_id=str(job_id),
+                voiceover_url=voiceover_url,
+                image_urls=image_urls,
+                duration_sec=duration_sec,
+            )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Render failed: {e}")
 
@@ -298,7 +357,7 @@ async def render_video(
         version_label="v1",
         final_video_url=render_result["url"],
         status="completed",
-        ffmpeg_config={"duration_sec": duration_sec, "images": len(image_urls)},
+        ffmpeg_config={"duration_sec": duration_sec, "images": len(image_urls), "provider": provider},
     )
     db.add(render)
     job.status = "completed"
@@ -311,6 +370,7 @@ async def render_video(
         "job_id": str(job_id),
         "video_url": render_result["url"],
         "size_bytes": render_result["size_bytes"],
+        "provider": provider,
         "status": "completed",
     }
 
@@ -413,6 +473,39 @@ async def kling_status(
     return status_result
 
 
+@router.get("/{job_id}/suggest-video-prompt", response_model=dict)
+async def suggest_video_prompt(
+    job_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    style: str = "playful",
+):
+    result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    product_result = await db.execute(select(Product).where(Product.id == job.product_id))
+    product = product_result.scalar_one_or_none()
+
+    script_result = await db.execute(
+        select(Script).where(Script.content_job_id == job_id).order_by(Script.version.desc())
+    )
+    script = script_result.scalars().first()
+    script_text = script.full_script if script else ""
+
+    try:
+        video_prompt = await ai_service.suggest_video_prompt(
+            script=script_text,
+            product_name=product.name if product else "",
+            style=style,
+        )
+    except Exception:
+        video_prompt = _STYLE_PROMPTS.get(style, _STYLE_PROMPTS["playful"])
+
+    return {"video_prompt": video_prompt, "style": style}
+
+
 @router.post("/{job_id}/wan-render", response_model=dict)
 async def wan_render(
     job_id: UUID,
@@ -461,10 +554,10 @@ async def wan_render(
 
     render = RenderVersion(
         content_job_id=job_id,
-        version_label="wan-v1",
+        version_label="seedance2-v1",
         final_video_url=wan_result.get("video_url"),
         status="completed" if wan_result.get("video_url") else "processing",
-        ffmpeg_config={"provider": "wan-fal", "prompt": prompt},
+        ffmpeg_config={"provider": "seedance2-fal", "prompt": prompt},
     )
     db.add(render)
     job.status = "completed"
