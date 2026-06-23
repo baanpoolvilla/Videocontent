@@ -393,7 +393,7 @@ async def render_video(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    job.status = "rendering"
+    job.status = "processing"
     await db.commit()
 
     background_tasks.add_task(
