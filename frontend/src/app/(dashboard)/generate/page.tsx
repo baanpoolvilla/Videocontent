@@ -150,6 +150,9 @@ export default function GeneratePage() {
 
   const bottomRef   = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const pickerRef   = useRef<HTMLDivElement>(null);
+  const aspectRef   = useRef<HTMLDivElement>(null);
+  const modelRef    = useRef<HTMLDivElement>(null);
 
   const questions = mode === "script" ? QUESTIONS_SCRIPT : mode === "ads" ? QUESTIONS_ADS : QUESTIONS_ASSETS;
 
@@ -161,11 +164,15 @@ export default function GeneratePage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, aiTyping]);
 
-  // close menus on outside click
+  // close menus on outside click (mousedown avoids React synthetic event issues)
   useEffect(() => {
-    const h = () => { setShowAspectMenu(false); setShowModelMenu(false); setShowPicker(false); };
-    document.addEventListener("click", h);
-    return () => document.removeEventListener("click", h);
+    const h = (e: MouseEvent) => {
+      if (!pickerRef.current?.contains(e.target as Node)) setShowPicker(false);
+      if (!aspectRef.current?.contains(e.target as Node)) setShowAspectMenu(false);
+      if (!modelRef.current?.contains(e.target as Node)) setShowModelMenu(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
   }, []);
 
   const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -338,13 +345,13 @@ export default function GeneratePage() {
   // ── HOME ──────────────────────────────────────────────────────────────────
   if (phase === "home") return (
     <div style={{
-      minHeight: "100vh", background: "var(--bg)",
+      height: "100vh", background: "var(--bg)",
       display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", padding: "40px 24px",
-    }} onClick={() => { setShowAspectMenu(false); setShowModelMenu(false); setShowPicker(false); }}>
+      justifyContent: "center", padding: "0 24px", overflow: "hidden",
+    }}>
 
       <h1 style={{
-        margin: "0 0 36px", fontSize: 36, fontWeight: 900, textAlign: "center", lineHeight: 1.2,
+        margin: "0 0 28px", fontSize: 34, fontWeight: 900, textAlign: "center", lineHeight: 1.2,
         color: "var(--text)", letterSpacing: "-.03em",
       }}>
         Create your{" "}
@@ -353,53 +360,78 @@ export default function GeneratePage() {
         </span>{" "}today
       </h1>
 
+      {/* Main card */}
       <div style={{
-        width: "100%", maxWidth: 680,
+        width: "100%", maxWidth: 700,
         background: "#1a1a22", border: "1px solid var(--gb)", borderRadius: 20,
-        padding: "20px 20px 14px", boxShadow: "0 8px 40px rgba(0,0,0,.4)", marginBottom: 20,
+        padding: "20px 20px 14px", boxShadow: "0 8px 40px rgba(0,0,0,.4)", marginBottom: 16,
       }}>
-        {/* Asset row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
-            <button onClick={() => setShowPicker(v => !v)} style={{
-              display: "flex", alignItems: "center", gap: 6,
-              background: "rgba(255,255,255,.06)", border: "1px solid var(--gb)",
-              borderRadius: 10, padding: "6px 12px", cursor: "pointer",
-              fontSize: 12, fontWeight: 700, color: "var(--dim)",
-            }}>
+
+        {/* Asset picker row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+
+          {/* Product picker */}
+          <div ref={pickerRef} style={{ position: "relative" }}>
+            <button
+              onMouseDown={e => { e.stopPropagation(); setShowPicker(v => !v); setShowAspectMenu(false); setShowModelMenu(false); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                background: product ? "rgba(0,255,212,.1)" : "rgba(255,255,255,.06)",
+                border: `1px solid ${product ? "rgba(0,255,212,.3)" : "var(--gb)"}`,
+                borderRadius: 10, padding: "6px 12px", cursor: "pointer",
+                fontSize: 12, fontWeight: 700,
+                color: product ? "var(--teal)" : "var(--dim)",
+              }}>
               <Plus size={13} />
               {product ? product.name : "เลือก Assets"}
               <ChevronDown size={11} />
             </button>
             {showPicker && (
               <div style={{
-                position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50,
-                background: "var(--surface)", border: "1px solid var(--gb)",
-                borderRadius: 12, overflow: "hidden", minWidth: 220, maxHeight: 200, overflowY: "auto",
-                boxShadow: "0 8px 24px rgba(0,0,0,.5)",
+                position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 99,
+                background: "#1e1e2a", border: "1px solid var(--gb)",
+                borderRadius: 12, overflow: "hidden", minWidth: 240, maxHeight: 220, overflowY: "auto",
+                boxShadow: "0 8px 32px rgba(0,0,0,.7)",
               }}>
                 {products.length === 0 ? (
-                  <div style={{ padding: "12px 16px", fontSize: 12, color: "var(--faint)" }}>ยังไม่มีสินค้า</div>
+                  <div style={{ padding: "14px 16px" }}>
+                    <div style={{ fontSize: 12, color: "var(--faint)", marginBottom: 8 }}>ยังไม่มีสินค้า</div>
+                    <a href="/products" style={{
+                      display: "inline-block", fontSize: 12, fontWeight: 700,
+                      color: "var(--teal)", textDecoration: "none",
+                      background: "rgba(0,255,212,.1)", border: "1px solid rgba(0,255,212,.2)",
+                      borderRadius: 8, padding: "6px 12px",
+                    }}>+ อัปโหลดสินค้าก่อน →</a>
+                  </div>
                 ) : products.map(p => (
-                  <div key={p.id} onClick={() => { setProduct(p); setShowPicker(false); }} style={{
-                    padding: "10px 16px", cursor: "pointer", fontSize: 13,
-                    background: product?.id === p.id ? "rgba(0,255,212,.06)" : "transparent",
-                    color: product?.id === p.id ? "var(--teal)" : "var(--text)",
-                    borderBottom: "1px solid var(--gb)",
-                  }}>📦 {p.name}</div>
+                  <div key={p.id}
+                    onMouseDown={() => { setProduct(p); setShowPicker(false); }}
+                    style={{
+                      padding: "10px 16px", cursor: "pointer", fontSize: 13,
+                      background: product?.id === p.id ? "rgba(0,255,212,.08)" : "transparent",
+                      color: product?.id === p.id ? "var(--teal)" : "var(--text)",
+                      borderBottom: "1px solid var(--gb)",
+                    }}>
+                    📦 {p.name}
+                    <span style={{ fontSize: 10, color: "var(--faint)", marginLeft: 6 }}>{p.media_urls?.length || 0} รูป</span>
+                  </div>
                 ))}
               </div>
             )}
           </div>
 
-          {product?.media_urls?.slice(0, 3).map((url, i) => (
-            <div key={i} style={{ width: 40, height: 40, borderRadius: 10, overflow: "hidden", border: "1px solid var(--gb)", flexShrink: 0 }}>
+          {/* Image thumbnails */}
+          {product?.media_urls?.slice(0, 4).map((url, i) => (
+            <div key={i} style={{ width: 38, height: 38, borderRadius: 8, overflow: "hidden", border: "1px solid var(--gb)", flexShrink: 0 }}>
               <img src={imgProxy(url)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             </div>
           ))}
-          {product && <span style={{ fontSize: 11, color: "var(--faint)", marginLeft: 4 }}>{product.media_urls?.length || 0} assets</span>}
+          {product && product.media_urls?.length > 4 && (
+            <span style={{ fontSize: 11, color: "var(--faint)" }}>+{product.media_urls.length - 4} more</span>
+          )}
         </div>
 
+        {/* Text input */}
         <textarea
           ref={textareaRef}
           value={prompt}
@@ -410,81 +442,93 @@ export default function GeneratePage() {
             : mode === "ads"  ? "ทำ Ad โปรโมท pool villa พร้อม offer พิเศษ..."
             : "ทำเป็นรีวิวบ้านพลูวิลล่า แบบเชิญชวนมาพักผ่อน..."
           }
-          rows={2}
+          rows={3}
           style={{
             width: "100%", background: "transparent", border: "none", outline: "none",
-            color: "var(--text)", fontSize: 15, lineHeight: 1.6, resize: "none",
-            fontFamily: "inherit", marginBottom: 14,
+            color: "var(--text)", fontSize: 15, lineHeight: 1.7, resize: "none",
+            fontFamily: "inherit", marginBottom: 14, boxSizing: "border-box",
           }}
         />
 
-        {/* Badges row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {/* Badges + send row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
 
           {/* Caption toggle */}
-          <button onClick={() => setCaptions(v => !v)} style={{
-            display: "flex", alignItems: "center", gap: 5, padding: "5px 12px",
-            borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
-            background: captions ? "rgba(0,255,212,.12)" : "rgba(255,255,255,.06)",
-            border: `1px solid ${captions ? "rgba(0,255,212,.4)" : "var(--gb)"}`,
-            color: captions ? "var(--teal)" : "var(--dim)",
-          }}>
+          <button
+            onMouseDown={() => setCaptions(v => !v)}
+            style={{
+              display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
+              borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
+              background: captions ? "rgba(0,255,212,.12)" : "rgba(255,255,255,.06)",
+              border: `1px solid ${captions ? "rgba(0,255,212,.4)" : "var(--gb)"}`,
+              color: captions ? "var(--teal)" : "var(--dim)",
+            }}>
             🔠 Caption {captions ? "ON" : "OFF"}
           </button>
 
           {/* Aspect ratio */}
-          <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
-            <button onClick={() => { setShowAspectMenu(v => !v); setShowModelMenu(false); }} style={{
-              display: "flex", alignItems: "center", gap: 5, padding: "5px 12px",
-              borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
-              background: "rgba(255,255,255,.06)", border: "1px solid var(--gb)",
-              color: "var(--dim)",
-            }}>
-              📱 {aspectRatio} {showAspectMenu ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          <div ref={aspectRef} style={{ position: "relative" }}>
+            <button
+              onMouseDown={e => { e.stopPropagation(); setShowAspectMenu(v => !v); setShowModelMenu(false); setShowPicker(false); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
+                borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
+                background: "rgba(255,255,255,.06)", border: "1px solid var(--gb)", color: "var(--dim)",
+              }}>
+              📐 {aspectRatio} {showAspectMenu ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
             </button>
             {showAspectMenu && (
               <div style={{
-                position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50,
-                background: "var(--surface)", border: "1px solid var(--gb)",
-                borderRadius: 10, overflow: "hidden", minWidth: 100,
-                boxShadow: "0 6px 20px rgba(0,0,0,.5)",
+                position: "absolute", bottom: "calc(100% + 6px)", left: 0, zIndex: 99,
+                background: "#1e1e2a", border: "1px solid var(--gb)",
+                borderRadius: 10, overflow: "hidden", minWidth: 110,
+                boxShadow: "0 6px 24px rgba(0,0,0,.7)",
               }}>
                 {ASPECT_OPTIONS.map(ar => (
-                  <div key={ar} onClick={() => { setAspectRatio(ar); setShowAspectMenu(false); }} style={{
-                    padding: "9px 14px", cursor: "pointer", fontSize: 12, fontWeight: 700,
-                    background: aspectRatio === ar ? "rgba(0,255,212,.08)" : "transparent",
-                    color: aspectRatio === ar ? "var(--teal)" : "var(--text)",
-                    borderBottom: "1px solid var(--gb)",
-                  }}>{ar}</div>
+                  <div key={ar}
+                    onMouseDown={() => { setAspectRatio(ar); setShowAspectMenu(false); }}
+                    style={{
+                      padding: "10px 16px", cursor: "pointer", fontSize: 12, fontWeight: 700,
+                      background: aspectRatio === ar ? "rgba(0,255,212,.1)" : "transparent",
+                      color: aspectRatio === ar ? "var(--teal)" : "var(--text)",
+                      borderBottom: "1px solid var(--gb)",
+                    }}>
+                    {ar === "9:16" ? "📱 9:16 (TikTok/IG)" : ar === "1:1" ? "⬜ 1:1 (Square)" : "🖥 16:9 (YouTube)"}
+                  </div>
                 ))}
               </div>
             )}
           </div>
 
           {/* AI model */}
-          <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
-            <button onClick={() => { setShowModelMenu(v => !v); setShowAspectMenu(false); }} style={{
-              display: "flex", alignItems: "center", gap: 5, padding: "5px 12px",
-              borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
-              background: "rgba(255,255,255,.06)", border: "1px solid var(--gb)",
-              color: "var(--dim)",
-            }}>
-              ✨ {MODEL_OPTIONS.find(m => m.id === aiModel)?.label.split(" ").slice(0, 2).join(" ")} {showModelMenu ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          <div ref={modelRef} style={{ position: "relative" }}>
+            <button
+              onMouseDown={e => { e.stopPropagation(); setShowModelMenu(v => !v); setShowAspectMenu(false); setShowPicker(false); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
+                borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
+                background: "rgba(255,255,255,.06)", border: "1px solid var(--gb)", color: "var(--dim)",
+              }}>
+              ✨ {MODEL_OPTIONS.find(m => m.id === aiModel)?.label} {showModelMenu ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
             </button>
             {showModelMenu && (
               <div style={{
-                position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50,
-                background: "var(--surface)", border: "1px solid var(--gb)",
-                borderRadius: 10, overflow: "hidden", minWidth: 220,
-                boxShadow: "0 6px 20px rgba(0,0,0,.5)",
+                position: "absolute", bottom: "calc(100% + 6px)", left: 0, zIndex: 99,
+                background: "#1e1e2a", border: "1px solid var(--gb)",
+                borderRadius: 10, overflow: "hidden", minWidth: 240,
+                boxShadow: "0 6px 24px rgba(0,0,0,.7)",
               }}>
                 {MODEL_OPTIONS.map(m => (
-                  <div key={m.id} onClick={() => { setAiModel(m.id); setShowModelMenu(false); }} style={{
-                    padding: "10px 14px", cursor: "pointer",
-                    background: aiModel === m.id ? "rgba(0,255,212,.08)" : "transparent",
-                    borderBottom: "1px solid var(--gb)",
-                  }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: aiModel === m.id ? "var(--teal)" : "var(--text)" }}>{m.label}</div>
+                  <div key={m.id}
+                    onMouseDown={() => { setAiModel(m.id); setShowModelMenu(false); }}
+                    style={{
+                      padding: "11px 16px", cursor: "pointer",
+                      background: aiModel === m.id ? "rgba(0,255,212,.08)" : "transparent",
+                      borderBottom: "1px solid var(--gb)",
+                    }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: aiModel === m.id ? "var(--teal)" : "var(--text)" }}>
+                      {aiModel === m.id ? "✓ " : ""}{m.label}
+                    </div>
                     <div style={{ fontSize: 10.5, color: "var(--faint)", marginTop: 2 }}>{m.cost}</div>
                   </div>
                 ))}
@@ -494,22 +538,25 @@ export default function GeneratePage() {
 
           <div style={{ flex: 1 }} />
 
-          <button onClick={handleSend} disabled={!prompt.trim() && !product} style={{
-            width: 40, height: 40, borderRadius: "50%",
-            cursor: (prompt.trim() || product) ? "pointer" : "not-allowed",
-            background: (prompt.trim() || product) ? "#fff" : "rgba(255,255,255,.12)",
-            border: "none", display: "flex", alignItems: "center", justifyContent: "center",
-            transition: "background .15s",
-          }}>
+          <button
+            onMouseDown={handleSend}
+            disabled={!prompt.trim() && !product}
+            style={{
+              width: 42, height: 42, borderRadius: "50%",
+              cursor: (prompt.trim() || product) ? "pointer" : "not-allowed",
+              background: (prompt.trim() || product) ? "#fff" : "rgba(255,255,255,.12)",
+              border: "none", display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "background .15s", flexShrink: 0,
+            }}>
             <ArrowUp size={18} color={(prompt.trim() || product) ? "#000" : "#555"} strokeWidth={2.5} />
           </button>
         </div>
       </div>
 
       {/* Mode tabs */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginBottom: 20 }}>
         {MODE_TABS.map(t => (
-          <button key={t.id} onClick={() => setMode(t.id)} style={{
+          <button key={t.id} onMouseDown={() => setMode(t.id)} style={{
             display: "flex", alignItems: "center", gap: 7,
             padding: "9px 18px", borderRadius: 10, cursor: "pointer",
             background: mode === t.id ? "rgba(255,255,255,.1)" : "rgba(255,255,255,.04)",
@@ -523,10 +570,9 @@ export default function GeneratePage() {
         ))}
       </div>
 
-      <p style={{ marginTop: 40, fontSize: 14, fontWeight: 700, color: "var(--faint)" }}>
+      <p style={{ margin: 0, fontSize: 13, color: "var(--faint)" }}>
         ✨ Get inspired. Then make it yours.
       </p>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 
