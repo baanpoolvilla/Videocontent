@@ -13,7 +13,7 @@ interface Product { id: string; name: string; media_urls: string[]; }
 type Phase = "home" | "story" | "generating" | "prompt_edit" | "rendering" | "done" | "error";
 type Mode  = "assets" | "script" | "audio" | "ads";
 type AspectRatio = "9:16" | "1:1" | "16:9";
-type AIModel = "seedance2" | "seedance2_pro" | "kenburs";
+type AIModel = "seedance2" | "seedance2_pro" | "kenburs" | "wan";
 
 interface ChatMsg {
   role: "user" | "ai" | "loading";
@@ -90,10 +90,11 @@ const MODE_TABS = [
 ];
 
 const ASPECT_OPTIONS: AspectRatio[] = ["9:16", "1:1", "16:9"];
-const MODEL_OPTIONS: { id: AIModel; label: string; cost: string }[] = [
-  { id: "seedance2",     label: "Seedance 2.0 Lite",  cost: "~$0.05/คลิป" },
-  { id: "seedance2_pro", label: "Seedance 2.0 Pro",   cost: "~$0.14/คลิป" },
-  { id: "kenburs",       label: "Ken Burns (ฟรี)",    cost: "ไม่เสีย credit" },
+const MODEL_OPTIONS: { id: AIModel; label: string; cost: string; warning?: string }[] = [
+  { id: "kenburs",       label: "Ken Burns (ฟรี)",         cost: "ไม่เสีย credit — เร็วมาก" },
+  { id: "seedance2",     label: "Seedance 2.0 Fast",       cost: "~$0.50–1/คลิป · AI motion จริง" },
+  { id: "seedance2_pro", label: "Seedance 2.0 Pro",        cost: "~$4.25/คลิป · คุณภาพสูงสุด", warning: "แพงมาก" },
+  { id: "wan",           label: "Wan 2.1 (ถูกสุด)",        cost: "~$0.05/คลิป · AI motion" },
 ];
 
 const PLATFORM_MAP: Record<string, string> = {
@@ -125,7 +126,7 @@ export default function GeneratePage() {
 
   // badge state
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("9:16");
-  const [aiModel, setAiModel]         = useState<AIModel>("seedance2");
+  const [aiModel, setAiModel]         = useState<AIModel>("wan");
   const [captions, setCaptions]       = useState(false);
   const [showAspectMenu, setShowAspectMenu] = useState(false);
   const [showModelMenu, setShowModelMenu]   = useState(false);
@@ -526,8 +527,11 @@ export default function GeneratePage() {
                       background: aiModel === m.id ? "rgba(0,255,212,.08)" : "transparent",
                       borderBottom: "1px solid var(--gb)",
                     }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: aiModel === m.id ? "var(--teal)" : "var(--text)" }}>
-                      {aiModel === m.id ? "✓ " : ""}{m.label}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: aiModel === m.id ? "var(--teal)" : "var(--text)" }}>
+                        {aiModel === m.id ? "✓ " : ""}{m.label}
+                      </span>
+                      {m.warning && <span style={{ fontSize: 9, background: "rgba(255,77,106,.15)", color: "#ff4d6a", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>{m.warning}</span>}
                     </div>
                     <div style={{ fontSize: 10.5, color: "var(--faint)", marginTop: 2 }}>{m.cost}</div>
                   </div>

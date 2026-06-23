@@ -7,16 +7,17 @@ logger = logging.getLogger(__name__)
 
 FAL_QUEUE = "https://queue.fal.run"
 
-# Model IDs on fal.ai
+# Model IDs on fal.ai (verified from fal.ai sandbox)
 MODELS = {
-    "seedance2": "fal-ai/seedance-video-lite",   # Seedance 2.0 Lite (faster, cheaper)
-    "seedance2_pro": "fal-ai/seedance-video",     # Seedance 2.0 Pro (higher quality)
-    "wan":       "wan/v2.6/image-to-video",
-    "wan_t2v":   "wan/v2.6/text-to-video",
+    "seedance2":     "bytedance/seedance-2.0/fast/image-to-video",  # ~$0.50-1/คลิป
+    "seedance2_pro": "bytedance/seedance-2.0/image-to-video",        # ~$4.25/คลิป
+    "wan":           "wan/v2.1/image-to-video",                      # ~$0.05/คลิป (ถูกสุด)
+    "wan_t2v":       "wan/v2.1/text-to-video",
+    "kenburs":       "kenburs",  # ไม่ใช้ fal.ai — FFmpeg local
 }
 
-# Default model — Seedance 2.0 Lite (best quality/price ratio)
-DEFAULT_I2V = MODELS["seedance2"]
+# Default: Wan 2.1 (ถูกที่สุด ทดสอบก่อน)
+DEFAULT_I2V = MODELS["wan"]
 DEFAULT_T2V = MODELS["wan_t2v"]
 
 
