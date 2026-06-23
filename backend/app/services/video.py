@@ -73,9 +73,6 @@ class VideoService:
                 await self._download_file(url, p)
                 clip_paths.append(p)
 
-            audio_path = os.path.join(tmpdir, "audio.mp3")
-            await self._download_file(voiceover_url, audio_path)
-
             concat_file = os.path.join(tmpdir, "concat.txt")
             with open(concat_file, "w") as f:
                 for cp in clip_paths:
@@ -89,14 +86,26 @@ class VideoService:
             ])
 
             output_path = os.path.join(tmpdir, "output.mp4")
-            await self._run_ffmpeg([
-                "ffmpeg", "-y",
-                "-i", merged, "-i", audio_path,
-                "-c:v", "copy", "-c:a", "aac",
-                "-t", str(duration_sec),
-                "-shortest", "-movflags", "+faststart",
-                output_path,
-            ])
+            if voiceover_url:
+                audio_path = os.path.join(tmpdir, "audio.mp3")
+                await self._download_file(voiceover_url, audio_path)
+                await self._run_ffmpeg([
+                    "ffmpeg", "-y",
+                    "-i", merged, "-i", audio_path,
+                    "-c:v", "copy", "-c:a", "aac",
+                    "-t", str(duration_sec),
+                    "-shortest", "-movflags", "+faststart",
+                    output_path,
+                ])
+            else:
+                # video only — no audio
+                await self._run_ffmpeg([
+                    "ffmpeg", "-y", "-i", merged,
+                    "-c:v", "copy", "-an",
+                    "-t", str(duration_sec),
+                    "-movflags", "+faststart",
+                    output_path,
+                ])
 
             with open(output_path, "rb") as f:
                 video_bytes = f.read()
@@ -118,8 +127,10 @@ class VideoService:
         duration_sec: int = 30,
     ) -> dict:
         with tempfile.TemporaryDirectory() as tmpdir:
-            audio_path = os.path.join(tmpdir, "audio.mp3")
-            await self._download_file(voiceover_url, audio_path)
+            audio_path = None
+            if voiceover_url:
+                audio_path = os.path.join(tmpdir, "audio.mp3")
+                await self._download_file(voiceover_url, audio_path)
 
             if image_urls:
                 image_paths = []
@@ -156,7 +167,7 @@ class VideoService:
                     f.write(resp.content)
 
     async def _images_to_video(
-        self, image_paths: list[str], audio_path: str, tmpdir: str, duration_sec: int
+        self, image_paths: list[str], audio_path: str | None, tmpdir: str, duration_sec: int
     ) -> str:
         output_path = os.path.join(tmpdir, "output.mp4")
         n = len(image_paths)
@@ -194,14 +205,22 @@ class VideoService:
             "-c", "copy", merged,
         ])
 
-        # Mix with audio
-        await self._run_ffmpeg([
-            "ffmpeg", "-y",
-            "-i", merged, "-i", audio_path,
-            "-c:v", "copy", "-c:a", "aac",
-            "-shortest", "-movflags", "+faststart",
-            output_path,
-        ])
+        # Mix with audio (or video only)
+        if audio_path and os.path.exists(audio_path):
+            await self._run_ffmpeg([
+                "ffmpeg", "-y",
+                "-i", merged, "-i", audio_path,
+                "-c:v", "copy", "-c:a", "aac",
+                "-shortest", "-movflags", "+faststart",
+                output_path,
+            ])
+        else:
+            await self._run_ffmpeg([
+                "ffmpeg", "-y", "-i", merged,
+                "-c:v", "copy", "-an",
+                "-movflags", "+faststart",
+                output_path,
+            ])
         return output_path
 
     async def _text_to_video(self, audio_path: str, tmpdir: str, duration_sec: int) -> str:

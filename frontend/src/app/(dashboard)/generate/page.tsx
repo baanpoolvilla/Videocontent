@@ -159,6 +159,7 @@ export default function GeneratePage() {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("9:16");
   const [aiModel, setAiModel]         = useState<AIModel>("kling3s");
   const [captions, setCaptions]       = useState(false);
+  const [includeVoice, setIncludeVoice] = useState(true);
   const [showAspectMenu, setShowAspectMenu] = useState(false);
   const [showModelMenu, setShowModelMenu]   = useState(false);
 
@@ -306,10 +307,14 @@ export default function GeneratePage() {
         });
       }
 
-      const voiceStyle = VOICE_FOR_STYLE[styleId] ?? "เป็นกันเอง (หญิง)";
-      const voiceRes = await api.post(`/jobs/${jobId}/voiceover`, null, {
-        params: { voice_style: voiceStyle },
-      });
+      let voiceoverUrl = "";
+      if (includeVoice) {
+        const voiceStyle = VOICE_FOR_STYLE[styleId] ?? "เป็นกันเอง (หญิง)";
+        const voiceRes = await api.post(`/jobs/${jobId}/voiceover`, null, {
+          params: { voice_style: voiceStyle },
+        });
+        voiceoverUrl = voiceRes.data.voiceover_url;
+      }
 
       // suggest video prompt from AI
       let suggested = "";
@@ -321,7 +326,7 @@ export default function GeneratePage() {
       } catch { /* use style default */ }
 
       setPendingJobId(jobId);
-      setPendingVoiceUrl(voiceRes.data.voiceover_url);
+      setPendingVoiceUrl(voiceoverUrl);
       setPendingDurSec(durSec);
       setPendingStyle(styleId);
       setVideoPrompt(suggested);
@@ -484,6 +489,19 @@ export default function GeneratePage() {
 
         {/* Badges + send row */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+
+          {/* Voice toggle */}
+          <button
+            onMouseDown={() => setIncludeVoice(v => !v)}
+            style={{
+              display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
+              borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
+              background: includeVoice ? "rgba(77,127,255,.12)" : "rgba(255,255,255,.06)",
+              border: `1px solid ${includeVoice ? "rgba(77,127,255,.4)" : "var(--gb)"}`,
+              color: includeVoice ? "#4D7FFF" : "var(--dim)",
+            }}>
+            🎙 เสียง {includeVoice ? "ON" : "OFF"}
+          </button>
 
           {/* Caption toggle */}
           <button
