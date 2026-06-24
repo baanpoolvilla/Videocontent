@@ -420,6 +420,96 @@ async def render_video(
     return {"status": "rendering", "job_id": str(job_id)}
 
 
+@router.post("/{job_id}/remix-audio", response_model=dict)
+async def remix_audio(
+    job_id: UUID,
+    background_tasks: BackgroundTasks,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    voiceover_url: str = "",
+    voice_style: str = "เป็นกันเอง (หญิง)",
+):
+    """Mix new voiceover into the existing rendered video — no fal.ai, no re-render."""
+    result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # Get latest completed render
+    rr = await db.execute(
+        select(RenderVersion)
+        .where(RenderVersion.content_job_id == job_id, RenderVersion.status == "completed")
+        .order_by(RenderVersion.id.desc())
+    )
+    latest_render = rr.scalars().first()
+    if not latest_render or not latest_render.final_video_url:
+        raise HTTPException(status_code=404, detail="ไม่พบวิดีโอที่ render ไว้ — กรุณา render ก่อน")
+
+    video_url = latest_render.final_video_url
+    job.status = "processing"
+    await db.commit()
+
+    background_tasks.add_task(
+        _do_remix_audio,
+        job_id=job_id,
+        video_url=video_url,
+        voiceover_url=voiceover_url,
+        voice_style=voice_style,
+    )
+    return {"status": "processing", "job_id": str(job_id), "source_video": video_url}
+
+
+async def _do_remix_audio(job_id: UUID, video_url: str, voiceover_url: str, voice_style: str):
+    async with AsyncSessionLocal() as db:
+        try:
+            result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+            job = result.scalar_one_or_none()
+            if not job:
+                return
+
+            # Generate voiceover if not provided
+            if not voiceover_url:
+                script_r = await db.execute(
+                    select(Script).where(Script.content_job_id == job_id).order_by(Script.version.desc())
+                )
+                script = script_r.scalars().first()
+                text = (script.full_script or "") if script else ""
+                if text:
+                    vo = await tts_service.generate_voiceover(text, str(job_id), voice_style)
+                    voiceover_url = vo.get("url", "")
+
+            render_result = await video_service.remix_audio(
+                job_id=str(job_id),
+                video_url=video_url,
+                voiceover_url=voiceover_url,
+            )
+
+            render = RenderVersion(
+                content_job_id=job_id,
+                version_label="voice",
+                final_video_url=render_result["url"],
+                status="completed",
+                ffmpeg_config={"provider": "remix-audio"},
+            )
+            db.add(render)
+            job.status = "completed"
+            job.review_status = "review_needed"
+            await db.commit()
+            logger.info(f"[REMIX] done job={job_id} url={render_result['url'][:60]}")
+
+        except Exception as e:
+            logger.error(f"[REMIX] failed job={job_id}: {e}")
+            try:
+                r2 = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+                j2 = r2.scalar_one_or_none()
+                if j2:
+                    j2.status = "failed"
+                    j2.error_message = str(e)[:500]
+                    await db.commit()
+            except Exception:
+                pass
+
+
 @router.post("/{job_id}/kling-render", response_model=dict)
 async def kling_render(
     job_id: UUID,

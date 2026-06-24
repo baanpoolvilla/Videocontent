@@ -181,6 +181,44 @@ class VideoService:
             )
             return {"url": url, "size_bytes": len(video_bytes)}
 
+    async def remix_audio(self, job_id: str, video_url: str, voiceover_url: str) -> dict:
+        """Take existing video file, replace/add audio track — no re-render."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            video_path = os.path.join(tmpdir, "source.mp4")
+            await self._download_file(video_url, video_path)
+
+            output_path = os.path.join(tmpdir, "output.mp4")
+            if voiceover_url:
+                audio_path = os.path.join(tmpdir, "audio.mp3")
+                await self._download_file(voiceover_url, audio_path)
+                await self._run_ffmpeg([
+                    "ffmpeg", "-y",
+                    "-i", video_path, "-i", audio_path,
+                    "-c:v", "copy", "-c:a", "aac",
+                    "-shortest", "-movflags", "+faststart",
+                    output_path,
+                ])
+            else:
+                # strip existing audio
+                await self._run_ffmpeg([
+                    "ffmpeg", "-y", "-i", video_path,
+                    "-c:v", "copy", "-an",
+                    "-movflags", "+faststart",
+                    output_path,
+                ])
+
+            with open(output_path, "rb") as f:
+                video_bytes = f.read()
+
+        url = await storage_service.upload_bytes(
+            data=video_bytes,
+            filename=f"{job_id}_remixed.mp4",
+            content_type="video/mp4",
+            bucket="renders",
+            prefix=job_id,
+        )
+        return {"url": url, "size_bytes": len(video_bytes)}
+
     async def _download_file(self, url: str, dest: str):
         if url.startswith("/"):
             data = storage_service.download_bytes(url)

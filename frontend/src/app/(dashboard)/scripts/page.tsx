@@ -98,21 +98,38 @@ export default function ScriptsPage() {
     }));
   };
 
-  const runVoiceAndRender = async (jobId: string, scriptId: string) => {
+  // ใส่เสียงให้วิดีโอที่ render ไว้แล้ว — ไม่สร้างวิดีโอใหม่ ไม่เสีย credit
+  const runVoiceOnly = async (jobId: string, _scriptId: string) => {
     setVoicing(jobId);
     setActionMsg(prev => ({ ...prev, [jobId]: "กำลังสร้างเสียงพากย์…" }));
     try {
-      const vRes = await api.post(`/jobs/${jobId}/voiceover`, null, { params: { script_id: scriptId } });
+      // สร้างเสียงก่อน
+      const vRes = await api.post(`/jobs/${jobId}/voiceover`, null, {});
       setVoicing(null); setRendering(jobId);
-      setActionMsg(prev => ({ ...prev, [jobId]: "กำลัง render วิดีโอ…" }));
-      await api.post(`/jobs/${jobId}/render`, null, { params: { voiceover_url: vRes.data.voiceover_url, duration_sec: 30 } });
-      setActionMsg(prev => ({ ...prev, [jobId]: "✅ Render สำเร็จ! ดูใน Render Queue" }));
+      setActionMsg(prev => ({ ...prev, [jobId]: "กำลัง mix เสียงกับวิดีโอเดิม (ฟรี)…" }));
+
+      // remix-audio — เอาวิดีโอเดิม + เสียงใหม่ ไม่ re-render
+      await api.post(`/jobs/${jobId}/remix-audio`, null, {
+        params: { voiceover_url: vRes.data.voiceover_url },
+      });
+
+      // poll จนเสร็จ
+      for (let i = 0; i < 60; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        const jobRes = await api.get(`/jobs/${jobId}`);
+        if (jobRes.data.status === "completed") break;
+        if (jobRes.data.status === "failed") throw new Error("Mix audio failed");
+      }
+
+      setActionMsg(prev => ({ ...prev, [jobId]: "✅ ใส่เสียงสำเร็จ! ดูใน Preview" }));
       setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: "completed" } : j));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "เกิดข้อผิดพลาด";
       setActionMsg(prev => ({ ...prev, [jobId]: `❌ ${msg}` }));
     } finally { setVoicing(null); setRendering(null); }
   };
+
+  const runVoiceAndRender = runVoiceOnly;
 
   const deleteJob = async (jobId: string) => {
     setDeleting(jobId);
@@ -334,8 +351,8 @@ export default function ScriptsPage() {
                             boxShadow: busy ? "none" : "0 4px 14px rgba(0,255,212,.3)",
                           }}>
                             {isVoicing ? <><Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> สร้างเสียง…</>
-                            : isRendering ? <><Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> Render…</>
-                            : <><Mic2 size={12} /><Film size={12} /> สร้างเสียง + Render</>}
+                            : isRendering ? <><Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> Mix เสียง…</>
+                            : <><Mic2 size={12} /> ใส่เสียง (ฟรี)</>}
                           </button>
                         </div>
                       </div>
