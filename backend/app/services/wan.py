@@ -34,7 +34,7 @@ class WanService:
     ) -> dict:
         payload = {
             "image_url": image_url,
-            "prompt": prompt,
+            "prompt": prompt[:2000],
             "duration": int(duration) if str(duration).isdigit() else 5,
             "aspect_ratio": aspect_ratio,
         }
