@@ -164,7 +164,7 @@ export default function GeneratePage() {
 
   // badge state
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("9:16");
-  const [aiModel, setAiModel]         = useState<AIModel>("kling3s");
+  const [aiModel, setAiModel]         = useState<AIModel>("hailuo2pro");
   const [captions, setCaptions]       = useState(false);
   const [includeVoice, setIncludeVoice] = useState(true);
   const [showAspectMenu, setShowAspectMenu] = useState(false);
@@ -901,24 +901,49 @@ export default function GeneratePage() {
             <RefreshCw size={13} /> AI เขียนใหม่
           </button>
 
-          {/* Settings row */}
-          <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+          {/* ── Model selector — เลือกก่อนจ่าย ── */}
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontSize: 12, color: "var(--dim)", fontWeight: 700, marginBottom: 8 }}>
+              เลือก AI Model (กดเพื่อเปลี่ยน)
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+              {MODEL_OPTIONS.map(m => {
+                const active = aiModel === m.id;
+                return (
+                  <button key={m.id} onClick={() => setAiModel(m.id)} style={{
+                    padding: "10px 12px", borderRadius: 12, cursor: "pointer", textAlign: "left",
+                    background: active ? `${m.color}18` : "rgba(255,255,255,.03)",
+                    border: `1.5px solid ${active ? m.color : "var(--gb)"}`,
+                    transition: "all .15s",
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: active ? m.color : "var(--dim)" }}>{m.label}</span>
+                      {m.badge && <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 6, background: active ? m.color : "rgba(255,255,255,.08)", color: active ? "#06060A" : "var(--faint)" }}>{m.badge}</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--faint)" }}>{m.priceClip} · {m.price3clips}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Info chips */}
+          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
             {[
-              { label: "Model", value: modelLabel, color: "var(--teal)" },
-              { label: "Ratio", value: aspectRatio, color: "var(--teal)" },
-              { label: "Duration", value: `${pendingDurSec}s`, color: "var(--teal)" },
-              { label: "Style", value: pendingStyle, color: "var(--teal)" },
-              { label: "Voice", value: includeVoice ? "ON" : "OFF", color: includeVoice ? "var(--ok)" : "var(--faint)" },
-            ].map(({ label, value, color }) => (
-              <div key={label} style={{ background: "rgba(255,255,255,.04)", border: "1px solid var(--gb)", borderRadius: 8, padding: "5px 10px", fontSize: 11 }}>
+              { label: "Ratio", value: aspectRatio },
+              { label: "Duration", value: `${pendingDurSec}s` },
+              { label: "Style", value: pendingStyle },
+              { label: "Voice", value: includeVoice ? "ON" : "OFF" },
+            ].map(({ label, value }) => (
+              <div key={label} style={{ background: "rgba(255,255,255,.04)", border: "1px solid var(--gb)", borderRadius: 8, padding: "4px 10px", fontSize: 11 }}>
                 <span style={{ color: "var(--faint)" }}>{label}: </span>
-                <b style={{ color }}>{value}</b>
+                <b style={{ color: "var(--teal)" }}>{value}</b>
               </div>
             ))}
           </div>
 
           {/* Logo URL */}
-          <div style={{ marginTop: 16 }}>
+          <div style={{ marginTop: 14 }}>
             <div style={{ fontSize: 12, color: "var(--dim)", marginBottom: 6, fontWeight: 700 }}>
               🏷 โลโก้ overlay (ไม่บังคับ) — PNG โปร่งใส
             </div>
@@ -934,15 +959,20 @@ export default function GeneratePage() {
             />
           </div>
 
-          {/* Action buttons */}
-          <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+          {/* Cost warning + Action buttons */}
+          {aiModel !== "kenburs" && (
+            <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 10, background: "rgba(248,113,113,.06)", border: "1px solid rgba(248,113,113,.2)", fontSize: 12, color: "#fca5a5" }}>
+              ⚠️ จะใช้ <b>{MODEL_OPTIONS.find(m => m.id === aiModel)?.price3clips}</b> ({MODEL_OPTIONS.find(m => m.id === aiModel)?.label}) — กดปุ่มด้านล่างเพื่อยืนยัน
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
             <button onClick={runRender} style={{
               flex: 1, padding: "15px 20px", borderRadius: 14, cursor: "pointer",
               background: "linear-gradient(90deg,var(--teal),var(--blue))",
               border: "none", color: "#06060A", fontSize: 15, fontWeight: 900,
               boxShadow: "0 6px 24px rgba(0,255,212,.3)",
             }}>
-              สร้างวิดีโอ →
+              สร้างวิดีโอ {aiModel === "kenburs" ? "(ฟรี)" : `(${MODEL_OPTIONS.find(m => m.id === aiModel)?.price3clips})`} →
             </button>
             <button onClick={reset} style={{
               padding: "15px 16px", borderRadius: 14, cursor: "pointer",
