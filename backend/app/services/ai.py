@@ -15,10 +15,7 @@ class AIService:
 
     def _generate(self, prompt: str, system: str = "", temperature: float = 0.7) -> str:
         config = genai.types.GenerationConfig(temperature=temperature, max_output_tokens=1024)
-        if system:
-            full_prompt = f"{system}\n\n{prompt}"
-        else:
-            full_prompt = prompt
+        full_prompt = f"{system}\n\n{prompt}" if system else prompt
         response = self.model.generate_content(full_prompt, generation_config=config)
         return response.text.strip()
 
@@ -101,67 +98,67 @@ IMPORTANT: สร้าง Script ที่แตกต่างจากเว�
                 "light":   "golden hour 6pm amber backlight, anamorphic lens flare, god rays",
                 "subject": "infinity pool edge, silk draped daybed, champagne on marble, candles",
                 "grade":   "teal-orange cinematic LUT, deep blacks, 4K LOG",
-                "feel":    "opulent, serene, aspirational — like a $10M Four Seasons campaign",
+                "feel":    "opulent, serene, aspirational",
             },
             "party": {
                 "shot":    "spinning drone orbit or handheld tracking shot, whip pans",
                 "light":   "neon RGB pool uplighting, bokeh string lights, vibrant color pops",
                 "subject": "pool party crowd, DJ setup, water splashes, colorful floaties",
                 "grade":   "vivid punchy saturation, high contrast, energetic",
-                "feel":    "euphoric, electric, FOMO-inducing — like a W Hotel pool party reel",
+                "feel":    "euphoric, electric, FOMO-inducing",
             },
             "minimal": {
                 "shot":    "locked-off symmetrical frame, birds-eye top-down, ultra-slow pan",
                 "light":   "soft overcast diffused, clean white balance, subtle rim light",
                 "subject": "still pool surface reflections, architectural lines, single leaf floating",
                 "grade":   "desaturated cool tones, film-like subtlety, clean negative space",
-                "feel":    "calm, architectural, premium — like a Muji or Aesop campaign",
+                "feel":    "calm, architectural, premium",
             },
             "playful": {
                 "shot":    "wide-angle fun perspective, dynamic tracking, quick zoom burst",
                 "light":   "bright tropical midday sun, vivid turquoise water, cheerful warmth",
                 "subject": "turquoise infinity pool, tropical palms, colorful towels, sun loungers",
                 "grade":   "warm vivid grade, boosted saturation, holiday postcard colors",
-                "feel":    "fun, inviting, vacation-ready — like a Booking.com hero shot",
+                "feel":    "fun, inviting, vacation-ready",
             },
         }.get(style, {
             "shot": "smooth cinematic dolly", "light": "golden hour",
             "subject": "private pool villa", "grade": "4K cinematic", "feel": "premium luxury",
         })
 
-        system_prompt = """You are the creative director of award-winning luxury resort commercials.
-Your job: read a Thai voiceover script and write ONE ultra-cinematic AI video prompt in English for Kling v3.
+        system_prompt = (
+            "You are the creative director of award-winning luxury resort commercials.\n"
+            "Your job: read a Thai voiceover script and write ONE ultra-cinematic AI video prompt in English for Kling v3.\n\n"
+            "STRICT RULES:\n"
+            "1. English ONLY - zero Thai characters.\n"
+            "2. 50-70 words exactly - count carefully.\n"
+            "3. Start with SHOT TYPE (e.g. Low-angle crane shot, Aerial drone orbit, Extreme close-up).\n"
+            "4. Include: shot type -> subject in frame -> what moves -> lighting -> color grade -> emotional tone.\n"
+            "5. Reference SPECIFIC visual elements from the script's mood/selling-point.\n"
+            "6. Use Kling v3 power-words: cinematic, ultra-realistic, slow-motion, photorealistic, 4K.\n"
+            "7. NO explanations, NO labels, NO quotes - raw prompt text only."
+        )
 
-STRICT RULES:
-1. English ONLY — zero Thai characters.
-2. 50-70 words exactly — count carefully.
-3. Start with SHOT TYPE (e.g. "Low-angle crane shot", "Aerial drone orbit", "Extreme close-up").
-4. Include: shot type -> subject in frame -> what moves -> lighting -> color grade -> emotional tone.
-5. Reference SPECIFIC visual elements from the script's mood/selling-point (not generic "pool").
-6. Use Kling v3 power-words: "cinematic", "ultra-realistic", "slow-motion", "photorealistic", "4K".
-7. NO explanations, NO labels, NO quotes — raw prompt text only."""
+        concept_block = f"\nUSER VISUAL REQUEST (highest priority): {concept}" if concept.strip() else ""
 
-        concept_block = f"\nUSER'S SPECIFIC VISUAL REQUEST (highest priority): {concept}" if concept.strip() else ""
-
-        user_prompt = f"""SCRIPT (Thai — read for mood and selling points, do not translate literally):
-\"\"\"{script[:300]}\"\"\"{concept_block}
-
-PRODUCT: {product_name} — private pool villa, Pattaya-Jomtien, Thailand
-
-VISUAL STYLE TARGET: {style_rules['feel']}
-
-CINEMATOGRAPHY TOOLKIT TO USE:
-- Shot style: {style_rules['shot']}
-- Lighting: {style_rules['light']}
-- In-frame subjects: {style_rules['subject']}
-- Color grade: {style_rules['grade']}
-
-TASK: {"Prioritize the USER'S SPECIFIC VISUAL REQUEST above all else." if concept.strip() else "Extract the STRONGEST visual selling point from this script."} Write ONE cinematic video prompt (50-70 words) that would make a viewer stop scrolling. Start with the shot type immediately."""
+        user_prompt = (
+            f"SCRIPT (Thai - read for mood and selling points):\n"
+            f'"""{script[:300]}"""{concept_block}\n\n'
+            f"PRODUCT: {product_name} - private pool villa, Pattaya-Jomtien, Thailand\n\n"
+            f"VISUAL STYLE: {style_rules['feel']}\n\n"
+            f"CINEMATOGRAPHY:\n"
+            f"- Shot: {style_rules['shot']}\n"
+            f"- Lighting: {style_rules['light']}\n"
+            f"- Subjects: {style_rules['subject']}\n"
+            f"- Grade: {style_rules['grade']}\n\n"
+            f"TASK: Write ONE cinematic video prompt (50-70 words). Start with shot type immediately."
+        )
 
         raw = self._generate(user_prompt, system=system_prompt, temperature=0.85)
-        clean = re.sub(r'[฀-๿""'\'\"]+', '', raw).strip()
+        # strip Thai characters and smart/curly quotes using Unicode escapes
+        clean = re.sub(r"[฀-๿“”‘’\"']+", "", raw).strip()
         words = clean.split()
-        logger.info(f"[AI] video prompt generated ({len(words)} words): {' '.join(words[:10])}...")
+        logger.info(f"[AI] prompt ({len(words)} words): {' '.join(words[:8])}...")
         return " ".join(words[:70])
 
 
