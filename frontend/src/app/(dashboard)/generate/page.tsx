@@ -33,7 +33,7 @@ const QUESTIONS_ASSETS = [
   {
     id: "duration", type: "choices" as const,
     getAi: null,
-    choices: ["30 วินาที", "60 วินาที", "90 วินาที", "กำหนดเอง"],
+    choices: ["5 วิ", "10 วิ", "15 วิ", "20 วิ", "25 วิ", "30 วิ", "60 วิ", "90 วิ"],
     getAfter: (a: string) => `ได้เลย — วิดีโอ ${a} สไตล์ที่อยากได้คือ?`,
   },
   {
@@ -282,8 +282,8 @@ export default function GeneratePage() {
     setPhase("generating");
 
     try {
-      const durStr = ans.duration || "30 วินาที";
-      const durSec = durStr.includes("60") ? 60 : durStr.includes("90") ? 90 : 30;
+      const durStr = ans.duration || "30";
+      const durSec = parseInt((durStr.match(/\d+/) || ["30"])[0], 10) || 30;
       const styleId = (ans.style || "").toLowerCase().includes("luxury") || (ans.style || "").includes("หรู") ? "luxury"
                     : (ans.style || "").toLowerCase().includes("party") || (ans.style || "").includes("สนุก") ? "party"
                     : (ans.style || "").toLowerCase().includes("minimal") || (ans.style || "").includes("เรียบ") ? "minimal"
