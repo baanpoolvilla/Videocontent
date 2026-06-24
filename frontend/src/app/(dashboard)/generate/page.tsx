@@ -192,6 +192,7 @@ export default function GeneratePage() {
 
   // billing
   const [falBalance, setFalBalance]   = useState<number | null>(null);
+  const [balanceLoaded, setBalanceLoaded] = useState(false);
   const [falPricing, setFalPricing]   = useState<Record<string, {
     usd_per_clip: number; thb_per_clip: number;
     usd_per_video: number; thb_per_video: number; label: string;
@@ -211,10 +212,11 @@ export default function GeneratePage() {
 
   useEffect(() => {
     if (phase === "prompt_edit") {
+      setBalanceLoaded(false);
       api.get("/billing/fal-balance").then(r => {
         if (r.data.balance_usd != null) setFalBalance(r.data.balance_usd);
         if (r.data.pricing) setFalPricing(r.data.pricing);
-      }).catch(() => {});
+      }).catch(() => {}).finally(() => setBalanceLoaded(true));
     }
   }, [phase]);
 
@@ -993,7 +995,9 @@ export default function GeneratePage() {
                         ${falBalance.toFixed(2)} (~{Math.round(falBalance * 35).toLocaleString()} บาท)
                         {falBalance < estimatedUsd && " ⚠️ ไม่พอ!"}
                       </span>
-                    : <span style={{ color: "var(--faint)" }}>กำลังดึง...</span>
+                    : balanceLoaded
+                      ? <span style={{ color: "var(--faint)" }}>ดึงยอดไม่ได้ — เช็ค FAL_KEY</span>
+                      : <span style={{ color: "var(--faint)" }}>กำลังดึง...</span>
                   }
                 </div>
               </div>

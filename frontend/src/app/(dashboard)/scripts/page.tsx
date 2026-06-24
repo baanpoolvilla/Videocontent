@@ -350,7 +350,7 @@ export default function ScriptsPage() {
                           </span>
                         )}
                         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-                          <button onClick={() => setActionMsg(prev => ({ ...prev, [job.id]: "" }))} style={{ padding: "8px 14px", borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "1px solid var(--gb)", background: "var(--glass)", color: "var(--faint)", display: "flex", alignItems: "center", gap: 5 }}>
+                          <button onClick={() => router.push("/generate")} style={{ padding: "8px 14px", borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "1px solid var(--gb)", background: "var(--glass)", color: "var(--faint)", display: "flex", alignItems: "center", gap: 5 }}>
                             <RotateCcw size={11} /> สร้าง Script ใหม่
                           </button>
                           <button onClick={() => runVoiceAndRender(job.id, jobScripts[0].id)} disabled={busy} style={{
