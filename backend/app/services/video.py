@@ -288,8 +288,10 @@ class VideoService:
             await self._run_ffmpeg([
                 "ffmpeg", "-y",
                 "-i", merged, "-i", audio_path,
+                "-map", "0:v:0", "-map", "1:a:0",
                 "-c:v", "copy", "-c:a", "aac",
-                "-shortest", "-movflags", "+faststart",
+                "-t", str(duration_sec),
+                "-movflags", "+faststart",
                 output_path,
             ])
         else:
