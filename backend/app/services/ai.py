@@ -103,70 +103,84 @@ IMPORTANT: สร้าง Script ที่แตกต่างจากเว�
         product_name: str,
         style: str = "playful",
     ) -> str:
-        style_guide = {
+        """
+        Generate a cinematic Kling v3 prompt from the actual script content.
+        The LLM reads the script, picks the strongest visual moment, then
+        writes a director-level shot description in English.
+        """
+        style_rules = {
             "luxury": {
-                "camera": "ultra-slow cinematic dolly push-in, smooth crane reveal, aerial drift, slow-motion 120fps",
-                "light":  "golden hour warm amber backlight, lens flare, god rays through palm trees, deep shadow contrast",
-                "mood":   "opulent, serene, aspirational luxury",
-                "action": "pool water shimmers in slow-motion, silk curtains sway, candles flicker, champagne condensation drips",
-                "grade":  "cinematic LOG color grade, teal-orange grade, 4K ultra-sharp",
+                "shot":    "ultra-slow crane descend or dolly push-in, 120fps slow-motion",
+                "light":   "golden hour 6pm amber backlight, anamorphic lens flare, god rays",
+                "subject": "infinity pool edge, silk draped daybed, champagne on marble, candles",
+                "grade":   "teal-orange cinematic LUT, deep blacks, 4K LOG",
+                "feel":    "opulent, serene, aspirational — like a $10M Four Seasons campaign",
             },
             "party": {
-                "camera": "handheld energetic walkthrough, fast whip pan, spinning drone orbit, Dutch angle push",
-                "light":  "neon RGB pool lighting, strobe flashes, bokeh string lights, vibrant color pops",
-                "mood":   "euphoric, electric, high-energy celebration",
-                "action": "water splashes in slow-mo, people laugh and dance, DJ light beams cut through mist",
-                "grade":  "vivid saturated color, high contrast, punchy edit",
+                "shot":    "spinning drone orbit or handheld tracking shot, whip pans",
+                "light":   "neon RGB pool uplighting, bokeh string lights, vibrant color pops",
+                "subject": "pool party crowd, DJ setup, water splashes, colorful floaties",
+                "grade":   "vivid punchy saturation, high contrast, energetic",
+                "feel":    "euphoric, electric, FOMO-inducing — like a W Hotel pool party reel",
             },
             "minimal": {
-                "camera": "locked-off symmetrical shot, ultra-slow gentle pan, top-down birds-eye, single long take",
-                "light":  "soft overcast diffused light, clean white balance, subtle rim light, minimal shadow",
-                "mood":   "calm, architectural, premium minimal",
-                "action": "water surface ripples subtly, leaves sway barely, reflections shift slowly",
-                "grade":  "desaturated clean grade, cool tones, film-like subtlety",
+                "shot":    "locked-off symmetrical frame, birds-eye top-down, ultra-slow pan",
+                "light":   "soft overcast diffused, clean white balance, subtle rim light",
+                "subject": "still pool surface reflections, architectural lines, single leaf floating",
+                "grade":   "desaturated cool tones, film-like subtlety, clean negative space",
+                "feel":    "calm, architectural, premium — like a Muji or Aesop campaign",
             },
             "playful": {
-                "camera": "dynamic tracking shot, playful tilt, wide-angle fun perspective, quick zoom burst",
-                "light":  "bright tropical midday sun, vivid turquoise water, colorful accents, cheerful warmth",
-                "mood":   "fun, vibrant, inviting, resort holiday",
-                "action": "water sparkles and splashes, tropical flowers sway, bright umbrellas pop with color",
-                "grade":  "warm vivid grade, boosted saturation, cheerful bright tones",
+                "shot":    "wide-angle fun perspective, dynamic tracking, quick zoom burst",
+                "light":   "bright tropical midday sun, vivid turquoise water, cheerful warmth",
+                "subject": "turquoise infinity pool, tropical palms, colorful towels, sun loungers",
+                "grade":   "warm vivid grade, boosted saturation, holiday postcard colors",
+                "feel":    "fun, inviting, vacation-ready — like a Booking.com hero shot",
             },
         }.get(style, {
-            "camera": "smooth cinematic dolly", "light": "golden hour warm", "mood": "premium",
-            "action": "water shimmers", "grade": "4K cinematic",
+            "shot": "smooth cinematic dolly", "light": "golden hour",
+            "subject": "private pool villa", "grade": "4K cinematic", "feel": "premium luxury",
         })
 
-        prompt = f"""You are a world-class AI video director writing prompts for Kling v3 / Seedance image-to-video AI.
+        system_prompt = """You are the creative director of award-winning luxury resort commercials.
+Your job: read a Thai voiceover script and write ONE ultra-cinematic AI video prompt in English for Kling v3.
 
-TASK: Write ONE cinematic video prompt. English ONLY. Max 70 words. No Thai text.
+STRICT RULES:
+1. English ONLY — zero Thai characters.
+2. 50–70 words exactly — count carefully.
+3. Start with SHOT TYPE (e.g. "Low-angle crane shot", "Aerial drone orbit", "Extreme close-up").
+4. Include: shot type → subject in frame → what moves → lighting → color grade → emotional tone.
+5. Reference SPECIFIC visual elements from the script's mood/selling-point (not generic "pool").
+6. Use Kling v3 power-words: "cinematic", "ultra-realistic", "slow-motion", "photorealistic", "4K".
+7. NO explanations, NO labels, NO quotes — raw prompt text only."""
 
-Visual subject: private pool villa, tropical luxury, Pattaya-Jomtien Thailand
-Style target: {style_guide['mood']}
+        user_prompt = f"""SCRIPT (Thai — read for mood and selling points, do not translate literally):
+\"\"\"{script[:300]}\"\"\"
 
-Use these cinematography techniques:
-- Camera: {style_guide['camera']}
-- Lighting: {style_guide['light']}
-- Action details: {style_guide['action']}
-- Color grade: {style_guide['grade']}
+PRODUCT: {product_name} — private pool villa, Pattaya-Jomtien, Thailand
 
-Script context (for mood reference only, do NOT translate): {script[:80]}
+VISUAL STYLE TARGET: {style_rules['feel']}
 
-OUTPUT FORMAT: Write ONLY the prompt text. No labels, no quotes, no explanation.
-The prompt must start with a VISUAL description (what the camera sees first).
-Make it feel CINEMATIC and REAL — like a $10M hotel commercial."""
+CINEMATOGRAPHY TOOLKIT TO USE:
+- Shot style: {style_rules['shot']}
+- Lighting: {style_rules['light']}
+- In-frame subjects: {style_rules['subject']}
+- Color grade: {style_rules['grade']}
+
+TASK: Extract the STRONGEST visual selling point from this script. Write ONE cinematic video prompt (50–70 words) that would make a viewer stop scrolling. Start with the shot type immediately."""
 
         response = self.client.chat.completions.create(
             model=self.model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=200,
-            temperature=0.9,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user",   "content": user_prompt},
+            ],
+            max_tokens=250,
+            temperature=0.85,
         )
         raw = response.choices[0].message.content.strip()
-        # Strip any Thai characters that sneak in
         import re
-        clean = re.sub(r'[฀-๿]+', '', raw).strip()
-        # Truncate to 70 words
+        clean = re.sub(r'[฀-๿ -"\']+', '', raw).strip()
         words = clean.split()
         return " ".join(words[:70])
 

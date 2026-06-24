@@ -813,73 +813,134 @@ export default function GeneratePage() {
   );
 
   // ── PROMPT EDIT ───────────────────────────────────────────────────────────
-  if (phase === "prompt_edit") return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--bg)", padding: "40px 24px", gap: 20 }}>
-      <div style={{ width: "100%", maxWidth: 600 }}>
-        <h2 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 900, color: "var(--text)" }}>
-          ✨ AI เขียน prompt ให้แล้ว
-        </h2>
-        <p style={{ margin: "0 0 20px", fontSize: 13, color: "var(--faint)" }}>
-          แก้ไขได้ก่อนกด สร้างวิดีโอ — prompt นี้จะส่งไป Seedance 2.0
-        </p>
+  if (phase === "prompt_edit") {
+    const wordCount = videoPrompt.trim().split(/\s+/).filter(Boolean).length;
+    const modelLabel = MODEL_OPTIONS.find(m => m.id === aiModel)?.label ?? aiModel;
+    const regenPrompt = async () => {
+      try {
+        const r = await api.get(`/jobs/${pendingJobId}/suggest-video-prompt`, { params: { style: pendingStyle } });
+        setVideoPrompt(r.data.video_prompt || "");
+      } catch { /* keep existing */ }
+    };
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--bg)", padding: "40px 24px", gap: 16 }}>
+        <div style={{ width: "100%", maxWidth: 620 }}>
 
-        <textarea
-          value={videoPrompt}
-          onChange={e => setVideoPrompt(e.target.value)}
-          rows={5}
-          style={{
-            width: "100%", background: "#1a1a22", border: "1px solid var(--gb)",
-            borderRadius: 14, padding: "16px", color: "var(--text)",
-            fontSize: 14, outline: "none", fontFamily: "inherit", resize: "vertical",
-            lineHeight: 1.7, boxSizing: "border-box",
-          }}
-        />
-
-        <div style={{ display: "flex", gap: 10, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ fontSize: 11, color: "var(--faint)" }}>
-            Model: <b style={{ color: "var(--teal)" }}>{MODEL_OPTIONS.find(m => m.id === aiModel)?.label}</b>
-            {"  ·  "}Ratio: <b style={{ color: "var(--teal)" }}>{aspectRatio}</b>
-            {"  ·  "}Duration: <b style={{ color: "var(--teal)" }}>{pendingDurSec}s</b>
+          {/* Header */}
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--teal)" }}>
+              Director&apos;s Brief
+            </p>
+            <h2 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 900, color: "var(--text)" }}>
+              AI อ่าน script แล้วเขียน prompt ให้
+            </h2>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--faint)", lineHeight: 1.6 }}>
+              นี่คือ <b style={{ color: "var(--dim)" }}>คำสั่งกล้อง</b> ที่จะส่งให้ {modelLabel} สร้างคลิป
+              — แก้ได้เลย หรือกด สร้างใหม่ ถ้าไม่ถูกใจ
+            </p>
           </div>
-        </div>
 
-        {/* Logo URL */}
-        <div style={{ marginTop: 16 }}>
-          <div style={{ fontSize: 12, color: "var(--dim)", marginBottom: 6, fontWeight: 700 }}>
-            🏷 โลโก้ (ไม่บังคับ) — วางลิงก์รูป PNG โปร่งใส
+          {/* Explainer box */}
+          <div style={{ background: "rgba(0,255,212,.05)", border: "1px solid rgba(0,255,212,.15)", borderRadius: 12, padding: "12px 16px", marginBottom: 14, fontSize: 12, color: "var(--faint)", lineHeight: 1.7 }}>
+            <b style={{ color: "var(--teal)", display: "block", marginBottom: 4 }}>ทำไมคลิปถึงออกมาแบบนี้?</b>
+            AI อ่าน script ของคุณ → ดึง visual moment ที่แรงที่สุด → แปลงเป็นคำสั่งกล้อง (shot type, lighting, motion, color grade)
+            ส่งตรงไป {modelLabel} — ผลลัพธ์ขึ้นอยู่กับ prompt นี้ 100%
           </div>
-          <input
-            value={logoUrl}
-            onChange={e => setLogoUrl(e.target.value)}
-            placeholder="https://... หรือ /assets/logos/logo.png"
-            style={{
-              width: "100%", background: "#1a1a22", border: "1px solid var(--gb)",
-              borderRadius: 10, padding: "10px 14px", color: "var(--text)",
-              fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box",
-            }}
-          />
-        </div>
 
-        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-          <button onClick={runRender} style={{
-            flex: 1, padding: "14px 20px", borderRadius: 14, cursor: "pointer",
-            background: "linear-gradient(90deg,var(--teal),var(--blue))",
-            border: "none", color: "#06060A", fontSize: 15, fontWeight: 900,
-            boxShadow: "0 6px 24px rgba(0,255,212,.3)",
+          {/* Prompt textarea */}
+          <div style={{ position: "relative" }}>
+            <textarea
+              value={videoPrompt}
+              onChange={e => setVideoPrompt(e.target.value)}
+              rows={6}
+              style={{
+                width: "100%", background: "#1a1a22",
+                border: "1px solid rgba(0,255,212,.25)",
+                borderRadius: 14, padding: "16px", color: "var(--text)",
+                fontSize: 13.5, outline: "none", fontFamily: "monospace", resize: "vertical",
+                lineHeight: 1.8, boxSizing: "border-box",
+              }}
+            />
+            <div style={{ position: "absolute", bottom: 10, right: 12, fontSize: 10, color: wordCount > 70 ? "#f87171" : "var(--faint)", fontWeight: 700 }}>
+              {wordCount}/70 words
+            </div>
+          </div>
+
+          {/* Tips */}
+          <div style={{ marginTop: 8, fontSize: 11, color: "var(--faint)", lineHeight: 1.8 }}>
+            <b style={{ color: "var(--dim)" }}>Tips:</b>{" "}
+            ใส่ shot type (Crane shot / Aerial drone / Low-angle push-in) ·
+            ใส่ lighting (golden hour / neon uplighting) ·
+            ใส่ motion (slow-motion water ripple) ·
+            English เท่านั้น
+          </div>
+
+          {/* Regenerate */}
+          <button onClick={regenPrompt} style={{
+            marginTop: 10, display: "flex", alignItems: "center", gap: 6,
+            background: "rgba(77,127,255,.1)", border: "1px solid rgba(77,127,255,.25)",
+            borderRadius: 10, padding: "8px 14px", cursor: "pointer",
+            color: "var(--blue)", fontSize: 12, fontWeight: 700,
           }}>
-            สร้างวิดีโอ →
+            <RefreshCw size={13} /> AI เขียนใหม่
           </button>
-          <button onClick={reset} style={{
-            padding: "14px 16px", borderRadius: 14, cursor: "pointer",
-            background: "rgba(255,255,255,.05)", border: "1px solid var(--gb)",
-            color: "var(--faint)", fontSize: 13, fontWeight: 700,
-          }}>
-            <X size={14} />
-          </button>
+
+          {/* Settings row */}
+          <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+            {[
+              { label: "Model", value: modelLabel, color: "var(--teal)" },
+              { label: "Ratio", value: aspectRatio, color: "var(--teal)" },
+              { label: "Duration", value: `${pendingDurSec}s`, color: "var(--teal)" },
+              { label: "Style", value: pendingStyle, color: "var(--teal)" },
+              { label: "Voice", value: includeVoice ? "ON" : "OFF", color: includeVoice ? "var(--ok)" : "var(--faint)" },
+            ].map(({ label, value, color }) => (
+              <div key={label} style={{ background: "rgba(255,255,255,.04)", border: "1px solid var(--gb)", borderRadius: 8, padding: "5px 10px", fontSize: 11 }}>
+                <span style={{ color: "var(--faint)" }}>{label}: </span>
+                <b style={{ color }}>{value}</b>
+              </div>
+            ))}
+          </div>
+
+          {/* Logo URL */}
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 12, color: "var(--dim)", marginBottom: 6, fontWeight: 700 }}>
+              🏷 โลโก้ overlay (ไม่บังคับ) — PNG โปร่งใส
+            </div>
+            <input
+              value={logoUrl}
+              onChange={e => setLogoUrl(e.target.value)}
+              placeholder="https://... หรือ /assets/logos/logo.png"
+              style={{
+                width: "100%", background: "#1a1a22", border: "1px solid var(--gb)",
+                borderRadius: 10, padding: "10px 14px", color: "var(--text)",
+                fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          {/* Action buttons */}
+          <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+            <button onClick={runRender} style={{
+              flex: 1, padding: "15px 20px", borderRadius: 14, cursor: "pointer",
+              background: "linear-gradient(90deg,var(--teal),var(--blue))",
+              border: "none", color: "#06060A", fontSize: 15, fontWeight: 900,
+              boxShadow: "0 6px 24px rgba(0,255,212,.3)",
+            }}>
+              สร้างวิดีโอ →
+            </button>
+            <button onClick={reset} style={{
+              padding: "15px 16px", borderRadius: 14, cursor: "pointer",
+              background: "rgba(255,255,255,.05)", border: "1px solid var(--gb)",
+              color: "var(--faint)", fontSize: 13, fontWeight: 700,
+            }}>
+              <X size={14} />
+            </button>
+          </div>
+
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   // ── RENDERING ─────────────────────────────────────────────────────────────
   if (phase === "rendering") return (
@@ -891,10 +952,10 @@ export default function GeneratePage() {
       </div>
       <div style={{ textAlign: "center" }}>
         <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", marginBottom: 6 }}>
-          {aiModel === "kenburs" ? "กำลัง Render วิดีโอ..." : "Seedance 2.0 กำลังสร้างวิดีโอ..."}
+          {aiModel === "kenburs" ? "กำลัง Render วิดีโอ..." : `${MODEL_OPTIONS.find(m => m.id === aiModel)?.label ?? aiModel} กำลังสร้างวิดีโอ...`}
         </div>
         <div style={{ fontSize: 13, color: "var(--faint)" }}>
-          {aiModel === "kenburs" ? "ใช้ Ken Burns effect — เร็วมาก" : "AI กำลังสร้าง motion จากรูปจริงๆ — ใช้เวลา 1–3 นาที"}
+          {aiModel === "kenburs" ? "ใช้ Ken Burns effect — เร็วมาก" : "AI สร้าง motion จากรูปจริง — รอ 1–3 นาที"}
         </div>
       </div>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
