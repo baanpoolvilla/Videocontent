@@ -128,9 +128,9 @@ const MODEL_OPTIONS: { id: AIModel; label: string; desc: string; priceClip: stri
     id: "hailuo2pro",
     label: "Hailuo 2.3 Pro",
     desc: "Minimax — motion ละเอียดสูง",
-    priceClip: "~$1.50 / คลิป",
-    price3clips: "~$4.50 / วิดีโอ",
-    badge: "ใหม่",
+    priceClip: "$0.49 / คลิป",
+    price3clips: "~$1.47 / วิดีโอ",
+    badge: "ถูก",
     color: "#A78BFA",
   },
 ];
