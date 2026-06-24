@@ -230,6 +230,11 @@ export default function GeneratePage() {
 
   // ── start story ────────────────────────────────────────────────────────────
   const handleSend = async () => {
+    if (mode === "assets" && !product) {
+      setErrMsg("กรุณาเลือก Asset (รูปภาพสินค้า) ก่อนกด Generate");
+      setPhase("error");
+      return;
+    }
     if (!prompt.trim() && !product) return;
     const userPrompt = prompt.trim() || `สร้างวิดีโอสำหรับ ${product?.name}`;
 
@@ -278,7 +283,11 @@ export default function GeneratePage() {
 
   // ── generate: script + voice → suggest prompt ─────────────────────────────
   const runGenerate = async (ans: Record<string, string>) => {
-    if (!product && mode !== "script") return;
+    if (!product && mode !== "script") {
+      setErrMsg("ไม่พบ Asset — กรุณากลับไปเลือกรูปภาพสินค้าก่อน");
+      setPhase("error");
+      return;
+    }
     setPhase("generating");
 
     try {
