@@ -103,34 +103,72 @@ IMPORTANT: สร้าง Script ที่แตกต่างจากเว�
         product_name: str,
         style: str = "playful",
     ) -> str:
-        style_desc = {
-            "luxury":  "luxury cinematic, slow elegant camera movement, golden hour warm lighting, premium upscale atmosphere",
-            "party":   "energetic dynamic movement, vibrant colorful lighting, festive party atmosphere, fast cuts",
-            "minimal": "clean minimal aesthetic, smooth slow pan, soft natural lighting, modern sleek",
-            "playful": "playful bright colors, fun animated energy, vibrant tropical, cheerful atmosphere",
-        }.get(style, "cinematic")
+        style_guide = {
+            "luxury": {
+                "camera": "ultra-slow cinematic dolly push-in, smooth crane reveal, aerial drift, slow-motion 120fps",
+                "light":  "golden hour warm amber backlight, lens flare, god rays through palm trees, deep shadow contrast",
+                "mood":   "opulent, serene, aspirational luxury",
+                "action": "pool water shimmers in slow-motion, silk curtains sway, candles flicker, champagne condensation drips",
+                "grade":  "cinematic LOG color grade, teal-orange grade, 4K ultra-sharp",
+            },
+            "party": {
+                "camera": "handheld energetic walkthrough, fast whip pan, spinning drone orbit, Dutch angle push",
+                "light":  "neon RGB pool lighting, strobe flashes, bokeh string lights, vibrant color pops",
+                "mood":   "euphoric, electric, high-energy celebration",
+                "action": "water splashes in slow-mo, people laugh and dance, DJ light beams cut through mist",
+                "grade":  "vivid saturated color, high contrast, punchy edit",
+            },
+            "minimal": {
+                "camera": "locked-off symmetrical shot, ultra-slow gentle pan, top-down birds-eye, single long take",
+                "light":  "soft overcast diffused light, clean white balance, subtle rim light, minimal shadow",
+                "mood":   "calm, architectural, premium minimal",
+                "action": "water surface ripples subtly, leaves sway barely, reflections shift slowly",
+                "grade":  "desaturated clean grade, cool tones, film-like subtlety",
+            },
+            "playful": {
+                "camera": "dynamic tracking shot, playful tilt, wide-angle fun perspective, quick zoom burst",
+                "light":  "bright tropical midday sun, vivid turquoise water, colorful accents, cheerful warmth",
+                "mood":   "fun, vibrant, inviting, resort holiday",
+                "action": "water sparkles and splashes, tropical flowers sway, bright umbrellas pop with color",
+                "grade":  "warm vivid grade, boosted saturation, cheerful bright tones",
+            },
+        }.get(style, {
+            "camera": "smooth cinematic dolly", "light": "golden hour warm", "mood": "premium",
+            "action": "water shimmers", "grade": "4K cinematic",
+        })
 
-        prompt = f"""Write a SHORT Seedance AI video prompt (MAX 60 words, English only).
+        prompt = f"""You are a world-class AI video director writing prompts for Kling v3 / Seedance image-to-video AI.
 
-Product: {product_name}
-Style: {style_desc}
-Script hint: {script[:120]}
+TASK: Write ONE cinematic video prompt. English ONLY. Max 70 words. No Thai text.
 
-Rules:
-- ONE paragraph, no scenes/titles/labels
-- Describe: camera move + lighting + mood + key visuals
-- Max 60 words
-- Example: "Luxury pool villa at golden hour, slow cinematic dolly across shimmering pool water, warm amber lighting, elegant tropical atmosphere, smooth aerial drift over lush garden, 4K cinematic quality"
+Visual subject: private pool villa, tropical luxury, Pattaya-Jomtien Thailand
+Style target: {style_guide['mood']}
 
-Output ONLY the prompt. Nothing else."""
+Use these cinematography techniques:
+- Camera: {style_guide['camera']}
+- Lighting: {style_guide['light']}
+- Action details: {style_guide['action']}
+- Color grade: {style_guide['grade']}
+
+Script context (for mood reference only, do NOT translate): {script[:80]}
+
+OUTPUT FORMAT: Write ONLY the prompt text. No labels, no quotes, no explanation.
+The prompt must start with a VISUAL description (what the camera sees first).
+Make it feel CINEMATIC and REAL — like a $10M hotel commercial."""
 
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=150,
-            temperature=0.8,
+            max_tokens=200,
+            temperature=0.9,
         )
-        return response.choices[0].message.content.strip()
+        raw = response.choices[0].message.content.strip()
+        # Strip any Thai characters that sneak in
+        import re
+        clean = re.sub(r'[฀-๿]+', '', raw).strip()
+        # Truncate to 70 words
+        words = clean.split()
+        return " ".join(words[:70])
 
 
 ai_service = AIService()

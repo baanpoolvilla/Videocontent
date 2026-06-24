@@ -65,6 +65,7 @@ class VideoService:
         clip_urls: list[str],
         voiceover_url: str,
         duration_sec: int = 30,
+        logo_url: str = "",
     ) -> dict:
         with tempfile.TemporaryDirectory() as tmpdir:
             clip_paths = []
@@ -85,22 +86,48 @@ class VideoService:
                 "-c", "copy", merged,
             ])
 
+            # optional logo overlay
+            logo_path = None
+            if logo_url:
+                logo_path = os.path.join(tmpdir, "logo.png")
+                try:
+                    await self._download_file(logo_url, logo_path)
+                except Exception:
+                    logo_path = None
+
             output_path = os.path.join(tmpdir, "output.mp4")
+            base = merged
+
+            # re-encode with logo if present
+            if logo_path:
+                base = os.path.join(tmpdir, "with_logo.mp4")
+                # scale logo to 15% of video width, place bottom-right with 30px margin + fade in/out
+                await self._run_ffmpeg([
+                    "ffmpeg", "-y",
+                    "-i", merged, "-i", logo_path,
+                    "-filter_complex",
+                    "[1:v]scale=iw*0.15:-1,format=rgba,colorchannelmixer=aa=0.85[logo];"
+                    "[0:v][logo]overlay=W-w-30:H-h-30[v]",
+                    "-map", "[v]", "-map", "0:a?",
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+                    "-c:a", "copy", "-movflags", "+faststart",
+                    base,
+                ])
+
             if voiceover_url:
                 audio_path = os.path.join(tmpdir, "audio.mp3")
                 await self._download_file(voiceover_url, audio_path)
                 await self._run_ffmpeg([
                     "ffmpeg", "-y",
-                    "-i", merged, "-i", audio_path,
+                    "-i", base, "-i", audio_path,
                     "-c:v", "copy", "-c:a", "aac",
                     "-t", str(duration_sec),
                     "-shortest", "-movflags", "+faststart",
                     output_path,
                 ])
             else:
-                # video only — no audio
                 await self._run_ffmpeg([
-                    "ffmpeg", "-y", "-i", merged,
+                    "ffmpeg", "-y", "-i", base,
                     "-c:v", "copy", "-an",
                     "-t", str(duration_sec),
                     "-movflags", "+faststart",

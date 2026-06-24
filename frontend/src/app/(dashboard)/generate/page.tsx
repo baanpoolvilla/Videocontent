@@ -181,6 +181,7 @@ export default function GeneratePage() {
   const [elapsed, setElapsed]         = useState(0);
   const [errMsg, setErrMsg]           = useState("");
   const [renderVideoUrl, setRenderVideoUrl] = useState("");
+  const [logoUrl, setLogoUrl]         = useState("");
 
   const bottomRef   = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -358,6 +359,7 @@ export default function GeneratePage() {
           video_prompt:  videoPrompt,
           ai_model:      aiModel,
           aspect_ratio:  aspectRatio.replace(/:/g, "x"),
+          logo_url:      logoUrl,
         },
       });
 
@@ -397,7 +399,7 @@ export default function GeneratePage() {
     setPhase("home"); setMessages([]); setQIndex(0); setAnswers({});
     setChatInput(""); setErrMsg(""); setElapsed(0);
     setVideoPrompt(""); setPendingJobId(""); setPendingVoiceUrl("");
-    setRenderVideoUrl("");
+    setRenderVideoUrl(""); setLogoUrl("");
   };
 
   const currentQ = questions[qIndex];
@@ -839,6 +841,23 @@ export default function GeneratePage() {
             {"  ·  "}Ratio: <b style={{ color: "var(--teal)" }}>{aspectRatio}</b>
             {"  ·  "}Duration: <b style={{ color: "var(--teal)" }}>{pendingDurSec}s</b>
           </div>
+        </div>
+
+        {/* Logo URL */}
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 12, color: "var(--dim)", marginBottom: 6, fontWeight: 700 }}>
+            🏷 โลโก้ (ไม่บังคับ) — วางลิงก์รูป PNG โปร่งใส
+          </div>
+          <input
+            value={logoUrl}
+            onChange={e => setLogoUrl(e.target.value)}
+            placeholder="https://... หรือ /assets/logos/logo.png"
+            style={{
+              width: "100%", background: "#1a1a22", border: "1px solid var(--gb)",
+              borderRadius: 10, padding: "10px 14px", color: "var(--text)",
+              fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box",
+            }}
+          />
         </div>
 
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>

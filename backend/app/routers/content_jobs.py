@@ -285,11 +285,15 @@ async def _do_render(
     video_prompt: str,
     ai_model: str,
     aspect_ratio: str,
+    logo_url: str = "",
 ):
+    import re
     from app.services.wan import MODELS as WAN_MODELS
     fal_model = WAN_MODELS.get(ai_model, WAN_MODELS["kling3s"])
     # frontend sends "9x16" to avoid URL colon issue — convert back for fal.ai
     aspect_ratio = aspect_ratio.replace("x", ":")
+    # Strip Thai characters from video prompt — fal.ai only understands English
+    video_prompt = re.sub(r'[฀-๿]+', '', video_prompt).strip()
 
     async with AsyncSessionLocal() as db:
         try:
@@ -334,6 +338,7 @@ async def _do_render(
                         clip_urls=clip_urls,
                         voiceover_url=voiceover_url,
                         duration_sec=duration_sec,
+                        logo_url=logo_url,
                     )
                     provider = ai_model
                 else:
@@ -390,6 +395,7 @@ async def render_video(
     video_prompt: str = "",
     ai_model: str = "kling3s",
     aspect_ratio: str = "9x16",
+    logo_url: str = "",
 ):
     result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
     job = result.scalar_one_or_none()
@@ -408,6 +414,7 @@ async def render_video(
         video_prompt=video_prompt,
         ai_model=ai_model,
         aspect_ratio=aspect_ratio,
+        logo_url=logo_url,
     )
 
     return {"status": "rendering", "job_id": str(job_id)}
