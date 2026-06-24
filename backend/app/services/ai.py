@@ -1,4 +1,5 @@
 import json
+import re
 from groq import Groq
 from app.core.config import settings
 
@@ -96,7 +97,6 @@ IMPORTANT: สร้าง Script ที่แตกต่างจากเว�
             "model_used": self.model,
         }
 
-
     async def suggest_video_prompt(
         self,
         script: str,
@@ -104,11 +104,7 @@ IMPORTANT: สร้าง Script ที่แตกต่างจากเว�
         style: str = "playful",
         concept: str = "",
     ) -> str:
-        """
-        Generate a cinematic Kling v3 prompt from the actual script content.
-        The LLM reads the script, picks the strongest visual moment, then
-        writes a director-level shot description in English.
-        """
+        """Generate a cinematic video prompt from the script content."""
         style_rules = {
             "luxury": {
                 "shot":    "ultra-slow crane descend or dolly push-in, 120fps slow-motion",
@@ -148,9 +144,9 @@ Your job: read a Thai voiceover script and write ONE ultra-cinematic AI video pr
 
 STRICT RULES:
 1. English ONLY — zero Thai characters.
-2. 50–70 words exactly — count carefully.
+2. 50-70 words exactly — count carefully.
 3. Start with SHOT TYPE (e.g. "Low-angle crane shot", "Aerial drone orbit", "Extreme close-up").
-4. Include: shot type → subject in frame → what moves → lighting → color grade → emotional tone.
+4. Include: shot type -> subject in frame -> what moves -> lighting -> color grade -> emotional tone.
 5. Reference SPECIFIC visual elements from the script's mood/selling-point (not generic "pool").
 6. Use Kling v3 power-words: "cinematic", "ultra-realistic", "slow-motion", "photorealistic", "4K".
 7. NO explanations, NO labels, NO quotes — raw prompt text only."""
@@ -170,7 +166,7 @@ CINEMATOGRAPHY TOOLKIT TO USE:
 - In-frame subjects: {style_rules['subject']}
 - Color grade: {style_rules['grade']}
 
-TASK: {"Prioritize the USER'S SPECIFIC VISUAL REQUEST above all else." if concept.strip() else "Extract the STRONGEST visual selling point from this script."} Write ONE cinematic video prompt (50–70 words) that would make a viewer stop scrolling. Start with the shot type immediately."""
+TASK: {"Prioritize the USER'S SPECIFIC VISUAL REQUEST above all else." if concept.strip() else "Extract the STRONGEST visual selling point from this script."} Write ONE cinematic video prompt (50-70 words) that would make a viewer stop scrolling. Start with the shot type immediately."""
 
         response = self.client.chat.completions.create(
             model=self.model,
@@ -182,8 +178,7 @@ TASK: {"Prioritize the USER'S SPECIFIC VISUAL REQUEST above all else." if concep
             temperature=0.85,
         )
         raw = response.choices[0].message.content.strip()
-        import re
-        clean = re.sub(r'[฀-๿ -"\']+', '', raw).strip()
+        clean = re.sub(r'[฀-๿“”‘’\'"]+', '', raw).strip()
         words = clean.split()
         return " ".join(words[:70])
 
