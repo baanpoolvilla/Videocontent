@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { api, fileUrl } from "@/lib/api";
 import { CheckCircle2, Clock, ChevronDown, ChevronUp, Pencil, Save, X, Loader2, Mic2, Film, RotateCcw, AlertCircle, Trash2 } from "lucide-react";
 
@@ -24,6 +25,7 @@ function fmtDate(iso: string) {
 }
 
 export default function ScriptsPage() {
+  const router = useRouter();
   const [jobs, setJobs]         = useState<Job[]>([]);
   const [products, setProducts] = useState<Record<string, Product>>({});
   const [scripts, setScripts]   = useState<Record<string, Script[]>>({});
@@ -103,26 +105,33 @@ export default function ScriptsPage() {
     setVoicing(jobId);
     setActionMsg(prev => ({ ...prev, [jobId]: "กำลังสร้างเสียงพากย์…" }));
     try {
-      // สร้างเสียงก่อน
+      // Step 1: generate voiceover TTS
       const vRes = await api.post(`/jobs/${jobId}/voiceover`, null, {});
+      const voiceoverUrl: string = vRes.data.voiceover_url || "";
+      if (!voiceoverUrl) throw new Error("ไม่ได้รับ URL เสียง — ลองใหม่อีกครั้ง");
+
       setVoicing(null); setRendering(jobId);
       setActionMsg(prev => ({ ...prev, [jobId]: "กำลัง mix เสียงกับวิดีโอเดิม (ฟรี)…" }));
 
-      // remix-audio — เอาวิดีโอเดิม + เสียงใหม่ ไม่ re-render
+      // Step 2: remix-audio — take existing render + new voiceover, no fal.ai call
       await api.post(`/jobs/${jobId}/remix-audio`, null, {
-        params: { voiceover_url: vRes.data.voiceover_url },
+        params: { voiceover_url: voiceoverUrl },
       });
 
-      // poll จนเสร็จ
-      for (let i = 0; i < 60; i++) {
+      // Step 3: poll until completed or failed (max 2 min)
+      let done = false;
+      for (let i = 0; i < 40; i++) {
         await new Promise(r => setTimeout(r, 3000));
         const jobRes = await api.get(`/jobs/${jobId}`);
-        if (jobRes.data.status === "completed") break;
-        if (jobRes.data.status === "failed") throw new Error("Mix audio failed");
+        if (jobRes.data.status === "completed") { done = true; break; }
+        if (jobRes.data.status === "failed") throw new Error("Mix audio ล้มเหลว — ดู Preview เพื่อดูวิดีโอเดิม");
       }
+      if (!done) throw new Error("หมดเวลารอ — กรุณาลองใหม่");
 
-      setActionMsg(prev => ({ ...prev, [jobId]: "✅ ใส่เสียงสำเร็จ! ดูใน Preview" }));
+      setActionMsg(prev => ({ ...prev, [jobId]: "✅ ใส่เสียงสำเร็จ! กำลังไปที่ Preview…" }));
       setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: "completed" } : j));
+      // navigate to preview so user sees the freshly-remixed video immediately
+      setTimeout(() => router.push("/preview"), 800);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "เกิดข้อผิดพลาด";
       setActionMsg(prev => ({ ...prev, [jobId]: `❌ ${msg}` }));

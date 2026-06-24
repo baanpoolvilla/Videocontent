@@ -1,8 +1,11 @@
 import asyncio
+import logging
 import os
 import tempfile
 import httpx
 from app.services.storage import storage_service
+
+logger = logging.getLogger(__name__)
 
 # Output size
 OUT_W, OUT_H = 1080, 1920
@@ -183,25 +186,35 @@ class VideoService:
 
     async def remix_audio(self, job_id: str, video_url: str, voiceover_url: str) -> dict:
         """Take existing video file, replace/add audio track — no re-render."""
+        logger.info(f"[REMIX] start job={job_id} video={video_url[:60]} audio={voiceover_url[:60] if voiceover_url else 'NONE'}")
         with tempfile.TemporaryDirectory() as tmpdir:
             video_path = os.path.join(tmpdir, "source.mp4")
             await self._download_file(video_url, video_path)
+            logger.info(f"[REMIX] video downloaded size={os.path.getsize(video_path)}")
 
             output_path = os.path.join(tmpdir, "output.mp4")
             if voiceover_url:
                 audio_path = os.path.join(tmpdir, "audio.mp3")
                 await self._download_file(voiceover_url, audio_path)
+                logger.info(f"[REMIX] audio downloaded size={os.path.getsize(audio_path)}")
+                # Explicit map: video from input 0, audio from input 1
+                # -map 0:v:0 ensures we copy the video stream
+                # -map 1:a:0 ensures we use the NEW audio (not any silent track from the source)
                 await self._run_ffmpeg([
                     "ffmpeg", "-y",
                     "-i", video_path, "-i", audio_path,
+                    "-map", "0:v:0",
+                    "-map", "1:a:0",
                     "-c:v", "copy", "-c:a", "aac",
                     "-shortest", "-movflags", "+faststart",
                     output_path,
                 ])
             else:
+                logger.warning(f"[REMIX] no voiceover_url — stripping audio from job={job_id}")
                 # strip existing audio
                 await self._run_ffmpeg([
                     "ffmpeg", "-y", "-i", video_path,
+                    "-map", "0:v:0",
                     "-c:v", "copy", "-an",
                     "-movflags", "+faststart",
                     output_path,
