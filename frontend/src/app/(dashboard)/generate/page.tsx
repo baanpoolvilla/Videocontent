@@ -13,7 +13,7 @@ interface Product { id: string; name: string; media_urls: string[]; }
 type Phase = "home" | "story" | "generating" | "prompt_edit" | "rendering" | "done" | "error";
 type Mode  = "assets" | "script" | "audio" | "ads";
 type AspectRatio = "9:16" | "1:1" | "16:9";
-type AIModel = "kenburs" | "kling3s" | "seedance2" | "seedance2_pro";
+type AIModel = "kenburs" | "kling3s" | "seedance2" | "seedance2_pro" | "hailuo2pro";
 
 interface ChatMsg {
   role: "user" | "ai" | "loading";
@@ -24,31 +24,29 @@ interface ChatMsg {
 
 const QUESTIONS_ASSETS = [
   {
-    id: "brand", type: "text" as const,
-    getAi: (p: string) => `เข้าใจแล้ว — คุณอยากทำ${p} ฉันควรเรียนรู้เกี่ยวกับแบรนด์ของคุณอย่างไร?`,
-    placeholder: "วาง URL เว็บแบรนด์ หรือพิมพ์ 'ใช้ Brand Profile ที่มีอยู่'",
-    getAfter: (a: string) => a.startsWith("http")
-      ? `รับทราบ — จะเรียนรู้จากเว็บนี้ คุณอยากให้วิดีโอยาวเท่าไหร่?`
-      : `รับทราบ — จะใช้ Brand Profile ที่มีอยู่ คุณอยากให้วิดีโอยาวเท่าไหร่?`,
-    loading: "✨ Learning about your brand...",
+    id: "visual", type: "text" as const,
+    getAi: (p: string) => `รับทราบ — อยากทำ "${p}" \n\nอยากให้คลิปแสดงภาพอะไรเป็นพิเศษ?\nเช่น: สระ infinity ตอนพระอาทิตย์ตก · ห้องนอน ocean view · outdoor dining กลางคืน · คู่รักในสระน้ำ`,
+    placeholder: "บอก visual ที่อยากเห็นในคลิป เช่น: สระน้ำตอนเย็น วิวทะเล บรรยากาศโรแมนติก...",
+    getAfter: (a: string) => `โอเค! จะใช้ภาพ "${a}" เป็น visual หลัก — วิดีโอจะยาวแค่ไหน?`,
+    loading: "กำลังประมวลผล...",
   },
   {
     id: "duration", type: "choices" as const,
     getAi: null,
-    choices: ["30 วินาที", "60 วินาที", "90 วินาที", "Something else..."],
-    getAfter: (a: string) => `รับทราบ — วิดีโอ ${a} สไตล์ที่อยากได้คือ?`,
+    choices: ["30 วินาที", "60 วินาที", "90 วินาที", "กำหนดเอง"],
+    getAfter: (a: string) => `ได้เลย — วิดีโอ ${a} สไตล์ที่อยากได้คือ?`,
   },
   {
     id: "style", type: "choices" as const,
     getAi: null,
-    choices: ["🎨 Playful Overlay", "✨ Luxury Cinematic", "🎉 Party Vibes", "⬜ Minimal Clean"],
-    getAfter: (a: string) => `เยี่ยม! เลือก ${a} Platform หลักที่จะโพสต์คือ?`,
+    choices: ["🎨 Playful สีสัน", "✨ Luxury หรูหรา", "🎉 Party สนุก", "⬜ Minimal เรียบ"],
+    getAfter: (a: string) => `เยี่ยม! สไตล์ ${a} — จะโพสต์ที่ platform ไหน?`,
   },
   {
     id: "platform", type: "choices" as const,
     getAi: null,
     choices: ["TikTok", "Instagram Reel", "Facebook", "YouTube Short"],
-    getAfter: (a: string) => `รับทราบ — สร้างวิดีโอสำหรับ ${a} กำลังเตรียม script...`,
+    getAfter: (a: string) => `โอเค — สร้างวิดีโอสำหรับ ${a} กำลังเตรียม script...`,
   },
 ];
 
@@ -125,6 +123,15 @@ const MODEL_OPTIONS: { id: AIModel; label: string; desc: string; priceClip: stri
     price3clips: "~$12.75 / วิดีโอ",
     badge: "แพง",
     color: "#FF6B6B",
+  },
+  {
+    id: "hailuo2pro",
+    label: "Hailuo 2.3 Pro",
+    desc: "Minimax — motion ละเอียดสูง",
+    priceClip: "~$1.50 / คลิป",
+    price3clips: "~$4.50 / วิดีโอ",
+    badge: "ใหม่",
+    color: "#A78BFA",
   },
 ];
 
@@ -277,9 +284,9 @@ export default function GeneratePage() {
     try {
       const durStr = ans.duration || "30 วินาที";
       const durSec = durStr.includes("60") ? 60 : durStr.includes("90") ? 90 : 30;
-      const styleId = (ans.style || "").includes("Luxury") ? "luxury"
-                    : (ans.style || "").includes("Party")  ? "party"
-                    : (ans.style || "").includes("Minimal") ? "minimal"
+      const styleId = (ans.style || "").toLowerCase().includes("luxury") || (ans.style || "").includes("หรู") ? "luxury"
+                    : (ans.style || "").toLowerCase().includes("party") || (ans.style || "").includes("สนุก") ? "party"
+                    : (ans.style || "").toLowerCase().includes("minimal") || (ans.style || "").includes("เรียบ") ? "minimal"
                     : "playful";
       const platformRaw = (ans.platform || "").toLowerCase().trim();
       const platform = PLATFORM_MAP[platformRaw] ?? "tiktok";
@@ -300,12 +307,12 @@ export default function GeneratePage() {
                    : styleId === "party"  ? "สนุก ปาร์ตี้ พลังงานสูง"
                    : styleId === "minimal" ? "สะอาด ตรงประเด็น"
                    : "playful สีสัน ลูกเล่น";
-        const concept = mode === "ads"
-          ? `Ad concept — offer: ${ans.offer || ""}`
-          : (ans.brand?.startsWith("http") ? `แบรนด์: ${ans.brand}` : "");
+        const visualConcept = mode === "ads"
+          ? `Ad promotion: ${ans.offer || ""}`
+          : (ans.visual || "");
 
         await api.post(`/jobs/${jobId}/generate-script`, null, {
-          params: { tone_of_voice: tone, duration_sec: durSec, concept },
+          params: { tone_of_voice: tone, duration_sec: durSec, concept: visualConcept },
         });
       }
 
@@ -318,11 +325,11 @@ export default function GeneratePage() {
         voiceoverUrl = voiceRes.data.voiceover_url;
       }
 
-      // suggest video prompt from AI
+      // suggest video prompt from AI — pass user's visual concept for better prompt
       let suggested = "";
       try {
         const suggestRes = await api.get(`/jobs/${jobId}/suggest-video-prompt`, {
-          params: { style: styleId },
+          params: { style: styleId, concept: answers.visual || "" },
         });
         suggested = suggestRes.data.video_prompt || "";
       } catch { /* use style default */ }

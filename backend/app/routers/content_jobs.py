@@ -614,6 +614,7 @@ async def suggest_video_prompt(
     current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
     style: str = "playful",
+    concept: str = "",
 ):
     result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
     job = result.scalar_one_or_none()
@@ -634,11 +635,12 @@ async def suggest_video_prompt(
             script=script_text,
             product_name=product.name if product else "",
             style=style,
+            concept=concept,
         )
     except Exception:
         video_prompt = _STYLE_PROMPTS.get(style, _STYLE_PROMPTS["playful"])
 
-    return {"video_prompt": video_prompt, "style": style}
+    return {"video_prompt": video_prompt, "style": style, "concept": concept}
 
 
 @router.post("/{job_id}/wan-render", response_model=dict)
