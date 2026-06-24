@@ -1,7 +1,10 @@
+import io
 import json
 import re
 import logging
+import httpx
 import google.generativeai as genai
+from PIL import Image
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -18,6 +21,59 @@ class AIService:
         full_prompt = f"{system}\n\n{prompt}" if system else prompt
         response = self.model.generate_content(full_prompt, generation_config=config)
         return response.text.strip()
+
+    async def _load_image(self, url: str) -> Image.Image | None:
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                r = await client.get(url)
+                if r.is_success:
+                    return Image.open(io.BytesIO(r.content))
+        except Exception as e:
+            logger.warning(f"[AI] failed to load image {url}: {e}")
+        return None
+
+    async def suggest_video_prompt_from_image(
+        self,
+        image_url: str,
+        product_name: str,
+        style: str = "playful",
+        concept: str = "",
+    ) -> str:
+        """Use Gemini Vision to look at the actual product image and write a cinematic prompt."""
+        img = await self._load_image(image_url)
+        if img is None:
+            return await self.suggest_video_prompt("", product_name, style, concept)
+
+        style_feel = {
+            "luxury":  "opulent, serene, aspirational — Four Seasons campaign",
+            "party":   "euphoric, electric, FOMO-inducing — W Hotel pool party",
+            "minimal": "calm, architectural, premium — Muji/Aesop campaign",
+            "playful": "fun, inviting, vacation-ready — Booking.com hero shot",
+        }.get(style, "premium cinematic luxury resort")
+
+        concept_block = f"\nUSER VISUAL REQUEST (highest priority): {concept}" if concept.strip() else ""
+
+        prompt_text = (
+            f"You are the creative director of award-winning luxury resort commercials.\n"
+            f"Look at this resort image carefully and write ONE ultra-cinematic AI video prompt in English.\n\n"
+            f"PRODUCT: {product_name} — private pool villa, Pattaya-Jomtien, Thailand\n"
+            f"STYLE: {style_feel}{concept_block}\n\n"
+            f"RULES:\n"
+            f"1. English ONLY.\n"
+            f"2. 50-70 words exactly.\n"
+            f"3. Start with SHOT TYPE based on what you see in the image.\n"
+            f"4. Describe: shot type -> what's in frame -> camera movement -> lighting -> color grade -> mood.\n"
+            f"5. Use power-words: cinematic, ultra-realistic, slow-motion, photorealistic, 4K.\n"
+            f"6. NO explanations, NO labels — raw prompt text only."
+        )
+
+        config = genai.types.GenerationConfig(temperature=0.85, max_output_tokens=200)
+        response = self.model.generate_content([prompt_text, img], generation_config=config)
+        raw = response.text.strip()
+        clean = re.sub(r"[฀-๿\"']+", "", raw).strip()
+        words = clean.split()
+        logger.info(f"[AI] vision prompt ({len(words)} words): {' '.join(words[:8])}...")
+        return " ".join(words[:70])
 
     async def analyze_product(self, product_name: str, description: str, brand_context: str = "") -> dict:
         prompt = f"""วิเคราะห์สินค้าต่อไปนี้เพื่อสร้างวิดีโอสั้น:

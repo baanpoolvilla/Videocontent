@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     MINIO_SECRET_KEY: str
     MINIO_SECURE: bool = False
 
-    GROQ_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
     ELEVENLABS_API_KEY: str = ""

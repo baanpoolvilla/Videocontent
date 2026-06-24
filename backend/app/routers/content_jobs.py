@@ -631,13 +631,26 @@ async def suggest_video_prompt(
     script = script_result.scalars().first()
     script_text = script.full_script if script else ""
 
+    # Use vision if product has images, otherwise fall back to text-based prompt
+    image_urls = list(product.media_urls or []) if product else []
+    first_image = image_urls[0] if image_urls else None
+
     try:
-        video_prompt = await ai_service.suggest_video_prompt(
-            script=script_text,
-            product_name=product.name if product else "",
-            style=style,
-            concept=concept,
-        )
+        if first_image:
+            public_image_url = f"{settings.API_BASE_URL}/api/v1/files/{first_image.strip('/')}"
+            video_prompt = await ai_service.suggest_video_prompt_from_image(
+                image_url=public_image_url,
+                product_name=product.name if product else "",
+                style=style,
+                concept=concept,
+            )
+        else:
+            video_prompt = await ai_service.suggest_video_prompt(
+                script=script_text,
+                product_name=product.name if product else "",
+                style=style,
+                concept=concept,
+            )
     except Exception:
         video_prompt = _STYLE_PROMPTS.get(style, _STYLE_PROMPTS["playful"])
 
