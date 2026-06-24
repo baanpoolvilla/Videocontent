@@ -286,6 +286,7 @@ async def _do_render(
     ai_model: str,
     aspect_ratio: str,
     logo_url: str = "",
+    clip_count: int = 0,
 ):
     import re
     from app.services.wan import MODELS as WAN_MODELS
@@ -310,7 +311,7 @@ async def _do_render(
 
             if settings.FAL_KEY and image_urls and ai_model != "kenburs":
                 prompt = video_prompt.strip() or _STYLE_PROMPTS.get(style, _STYLE_PROMPTS["playful"])
-                n_clips = min(len(image_urls), 3)
+                n_clips = min(len(image_urls), clip_count if clip_count > 0 else 3)
                 images_to_use = [image_urls[i % len(image_urls)] for i in range(n_clips)]
                 logger.info(f"[RENDER] AI mode ai_model={ai_model} fal_model={fal_model} aspect={aspect_ratio} n_clips={n_clips}")
 
@@ -397,6 +398,7 @@ async def render_video(
     ai_model: str = "kling3s",
     aspect_ratio: str = "9x16",
     logo_url: str = "",
+    clip_count: int = 0,
 ):
     result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
     job = result.scalar_one_or_none()
@@ -416,6 +418,7 @@ async def render_video(
         ai_model=ai_model,
         aspect_ratio=aspect_ratio,
         logo_url=logo_url,
+        clip_count=clip_count,
     )
 
     return {"status": "rendering", "job_id": str(job_id)}

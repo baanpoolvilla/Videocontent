@@ -167,6 +167,7 @@ export default function GeneratePage() {
   const [aiModel, setAiModel]         = useState<AIModel>("hailuo2pro");
   const [captions, setCaptions]       = useState(false);
   const [includeVoice, setIncludeVoice] = useState(true);
+  const [clipCount, setClipCount]     = useState(0); // 0 = auto (match image count, max 3)
   const [showAspectMenu, setShowAspectMenu] = useState(false);
   const [showModelMenu, setShowModelMenu]   = useState(false);
 
@@ -394,6 +395,7 @@ export default function GeneratePage() {
           ai_model:      aiModel,
           aspect_ratio:  aspectRatio.replace(/:/g, "x"),
           logo_url:      logoUrl,
+          clip_count:    clipCount,
         },
       });
 
@@ -858,10 +860,11 @@ export default function GeneratePage() {
     };
     // pricing from billing API (loaded via useEffect on phase change — see below)
     const px = falPricing[aiModel];
-    const estimatedUsd  = px?.usd_per_video  ?? 0;
-    const estimatedThb  = px?.thb_per_video  ?? 0;
     const clipUsd       = px?.usd_per_clip   ?? 0;
     const clipThb       = px?.thb_per_clip   ?? 0;
+    const actualClips   = clipCount > 0 ? clipCount : Math.min(product?.media_urls?.length ?? 3, 3);
+    const estimatedUsd  = clipUsd * actualClips;
+    const estimatedThb  = clipThb * actualClips;
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--bg)", padding: "40px 24px", gap: 16 }}>
         <div style={{ width: "100%", maxWidth: 620 }}>
@@ -951,6 +954,33 @@ export default function GeneratePage() {
             </div>
           </div>
 
+          {/* Clip count selector */}
+          {aiModel !== "kenburs" && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 12, color: "var(--dim)", fontWeight: 700, marginBottom: 8 }}>
+                จำนวนคลิป (= จำนวนรูปที่ใช้)
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {[
+                  { val: 0, label: "Auto", desc: `ตามรูปที่มี (max ${Math.min(product?.media_urls?.length ?? 3, 3)})` },
+                  { val: 1, label: "1 คลิป", desc: `~$${(MODEL_OPTIONS.find(m => m.id === aiModel)?.priceClip ?? "").replace(" / คลิป", "")}` },
+                  { val: 2, label: "2 คลิป", desc: "รูปที่ 1–2" },
+                  { val: 3, label: "3 คลิป", desc: "รูปที่ 1–3" },
+                ].filter(o => o.val === 0 || o.val <= (product?.media_urls?.length ?? 3)).map(o => (
+                  <button key={o.val} onClick={() => setClipCount(o.val)} style={{
+                    flex: 1, padding: "8px 10px", borderRadius: 10, cursor: "pointer", textAlign: "center",
+                    border: `1.5px solid ${clipCount === o.val ? "var(--teal)" : "var(--gb)"}`,
+                    background: clipCount === o.val ? "rgba(0,255,212,.1)" : "rgba(255,255,255,.03)",
+                    transition: "all .15s",
+                  }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: clipCount === o.val ? "var(--teal)" : "var(--dim)" }}>{o.label}</div>
+                    <div style={{ fontSize: 10, color: "var(--faint)", marginTop: 2 }}>{o.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Info chips */}
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
             {[
@@ -958,6 +988,7 @@ export default function GeneratePage() {
               { label: "Duration", value: `${pendingDurSec}s` },
               { label: "Style", value: pendingStyle },
               { label: "Voice", value: includeVoice ? "ON" : "OFF" },
+              ...(aiModel !== "kenburs" ? [{ label: "Clips", value: clipCount === 0 ? `auto (${Math.min(product?.media_urls?.length ?? 3, 3)})` : `${clipCount}` }] : []),
             ].map(({ label, value }) => (
               <div key={label} style={{ background: "rgba(255,255,255,.04)", border: "1px solid var(--gb)", borderRadius: 8, padding: "4px 10px", fontSize: 11 }}>
                 <span style={{ color: "var(--faint)" }}>{label}: </span>
@@ -1006,7 +1037,7 @@ export default function GeneratePage() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 16px" }}>
                   <span>Model:</span><b style={{ color: "var(--dim)" }}>{modelLabel}</b>
                   <span>ราคา/คลิป (5 วิ):</span><b style={{ color: "#fbbf24" }}>${clipUsd.toFixed(2)} (~{clipThb.toFixed(0)} บาท)</b>
-                  <span>จำนวนคลิป (max):</span><b style={{ color: "var(--dim)" }}>3 คลิป</b>
+                  <span>จำนวนคลิป:</span><b style={{ color: "var(--dim)" }}>{actualClips} คลิป</b>
                   <span>ราคารวม (max):</span><b style={{ color: "#f87171", fontSize: 14 }}>${estimatedUsd.toFixed(2)} (~{estimatedThb.toFixed(0)} บาท)</b>
                 </div>
               </div>
