@@ -290,6 +290,7 @@ async def _do_render(
     import re
     from app.services.wan import MODELS as WAN_MODELS
     fal_model = WAN_MODELS.get(ai_model, WAN_MODELS["kling3s"])
+    logger.info(f"[RENDER] START job={job_id} ai_model={ai_model} fal_model={fal_model}")
     # frontend sends "9x16" to avoid URL colon issue — convert back for fal.ai
     aspect_ratio = aspect_ratio.replace("x", ":")
     # Strip Thai characters from video prompt — fal.ai only understands English

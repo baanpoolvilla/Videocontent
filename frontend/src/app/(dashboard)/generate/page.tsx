@@ -190,6 +190,13 @@ export default function GeneratePage() {
   const [renderVideoUrl, setRenderVideoUrl] = useState("");
   const [logoUrl, setLogoUrl]         = useState("");
 
+  // billing
+  const [falBalance, setFalBalance]   = useState<number | null>(null);
+  const [falPricing, setFalPricing]   = useState<Record<string, {
+    usd_per_clip: number; thb_per_clip: number;
+    usd_per_video: number; thb_per_video: number; label: string;
+  }>>({});
+
   const bottomRef   = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pickerRef   = useRef<HTMLDivElement>(null);
@@ -201,6 +208,15 @@ export default function GeneratePage() {
   useEffect(() => {
     api.get("/products/").then(r => setProducts(r.data)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (phase === "prompt_edit") {
+      api.get("/billing/fal-balance").then(r => {
+        if (r.data.balance_usd != null) setFalBalance(r.data.balance_usd);
+        if (r.data.pricing) setFalPricing(r.data.pricing);
+      }).catch(() => {});
+    }
+  }, [phase]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -838,6 +854,12 @@ export default function GeneratePage() {
         setVideoPrompt(r.data.video_prompt || "");
       } catch { /* keep existing */ }
     };
+    // pricing from billing API (loaded via useEffect on phase change — see below)
+    const px = falPricing[aiModel];
+    const estimatedUsd  = px?.usd_per_video  ?? 0;
+    const estimatedThb  = px?.thb_per_video  ?? 0;
+    const clipUsd       = px?.usd_per_clip   ?? 0;
+    const clipThb       = px?.thb_per_clip   ?? 0;
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--bg)", padding: "40px 24px", gap: 16 }}>
         <div style={{ width: "100%", maxWidth: 620 }}>
@@ -959,12 +981,34 @@ export default function GeneratePage() {
             />
           </div>
 
-          {/* Cost warning + Action buttons */}
+          {/* Balance + Cost breakdown */}
           {aiModel !== "kenburs" && (
-            <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 10, background: "rgba(248,113,113,.06)", border: "1px solid rgba(248,113,113,.2)", fontSize: 12, color: "#fca5a5" }}>
-              ⚠️ จะใช้ <b>{MODEL_OPTIONS.find(m => m.id === aiModel)?.price3clips}</b> ({MODEL_OPTIONS.find(m => m.id === aiModel)?.label}) — กดปุ่มด้านล่างเพื่อยืนยัน
+            <div style={{ marginTop: 14, borderRadius: 12, border: "1px solid rgba(248,113,113,.25)", overflow: "hidden" }}>
+              {/* Balance row */}
+              <div style={{ padding: "10px 14px", background: "rgba(248,113,113,.06)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                <div style={{ fontSize: 12, color: "#fca5a5", fontWeight: 700 }}>
+                  💳 คงเหลือใน fal.ai:{" "}
+                  {falBalance != null
+                    ? <span style={{ color: falBalance < estimatedUsd ? "#f87171" : "#86efac" }}>
+                        ${falBalance.toFixed(2)} (~{Math.round(falBalance * 35).toLocaleString()} บาท)
+                        {falBalance < estimatedUsd && " ⚠️ ไม่พอ!"}
+                      </span>
+                    : <span style={{ color: "var(--faint)" }}>กำลังดึง...</span>
+                  }
+                </div>
+              </div>
+              {/* Cost breakdown */}
+              <div style={{ padding: "10px 14px", background: "rgba(0,0,0,.2)", fontSize: 12, color: "var(--faint)", lineHeight: 2 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 16px" }}>
+                  <span>Model:</span><b style={{ color: "var(--dim)" }}>{modelLabel}</b>
+                  <span>ราคา/คลิป (5 วิ):</span><b style={{ color: "#fbbf24" }}>${clipUsd.toFixed(2)} (~{clipThb.toFixed(0)} บาท)</b>
+                  <span>จำนวนคลิป (max):</span><b style={{ color: "var(--dim)" }}>3 คลิป</b>
+                  <span>ราคารวม (max):</span><b style={{ color: "#f87171", fontSize: 14 }}>${estimatedUsd.toFixed(2)} (~{estimatedThb.toFixed(0)} บาท)</b>
+                </div>
+              </div>
             </div>
           )}
+
           <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
             <button onClick={runRender} style={{
               flex: 1, padding: "15px 20px", borderRadius: 14, cursor: "pointer",
@@ -972,7 +1016,9 @@ export default function GeneratePage() {
               border: "none", color: "#06060A", fontSize: 15, fontWeight: 900,
               boxShadow: "0 6px 24px rgba(0,255,212,.3)",
             }}>
-              สร้างวิดีโอ {aiModel === "kenburs" ? "(ฟรี)" : `(${MODEL_OPTIONS.find(m => m.id === aiModel)?.price3clips})`} →
+              {aiModel === "kenburs"
+                ? "สร้างวิดีโอ (ฟรี) →"
+                : `ยืนยัน — สร้างวิดีโอ ~${estimatedThb.toFixed(0)} บาท →`}
             </button>
             <button onClick={reset} style={{
               padding: "15px 16px", borderRadius: 14, cursor: "pointer",

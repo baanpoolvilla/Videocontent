@@ -7,7 +7,7 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger("app").setLevel(logging.INFO)
 
 from app.core.config import settings
-from app.routers import assets, auth, brand_profiles, content_jobs, dashboard, files, image_to_video, products, prompts, schedule, voice
+from app.routers import assets, auth, billing, brand_profiles, content_jobs, dashboard, files, image_to_video, products, prompts, schedule, voice
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -41,6 +41,7 @@ app.include_router(assets.router, prefix=settings.API_PREFIX)
 app.include_router(prompts.router, prefix=settings.API_PREFIX)
 app.include_router(image_to_video.router, prefix=settings.API_PREFIX)
 app.include_router(voice.router, prefix=settings.API_PREFIX)
+app.include_router(billing.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/health")
