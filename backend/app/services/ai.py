@@ -10,6 +10,20 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
+def _clean_prompt(text: str) -> str:
+    """Remove Thai chars and all quotation-mark variants using integer code-point checks.
+    No literal Thai or curly-quote characters appear in this source file."""
+    out = []
+    for ch in text:
+        cp = ord(ch)
+        if 0x0E00 <= cp <= 0x0E7F:
+            continue
+        if cp in (0x201C, 0x201D, 0x2018, 0x2019, 0x22, 0x27, 0x60):
+            continue
+        out.append(ch)
+    return "".join(out).strip()
+
+
 class AIService:
     def __init__(self):
         genai.configure(api_key=settings.GEMINI_API_KEY)
@@ -55,9 +69,10 @@ class AIService:
         # Concept is the anchor — everything else builds around what the user wants
         if concept.strip():
             concept_instruction = (
-                f"\nUSER'S VISUAL CONCEPT (this is the CENTRAL SCENE — preserve it exactly, build camera/light/atmosphere AROUND it):\n"
-                f'"{concept.strip()}"\n'
-                f"The final prompt MUST clearly reflect this concept. Do NOT replace or ignore it."
+                "\nUSER'S VISUAL CONCEPT (this is the CENTRAL SCENE — preserve it exactly, "
+                "build camera/light/atmosphere AROUND it):\n"
+                + concept.strip() + "\n"
+                + "The final prompt MUST clearly reflect this concept. Do NOT replace or ignore it."
             )
         else:
             concept_instruction = ""
@@ -76,22 +91,30 @@ class AIService:
         prompt_text = (
             f"You are an elite cinematographer writing AI video generation prompts for {model_label}.\n"
             f"This AI ANIMATES the uploaded image — it cannot add new people or change the location shown.\n"
-            f"Study this image carefully. Write ONE highly detailed cinematic prompt that will produce a beautiful, professional-quality video from this exact image.\n"
+            f"Study this image carefully. Write ONE highly detailed cinematic prompt that will produce "
+            f"a beautiful, professional-quality video from this exact image.\n"
             f"{concept_instruction}\n"
             f"PRODUCT: {product_name}\n"
             f"VISUAL STYLE: {style_feel}\n\n"
             f"WHAT MAKES AI VIDEO PROMPTS PRODUCE STUNNING OUTPUT:\n"
-            f"- Precise camera moves: slow dolly push-in, gentle crane descent, soft parallax pan, subtle rack focus, orbital arc\n"
-            f"- Light effects: golden hour glow, water surface shimmer, bokeh highlights, dappled sunlight, reflection ripples, lens flare\n"
-            f"- Natural motion in scene: water rippling, curtains drifting, leaves rustling, steam curling, light shafts sweeping\n"
-            f"- Atmosphere: morning mist, tropical warmth, twilight blue hour, soft volumetric fog, candlelight flicker\n"
-            f"- Depth: foreground blur / background sharp, shallow DOF, anamorphic lens character, tilt-shift effect\n\n"
+            f"- Precise camera moves: slow dolly push-in, gentle crane descent, soft parallax pan, "
+            f"subtle rack focus, orbital arc\n"
+            f"- Light effects: golden hour glow, water surface shimmer, bokeh highlights, "
+            f"dappled sunlight, reflection ripples, lens flare\n"
+            f"- Natural motion in scene: water rippling, curtains drifting, leaves rustling, "
+            f"steam curling, light shafts sweeping\n"
+            f"- Atmosphere: morning mist, tropical warmth, twilight blue hour, "
+            f"soft volumetric fog, candlelight flicker\n"
+            f"- Depth: foreground blur / background sharp, shallow DOF, "
+            f"anamorphic lens character, tilt-shift effect\n\n"
             f"RULES:\n"
             f"1. English ONLY — absolutely zero Thai characters.\n"
             f"2. 110-130 words — longer, more detailed prompts produce significantly better output.\n"
-            f"3. Open with camera move (e.g. 'Slow dolly push-in reveals', 'Gentle overhead crane descends over').\n"
+            f"3. Open with camera move (e.g. Slow dolly push-in reveals, "
+            f"Gentle overhead crane descends over).\n"
             f"4. Describe ONLY what is visible in the uploaded image — no new people, no new locations.\n"
-            f"5. Structure: [camera move] → [subject + scene detail] → [natural motion in frame] → [lighting] → [atmosphere] → [color grade + quality tags].\n"
+            f"5. Structure: camera move, subject and scene detail, natural motion in frame, "
+            f"lighting, atmosphere, color grade and quality tags.\n"
             f"6. End with: cinematic, photorealistic, 4K, ultra-slow motion, shallow depth of field.\n"
             f"7. Output raw prompt text ONLY — no labels, no explanations, no markdown."
         )
@@ -99,7 +122,7 @@ class AIService:
         config = genai.types.GenerationConfig(temperature=0.82, max_output_tokens=400)
         response = self.model.generate_content([prompt_text, img], generation_config=config)
         raw = response.text.strip()
-        clean = re.sub(r"[฀-๿\"'`]+", "", raw).strip()
+        clean = _clean_prompt(raw)
         words = clean.split()
         logger.info(f"[AI] vision prompt ({len(words)} words): {' '.join(words[:10])}...")
         return " ".join(words[:130])
@@ -218,9 +241,11 @@ IMPORTANT: สร้าง Script ที่แตกต่างจากเว�
             "1. English ONLY - zero Thai characters.\n"
             "2. 110-130 words — longer, more detailed prompts produce better AI video output.\n"
             "3. Start with SHOT TYPE (e.g. Low-angle crane shot, Aerial drone orbit, Extreme close-up).\n"
-            "4. Include: shot type → subject in frame → what moves naturally → lighting details → atmosphere → color grade → quality tags.\n"
+            "4. Include: shot type, subject in frame, what moves naturally, lighting details, "
+            "atmosphere, color grade, quality tags.\n"
             "5. Reference SPECIFIC visual elements from the script's mood/selling-point.\n"
-            "6. End with quality tags: cinematic, ultra-realistic, slow-motion, photorealistic, 4K, shallow depth of field.\n"
+            "6. End with quality tags: cinematic, ultra-realistic, slow-motion, photorealistic, "
+            "4K, shallow depth of field.\n"
             "7. NO explanations, NO labels, NO quotes - raw prompt text only."
         )
 
@@ -228,7 +253,7 @@ IMPORTANT: สร้าง Script ที่แตกต่างจากเว�
 
         user_prompt = (
             f"SCRIPT (Thai - read for mood and selling points):\n"
-            f'"""{script[:300]}"""{concept_block}\n\n'
+            f"{script[:300]}{concept_block}\n\n"
             f"PRODUCT: {product_name} - private pool villa, Pattaya-Jomtien, Thailand\n\n"
             f"VISUAL STYLE: {style_rules['feel']}\n\n"
             f"CINEMATOGRAPHY:\n"
@@ -236,15 +261,14 @@ IMPORTANT: สร้าง Script ที่แตกต่างจากเว�
             f"- Lighting: {style_rules['light']}\n"
             f"- Subjects: {style_rules['subject']}\n"
             f"- Grade: {style_rules['grade']}\n\n"
-            f"TASK: Write ONE cinematic video prompt (50-70 words). Start with shot type immediately."
+            f"TASK: Write ONE cinematic video prompt (110-130 words). Start with shot type immediately."
         )
 
         raw = self._generate(user_prompt, system=system_prompt, temperature=0.85)
-        # strip Thai characters and smart/curly quotes using Unicode escapes
-        clean = re.sub(r”[฀-๿””’’\”’`]+”, “”, raw).strip()
+        clean = _clean_prompt(raw)
         words = clean.split()
-        logger.info(f”[AI] prompt ({len(words)} words): {‘ ‘.join(words[:10])}...”)
-        return “ “.join(words[:130])
+        logger.info(f"[AI] prompt ({len(words)} words): {' '.join(words[:10])}...")
+        return " ".join(words[:130])
 
 
 ai_service = AIService()
