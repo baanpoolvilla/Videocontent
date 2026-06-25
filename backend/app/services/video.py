@@ -399,16 +399,24 @@ class VideoService:
             ])
         return output_path
 
-    async def _text_to_video(self, audio_path: str, tmpdir: str, duration_sec: int) -> str:
+    async def _text_to_video(self, audio_path: str | None, tmpdir: str, duration_sec: int) -> str:
         output_path = os.path.join(tmpdir, "output.mp4")
-        await self._run_ffmpeg([
-            "ffmpeg", "-y",
-            "-f", "lavfi", "-i", f"color=c=black:size={OUT_W}x{OUT_H}:rate=25:duration={duration_sec}",
-            "-i", audio_path,
-            "-c:v", "libx264", "-c:a", "aac",
-            "-shortest", "-movflags", "+faststart",
-            output_path,
-        ])
+        if audio_path and os.path.exists(audio_path):
+            await self._run_ffmpeg([
+                "ffmpeg", "-y",
+                "-f", "lavfi", "-i", f"color=c=black:size={OUT_W}x{OUT_H}:rate=25:duration={duration_sec}",
+                "-i", audio_path,
+                "-c:v", "libx264", "-c:a", "aac",
+                "-shortest", "-movflags", "+faststart",
+                output_path,
+            ])
+        else:
+            await self._run_ffmpeg([
+                "ffmpeg", "-y",
+                "-f", "lavfi", "-i", f"color=c=black:size={OUT_W}x{OUT_H}:rate=25:duration={duration_sec}",
+                "-c:v", "libx264", "-movflags", "+faststart",
+                output_path,
+            ])
         return output_path
 
     async def _run_ffmpeg(self, cmd: list[str]):
