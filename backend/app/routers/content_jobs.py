@@ -738,6 +738,7 @@ async def suggest_video_prompt(
     style: str = "playful",
     concept: str = "",
     image_url: str = "",
+    ai_model: str = "hailuo2pro",
 ):
     result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
     job = result.scalar_one_or_none()
@@ -760,7 +761,7 @@ async def suggest_video_prompt(
         raw = image_urls[0] if image_urls else None
         if raw:
             image_url = f"{settings.API_INTERNAL_URL}/api/v1/files/{raw.strip('/')}"
-    logger.info(f"[SUGGEST] image_url={image_url[:80] if image_url else 'NONE'} style={style}")
+    logger.info(f"[SUGGEST] image_url={image_url[:80] if image_url else 'NONE'} style={style} model={ai_model}")
 
     try:
         if image_url:
@@ -769,6 +770,7 @@ async def suggest_video_prompt(
                 product_name=product.name if product else "",
                 style=style,
                 concept=concept,
+                ai_model=ai_model,
             )
         else:
             video_prompt = await ai_service.suggest_video_prompt(

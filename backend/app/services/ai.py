@@ -38,6 +38,7 @@ class AIService:
         product_name: str,
         style: str = "playful",
         concept: str = "",
+        ai_model: str = "hailuo2pro",
     ) -> str:
         """Use Gemini Vision to look at the actual product image and write a cinematic prompt."""
         img = await self._load_image(image_url)
@@ -51,36 +52,52 @@ class AIService:
             "playful": "fun, inviting, vacation-ready — Booking.com hero shot",
         }.get(style, "premium cinematic luxury resort")
 
-        concept_block = f"\nUSER VISUAL REQUEST (highest priority): {concept}" if concept.strip() else ""
+        # Concept is the anchor — everything else builds around what the user wants
+        if concept.strip():
+            concept_instruction = (
+                f"\nUSER'S VISUAL CONCEPT (this is the CENTRAL SCENE — preserve it exactly, build camera/light/atmosphere AROUND it):\n"
+                f'"{concept.strip()}"\n'
+                f"The final prompt MUST clearly reflect this concept. Do NOT replace or ignore it."
+            )
+        else:
+            concept_instruction = ""
+
+        model_label = {
+            "kling3s":    "Kling v3 (premium realism — follows precise camera & subject descriptions)",
+            "hailuo2pro": "Hailuo 2.3 Pro (smooth motion — responds to atmosphere & light keywords)",
+            "kenburs":    "FFmpeg Ken Burns (static zoom only — prompt is ignored)",
+        }.get(ai_model, "AI image-to-video model")
 
         prompt_text = (
-            f"You are a specialist in writing prompts for Hailuo 2.3 Pro image-to-video AI.\n"
-            f"Hailuo ANIMATES the uploaded image — it CANNOT add new people or change locations.\n"
-            f"Look at this image carefully. Write ONE prompt that makes Hailuo create a stunning video FROM this exact image.\n\n"
-            f"PRODUCT: {product_name} — private pool villa, Pattaya-Jomtien, Thailand\n"
-            f"STYLE: {style_feel}{concept_block}\n\n"
-            f"HAILUO WORKS BEST WITH:\n"
-            f"- Smooth camera moves: slow dolly, gentle crane, subtle zoom, soft pan\n"
-            f"- Light effects: golden sparkle, water shimmer, ripple reflections, bokeh glow\n"
-            f"- Atmosphere: sunset warmth, morning mist, candlelight flicker, gentle breeze\n"
-            f"- Natural motion: water ripples, curtains swaying, leaves rustling, steam rising\n\n"
+            f"You are an elite cinematographer writing AI video generation prompts for {model_label}.\n"
+            f"This AI ANIMATES the uploaded image — it cannot add new people or change the location shown.\n"
+            f"Study this image carefully. Write ONE highly detailed cinematic prompt that will produce a beautiful, professional-quality video from this exact image.\n"
+            f"{concept_instruction}\n"
+            f"PRODUCT: {product_name}\n"
+            f"VISUAL STYLE: {style_feel}\n\n"
+            f"WHAT MAKES AI VIDEO PROMPTS PRODUCE STUNNING OUTPUT:\n"
+            f"- Precise camera moves: slow dolly push-in, gentle crane descent, soft parallax pan, subtle rack focus, orbital arc\n"
+            f"- Light effects: golden hour glow, water surface shimmer, bokeh highlights, dappled sunlight, reflection ripples, lens flare\n"
+            f"- Natural motion in scene: water rippling, curtains drifting, leaves rustling, steam curling, light shafts sweeping\n"
+            f"- Atmosphere: morning mist, tropical warmth, twilight blue hour, soft volumetric fog, candlelight flicker\n"
+            f"- Depth: foreground blur / background sharp, shallow DOF, anamorphic lens character, tilt-shift effect\n\n"
             f"RULES:\n"
-            f"1. English ONLY — zero Thai characters.\n"
-            f"2. 50-70 words exactly.\n"
-            f"3. Start with camera movement (e.g. 'Slow dolly push-in over', 'Gentle crane descent').\n"
-            f"4. Describe ONLY what is visible in the image — no new people or locations.\n"
-            f"5. Include: camera move → subject in frame → atmosphere/motion → lighting → color grade.\n"
-            f"6. End with quality tags: cinematic, photorealistic, 4K, slow motion.\n"
-            f"7. NO explanations, NO labels — raw prompt text only."
+            f"1. English ONLY — absolutely zero Thai characters.\n"
+            f"2. 110-130 words — longer, more detailed prompts produce significantly better output.\n"
+            f"3. Open with camera move (e.g. 'Slow dolly push-in reveals', 'Gentle overhead crane descends over').\n"
+            f"4. Describe ONLY what is visible in the uploaded image — no new people, no new locations.\n"
+            f"5. Structure: [camera move] → [subject + scene detail] → [natural motion in frame] → [lighting] → [atmosphere] → [color grade + quality tags].\n"
+            f"6. End with: cinematic, photorealistic, 4K, ultra-slow motion, shallow depth of field.\n"
+            f"7. Output raw prompt text ONLY — no labels, no explanations, no markdown."
         )
 
-        config = genai.types.GenerationConfig(temperature=0.85, max_output_tokens=200)
+        config = genai.types.GenerationConfig(temperature=0.82, max_output_tokens=400)
         response = self.model.generate_content([prompt_text, img], generation_config=config)
         raw = response.text.strip()
-        clean = re.sub(r"[฀-๿\"']+", "", raw).strip()
+        clean = re.sub(r"[฀-๿\"'`]+", "", raw).strip()
         words = clean.split()
-        logger.info(f"[AI] vision prompt ({len(words)} words): {' '.join(words[:8])}...")
-        return " ".join(words[:70])
+        logger.info(f"[AI] vision prompt ({len(words)} words): {' '.join(words[:10])}...")
+        return " ".join(words[:130])
 
     async def analyze_product(self, product_name: str, description: str, brand_context: str = "") -> dict:
         prompt = f"""วิเคราะห์สินค้าต่อไปนี้เพื่อสร้างวิดีโอสั้น:
@@ -191,14 +208,14 @@ IMPORTANT: สร้าง Script ที่แตกต่างจากเว�
 
         system_prompt = (
             "You are the creative director of award-winning luxury resort commercials.\n"
-            "Your job: read a Thai voiceover script and write ONE ultra-cinematic AI video prompt in English for Kling v3.\n\n"
+            "Your job: read a Thai voiceover script and write ONE detailed cinematic AI video prompt in English.\n\n"
             "STRICT RULES:\n"
             "1. English ONLY - zero Thai characters.\n"
-            "2. 50-70 words exactly - count carefully.\n"
+            "2. 110-130 words — longer, more detailed prompts produce better AI video output.\n"
             "3. Start with SHOT TYPE (e.g. Low-angle crane shot, Aerial drone orbit, Extreme close-up).\n"
-            "4. Include: shot type -> subject in frame -> what moves -> lighting -> color grade -> emotional tone.\n"
+            "4. Include: shot type → subject in frame → what moves naturally → lighting details → atmosphere → color grade → quality tags.\n"
             "5. Reference SPECIFIC visual elements from the script's mood/selling-point.\n"
-            "6. Use Kling v3 power-words: cinematic, ultra-realistic, slow-motion, photorealistic, 4K.\n"
+            "6. End with quality tags: cinematic, ultra-realistic, slow-motion, photorealistic, 4K, shallow depth of field.\n"
             "7. NO explanations, NO labels, NO quotes - raw prompt text only."
         )
 
@@ -219,10 +236,10 @@ IMPORTANT: สร้าง Script ที่แตกต่างจากเว�
 
         raw = self._generate(user_prompt, system=system_prompt, temperature=0.85)
         # strip Thai characters and smart/curly quotes using Unicode escapes
-        clean = re.sub(r"[฀-๿“”‘’\"']+", "", raw).strip()
+        clean = re.sub(r”[฀-๿””’’\”’`]+”, “”, raw).strip()
         words = clean.split()
-        logger.info(f"[AI] prompt ({len(words)} words): {' '.join(words[:8])}...")
-        return " ".join(words[:70])
+        logger.info(f”[AI] prompt ({len(words)} words): {‘ ‘.join(words[:10])}...”)
+        return “ “.join(words[:130])
 
 
 ai_service = AIService()
