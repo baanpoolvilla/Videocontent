@@ -7,19 +7,27 @@ logger = logging.getLogger(__name__)
 
 FAL_QUEUE = "https://queue.fal.run"
 
-# Model IDs on fal.ai (verified from fal.ai sandbox)
+# ─── TO ADD A NEW MODEL ──────────────────────────────────────────────────────
+# 1. Add alias → fal.ai path here in MODELS
+# 2. If model has a minimum duration, add to MODEL_MIN_DURATION
+# 3. Add alias to frontend storyboard/page.tsx MODELS array (with price/label/etc.)
+# 4. Add alias to ai.py suggest_video_prompt_from_image model_label dict
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Model IDs on fal.ai — key = alias used by frontend, value = fal.ai endpoint path
 MODELS = {
-    "kling3s":       "fal-ai/kling-video/v3/standard/image-to-video",        # $1.89/คลิป
-    "seedance2":     "bytedance/seedance-2.0/fast/image-to-video",            # $2.43/คลิป
-    "seedance2_pro": "bytedance/seedance-2.0/image-to-video",                 # $4.25/คลิป
     "hailuo2pro":    "fal-ai/minimax/hailuo-2.3/pro/image-to-video",          # $0.49/คลิป — min 6s
-    "kenburs":       "kenburs",
+    "kling3s":       "fal-ai/kling-video/v3/standard/image-to-video",         # $1.89/คลิป
+    "kling3s_pro":   "fal-ai/kling-video/v3/pro/image-to-video",              # $2.88/คลิป
+    "seedance2":     "fal-ai/bytedance/seedance-v1/i2v/turbo",                # $2.43/คลิป — ByteDance fast
+    "seedance2_pro": "fal-ai/bytedance/seedance-v1/i2v/standard",             # $4.25/คลิป — ByteDance pro
+    "wan21":         "fal-ai/wan/v2.1/image-to-video",                        # $0.30/คลิป — Wan 2.1
+    "kenburs":       "kenburs",                                                 # ฟรี — FFmpeg Ken Burns
 }
 
-# Minimum duration (seconds) accepted by each fal.ai model
-# Hailuo 2.3 Pro requires minimum 6s — sending 5 returns 422 and falls back to Ken Burns
+# Minimum duration (seconds) required by each model (fal.ai rejects lower values)
 MODEL_MIN_DURATION: dict[str, int] = {
-    "fal-ai/minimax/hailuo-2.3/pro/image-to-video": 6,
+    "fal-ai/minimax/hailuo-2.3/pro/image-to-video": 6,  # Hailuo requires >= 6s
 }
 
 DEFAULT_I2V = MODELS["kling3s"]

@@ -62,10 +62,15 @@ class AIService:
         else:
             concept_instruction = ""
 
+        # Step 3 for adding a new model: add an entry here describing what makes it tick
         model_label = {
-            "kling3s":    "Kling v3 (premium realism — follows precise camera & subject descriptions)",
-            "hailuo2pro": "Hailuo 2.3 Pro (smooth motion — responds to atmosphere & light keywords)",
-            "kenburs":    "FFmpeg Ken Burns (static zoom only — prompt is ignored)",
+            "hailuo2pro":    "Hailuo 2.3 Pro (smooth cinematic motion, responds best to atmosphere & light keywords)",
+            "kling3s":       "Kling v3 Standard (premium realism, follows precise camera & subject descriptions)",
+            "kling3s_pro":   "Kling v3 Pro (highest Kling quality, great for complex motion & fine detail)",
+            "seedance2":     "Seedance 2.0 Turbo by ByteDance (fast generation, natural motion, good for outdoor scenes)",
+            "seedance2_pro": "Seedance 2.0 Standard by ByteDance (highest quality, detailed motion, cinematic realism)",
+            "wan21":         "Wan 2.1 (versatile, affordable, good at following detailed scene descriptions)",
+            "kenburs":       "FFmpeg Ken Burns (static zoom/pan only — prompt is ignored for this mode)",
         }.get(ai_model, "AI image-to-video model")
 
         prompt_text = (

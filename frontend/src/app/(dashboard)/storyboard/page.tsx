@@ -6,7 +6,9 @@ import { api } from "@/lib/api";
 import { Loader2, Sparkles, ChevronUp, ChevronDown, CheckCircle2, Wand2, X, Plus } from "lucide-react";
 
 interface Product { id: string; name: string; media_urls: string[]; }
-type AIModel = "kenburs" | "hailuo2pro" | "kling3s";
+
+// Key must match wan.py MODELS dict exactly — step 3 of "add a new model"
+type AIModel = "kenburs" | "hailuo2pro" | "kling3s" | "kling3s_pro" | "seedance2" | "seedance2_pro" | "wan21";
 
 interface ClipSlot {
   imageIndex: number;
@@ -17,7 +19,8 @@ interface ClipSlot {
 interface ModelDef {
   id: AIModel;
   label: string;
-  price: string;
+  pricePerClip: number;    // used for cost calculation
+  price: string;           // display string
   color: string;
   durations: number[];
   badge: string;
@@ -26,14 +29,18 @@ interface ModelDef {
   stars: number;
   promptLimit: number | null;
   minDuration: number;
+  isAI: boolean;           // false = Ken Burns (no Gemini, no fal.ai)
 }
 
+// ─── TO ADD A NEW MODEL — add one entry here ─────────────────────────────────
+// id must match wan.py MODELS key · also update ai.py model_label dict
 const MODELS: ModelDef[] = [
   {
     id: "kenburs",
     label: "Ken Burns",
+    pricePerClip: 0,
     price: "ฟรี",
-    color: "#22D499",
+    color: "#6EE7B7",
     durations: [5, 10, 15, 20, 30],
     badge: "FREE",
     outputLine1: "รูปซูม / เลื่อนอัตโนมัติ",
@@ -41,32 +48,97 @@ const MODELS: ModelDef[] = [
     stars: 1,
     promptLimit: null,
     minDuration: 5,
+    isAI: false,
   },
   {
     id: "hailuo2pro",
     label: "Hailuo 2.3 Pro",
+    pricePerClip: 0.49,
     price: "$0.49 / คลิป",
     color: "#A78BFA",
     durations: [6, 10],
-    badge: "AI VIDEO",
-    outputLine1: "AI สร้างการเคลื่อนไหวจริงจากรูป",
-    outputLine2: "water ripple · camera dolly · bokeh · atmosphere",
+    badge: "AI · $0.49",
+    outputLine1: "smooth motion · atmosphere · bokeh",
+    outputLine2: "ripple · dolly · light shimmer · cinematic",
     stars: 4,
     promptLimit: 2000,
     minDuration: 6,
+    isAI: true,
+  },
+  {
+    id: "wan21",
+    label: "Wan 2.1",
+    pricePerClip: 0.30,
+    price: "$0.30 / คลิป",
+    color: "#34D399",
+    durations: [5, 10],
+    badge: "AI · $0.30",
+    outputLine1: "ราคาประหยัด · motion ดี · เข้าใจ prompt ได้ดี",
+    outputLine2: "versatile · scene · outdoor · indoor",
+    stars: 3,
+    promptLimit: 2000,
+    minDuration: 5,
+    isAI: true,
   },
   {
     id: "kling3s",
     label: "Kling v3 Standard",
+    pricePerClip: 1.89,
     price: "$1.89 / คลิป",
     color: "#00FFD4",
     durations: [5, 10],
-    badge: "PREMIUM",
-    outputLine1: "AI คุณภาพสูงสุด — ระดับภาพยนตร์",
-    outputLine2: "คมชัดที่สุด เหมือนถ่ายจริง รองรับ motion ซับซ้อน",
+    badge: "AI · $1.89",
+    outputLine1: "realism สูง · ตามใจ prompt มาก",
+    outputLine2: "motion ซับซ้อน · คมชัด · สมจริง",
+    stars: 4,
+    promptLimit: 2500,
+    minDuration: 5,
+    isAI: true,
+  },
+  {
+    id: "kling3s_pro",
+    label: "Kling v3 Pro",
+    pricePerClip: 2.88,
+    price: "$2.88 / คลิป",
+    color: "#818CF8",
+    durations: [5, 10],
+    badge: "AI · $2.88",
+    outputLine1: "Kling คุณภาพสูงสุด — ระดับภาพยนตร์",
+    outputLine2: "fine detail · complex motion · studio grade",
     stars: 5,
     promptLimit: 2500,
     minDuration: 5,
+    isAI: true,
+  },
+  {
+    id: "seedance2",
+    label: "Seedance 2.0 Turbo",
+    pricePerClip: 2.43,
+    price: "$2.43 / คลิป",
+    color: "#FB923C",
+    durations: [5, 10],
+    badge: "AI · $2.43",
+    outputLine1: "ByteDance · เร็ว · สมจริง",
+    outputLine2: "outdoor · คน · natural motion · lifestyle",
+    stars: 4,
+    promptLimit: 2000,
+    minDuration: 5,
+    isAI: true,
+  },
+  {
+    id: "seedance2_pro",
+    label: "Seedance 2.0 Standard",
+    pricePerClip: 4.25,
+    price: "$4.25 / คลิป",
+    color: "#F43F5E",
+    durations: [5, 10],
+    badge: "AI · $4.25",
+    outputLine1: "ByteDance · คุณภาพสูงสุด · detail มาก",
+    outputLine2: "cinematic realism · best from ByteDance",
+    stars: 5,
+    promptLimit: 2000,
+    minDuration: 5,
+    isAI: true,
   },
 ];
 
@@ -204,7 +276,7 @@ export default function StoryboardPage() {
     return enhanced;
   };
 
-  const totalCost = aiModel === "kenburs" ? 0 : slots.length * (aiModel === "hailuo2pro" ? 0.49 : 1.89);
+  const totalCost = modelDef.pricePerClip * slots.length;
   const totalDuration = slots.reduce((s, c) => s + c.duration, 0);
 
   const runRender = async () => {
@@ -213,7 +285,7 @@ export default function StoryboardPage() {
     try {
       const jobId = await getOrCreateJob(product.id);
 
-      if (aiModel !== "kenburs") {
+      if (modelDef.isAI) {
         // 1. Enhance ALL prompts — Gemini reads each image + user's concept → 110+ word cinematic prompt
         setRenderStep(`Gemini Vision อ่านรูป ${slots.length} คลิป และเขียน prompt ละเอียด...`);
         const enhanced = await autoEnhanceAll(jobId, slots);
@@ -236,7 +308,7 @@ export default function StoryboardPage() {
         } catch { /* optional */ }
 
         // 4. Story render with enhanced prompts (pass `enhanced` directly, not stale state)
-        setRenderStep(`${aiModel === "hailuo2pro" ? "Hailuo" : "Kling"} render ${slots.length} คลิป... รอ ${slots.length * 1}–${slots.length * 3} นาที`);
+        setRenderStep(`${modelDef.label} render ${slots.length} คลิป... รอ ${slots.length * 1}–${slots.length * 4} นาที`);
         await api.post(`/jobs/${jobId}/story-render`, {
           clips: enhanced.map(s => ({
             image_index: s.imageIndex,
@@ -317,7 +389,7 @@ export default function StoryboardPage() {
       <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--faint)" }}>Story Mode</p>
       <h1 style={{ margin: "0 0 4px", fontSize: 24, fontWeight: 800 }}>Storyboard Editor</h1>
       <p style={{ margin: "0 0 24px", fontSize: 13, color: "var(--dim)" }}>
-        แต่ละคลิปมี prompt ของตัวเอง · พิมพ์ English ดีๆ → ส่งตรงไป AI โดยไม่เปลี่ยน · พิมพ์ไทยหรือเว้นว่าง → Gemini แปล/เขียนให้
+        แต่ละคลิปมี prompt ของตัวเอง · พิมพ์ concept (ไทยหรือ English ก็ได้) → Gemini อ่านรูป + concept → เขียน prompt ~120 คำ → ส่งไป AI Model ที่เลือก
       </p>
 
       {/* ── Model selector ── */}
@@ -325,7 +397,7 @@ export default function StoryboardPage() {
         <div style={{ fontSize: 12, fontWeight: 800, color: "var(--dim)", marginBottom: 10, textTransform: "uppercase", letterSpacing: ".06em" }}>
           เลือก AI Model
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(148px,1fr))", gap: 8 }}>
           {MODELS.map(m => {
             const active = aiModel === m.id;
             return (
@@ -379,7 +451,7 @@ export default function StoryboardPage() {
           <span style={{ color: "var(--faint)", marginLeft: 8 }}>
             · <b>1 รูป / 1 คลิป</b> (Gemini อ่านรูป + prompt ของคุณ)
           </span>
-          {modelDef.id !== "kenburs" && (
+          {modelDef.isAI && (
             <span style={{ color: "var(--faint)", marginLeft: 8 }}>
               · ทุกคลิปผ่าน Gemini Vision (อ่านรูป + รักษา concept) → prompt ~120 คำ
             </span>
@@ -420,7 +492,7 @@ export default function StoryboardPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
             {slots.map((slot, i) => {
               const imgUrl = product.media_urls[slot.imageIndex];
-              const ps = aiModel === "kenburs" ? null : getPromptStatus(slot.prompt);
+              const ps = !modelDef.isAI ? null : getPromptStatus(slot.prompt);
               const charCount = slot.prompt.length;
               const charLimit = modelDef.promptLimit;
               const charColor = !charLimit ? "var(--faint)"
@@ -511,20 +583,20 @@ export default function StoryboardPage() {
                           value={slot.prompt}
                           onChange={e => updateSlot(i, { prompt: e.target.value })}
                           placeholder={
-                            aiModel === "kenburs"
+                            !modelDef.isAI
                               ? "ไม่จำเป็น — Ken Burns ไม่ใช้ prompt"
-                              : "พิมพ์ prompt เป็น English ตรงๆ ได้เลย (8+ คำ → ใช้โดยไม่เปลี่ยน)\nหรือพิมพ์ไทย / เขียนสั้นๆ → AI แปลและขยายให้"
+                              : "พิมพ์ concept ได้เลย (ไทยหรือ English)\nGemini จะอ่านรูป + concept → เขียน prompt ~120 คำ ส่งไป " + modelDef.label
                           }
                           rows={3}
                           style={{
                             width: "100%", background: "#1a1a22",
                             border: `1px solid ${ps ? ps.borderColor : "var(--gb)"}`,
-                            borderRadius: 10, padding: "8px 12px", paddingBottom: aiModel !== "kenburs" ? "22px" : "8px",
+                            borderRadius: 10, padding: "8px 12px", paddingBottom: modelDef.isAI ? "22px" : "8px",
                             color: "var(--text)", fontSize: 12, outline: "none",
                             fontFamily: "monospace", resize: "none", lineHeight: 1.6, boxSizing: "border-box",
                           }}
                         />
-                        {aiModel !== "kenburs" && charLimit && (
+                        {modelDef.isAI && charLimit && (
                           <div style={{ position: "absolute", bottom: 5, right: 8, fontSize: 9, color: charColor, pointerEvents: "none", fontWeight: charCount > 1900 ? 800 : 400 }}>
                             {charCount}/{charLimit}
                           </div>
@@ -532,7 +604,7 @@ export default function StoryboardPage() {
                       </div>
 
                       {/* AI suggest button */}
-                      {aiModel !== "kenburs" && (
+                      {modelDef.isAI && (
                         <button onClick={() => suggestPrompt(i)} disabled={generating === i} style={{ marginTop: 5, display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "var(--blue)", background: "rgba(77,127,255,.08)", border: "1px solid rgba(77,127,255,.2)", borderRadius: 8, padding: "5px 10px", cursor: "pointer" }}>
                           {generating === i ? <Loader2 size={10} style={{ animation: "spin 1s linear infinite" }} /> : <Sparkles size={10} />}
                           Gemini อ่านรูป → เขียน prompt ใหม่ให้คลิปนี้
@@ -558,8 +630,8 @@ export default function StoryboardPage() {
                           color: slot.duration === d ? modelDef.color : "var(--faint)",
                         }}>{d}s</button>
                       ))}
-                      {modelDef.id === "hailuo2pro" && (
-                        <div style={{ fontSize: 8, color: "var(--faint)", lineHeight: 1.4, marginTop: 2 }}>min 6s<br/>API limit</div>
+                      {modelDef.minDuration > 5 && (
+                        <div style={{ fontSize: 8, color: "var(--faint)", lineHeight: 1.4, marginTop: 2 }}>min {modelDef.minDuration}s<br/>API limit</div>
                       )}
                     </div>
                   </div>
@@ -585,20 +657,20 @@ export default function StoryboardPage() {
           <div style={{ background: "rgba(0,0,0,.2)", border: "1px solid var(--gb)", borderRadius: 12, padding: "14px 16px", marginBottom: 14, fontSize: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px", color: "var(--faint)", lineHeight: 2.1 }}>
             <span>AI Model:</span><b style={{ color: modelDef.color }}>{modelDef.label} — {modelDef.outputLine1}</b>
             <span>จำนวนคลิป:</span><b style={{ color: "var(--dim)" }}>{slots.length} คลิป × {slots.map(s=>s.duration).join("/")} วิ = {totalDuration} วิ</b>
-            {aiModel !== "kenburs" && <><span>ทุก prompt ก่อน render:</span><b style={{ color: "#22D499" }}>Gemini อ่านรูป + concept ที่คุณเขียน → prompt 110+ คำ</b></>}
-            {aiModel !== "kenburs" && <><span>concept ของคุณ:</span><b style={{ color: "#f59e0b" }}>ถูกรักษาไว้เป็น scene หลัก — Gemini เพิ่ม cinematic detail รอบๆ</b></>}
-            {aiModel !== "kenburs" && <><span>Prompt limit:</span><b style={{ color: "var(--dim)" }}>{modelDef.promptLimit?.toLocaleString()} ตัวอักษร · 1 รูป/คลิป</b></>}
-            {aiModel !== "kenburs" && <><span>เสียงพากย์:</span><b style={{ color: "var(--ok)" }}>Gemini script + ElevenLabs voice</b></>}
-            {aiModel !== "kenburs" && <><span>ราคาประมาณ:</span><b style={{ color: "#f87171" }}>${totalCost.toFixed(2)} (~{Math.round(totalCost * 35)} บาท)</b></>}
+            {modelDef.isAI && <><span>ทุก prompt ก่อน render:</span><b style={{ color: "#22D499" }}>Gemini อ่านรูป + concept ที่คุณเขียน → prompt 110+ คำ</b></>}
+            {modelDef.isAI && <><span>concept ของคุณ:</span><b style={{ color: "#f59e0b" }}>ถูกรักษาไว้เป็น scene หลัก — Gemini เพิ่ม cinematic detail รอบๆ</b></>}
+            {modelDef.isAI && <><span>Prompt limit:</span><b style={{ color: "var(--dim)" }}>{modelDef.promptLimit?.toLocaleString()} ตัวอักษร · 1 รูป/คลิป</b></>}
+            {modelDef.isAI && <><span>เสียงพากย์:</span><b style={{ color: "var(--ok)" }}>Gemini script + ElevenLabs voice</b></>}
+            {modelDef.isAI && <><span>ราคาประมาณ:</span><b style={{ color: "#f87171" }}>${totalCost.toFixed(2)} (~{Math.round(totalCost * 35)} บาท)</b></>}
           </div>
 
           {/* AI hint */}
-          {aiModel !== "kenburs" && (
-            <div style={{ marginBottom: 12, padding: "10px 14px", background: "rgba(167,139,250,.08)", border: "1px solid rgba(167,139,250,.25)", borderRadius: 10, fontSize: 11.5, color: "var(--dim)", lineHeight: 1.8 }}>
-              <b style={{ color: "#A78BFA" }}>Flow อัตโนมัติเมื่อกด render:</b>
-              {" "}คลิปที่มี <b>English 8+ คำ</b> → ส่งตรงไป {modelDef.label} โดยไม่เปลี่ยน
-              {" "}· คลิปที่ว่าง / มีภาษาไทย / สั้นกว่า 8 คำ → Gemini อ่านรูป + concept → เขียน prompt ให้ →
-              {" "}สร้างวิดีโอทีละคลิป → ต่อเป็นวิดีโอเดียว + เสียงพากย์ AI
+          {modelDef.isAI && (
+            <div style={{ marginBottom: 12, padding: "10px 14px", background: `${modelDef.color}0a`, border: `1px solid ${modelDef.color}30`, borderRadius: 10, fontSize: 11.5, color: "var(--dim)", lineHeight: 1.8 }}>
+              <b style={{ color: modelDef.color }}>Flow อัตโนมัติเมื่อกด render ({modelDef.label}):</b>
+              {" "}Gemini Vision อ่านรูปแต่ละคลิป + concept ที่คุณพิมพ์ →
+              {" "}เขียน prompt ~120 คำ (รักษา concept ไว้เป็น scene หลัก เพิ่ม camera/light/atmosphere) →
+              {" "}ส่งให้ {modelDef.label} สร้างวิดีโอทีละคลิป → ต่อเป็นวิดีโอเดียว + เสียงพากย์ AI
             </div>
           )}
 
@@ -608,13 +680,13 @@ export default function StoryboardPage() {
             color: "#06060A", fontSize: 15, fontWeight: 900,
             boxShadow: `0 6px 24px ${modelDef.color}40`,
           }}>
-            {aiModel === "kenburs"
+            {!modelDef.isAI
               ? `สร้าง Ken Burns ${slots.length} คลิป (ฟรี) →`
               : `สร้างวิดีโอ AI ${slots.length} คลิป ~${Math.round(totalCost * 35)} บาท →`
             }
           </button>
 
-          {aiModel !== "kenburs" && slots.some(s => !s.prompt.trim()) && (
+          {modelDef.isAI && slots.some(s => !s.prompt.trim()) && (
             <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--faint)" }}>
               <Wand2 size={12} />
               คลิปที่ยังว่าง Gemini จะอ่านรูปและเขียน prompt ให้อัตโนมัติเมื่อกด render
