@@ -50,6 +50,9 @@ export default function PreviewPage() {
   const [chatInput, setChatInput] = useState("");
   const [copied, setCopied]       = useState(false);
   const [remixing, setRemixing]   = useState(false);
+  const [swapAudioUrl, setSwapAudioUrl] = useState("");
+  const [swapping, setSwapping]   = useState(false);
+  const [swapDone, setSwapDone]   = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -110,6 +113,36 @@ export default function PreviewPage() {
       router.push("/generate");
     } catch { /* ignore */ }
     finally { setRemixing(false); }
+  };
+
+  const handleSwapAudio = async () => {
+    if (!selectedJob || !swapAudioUrl.trim()) return;
+    setSwapping(true);
+    setSwapDone(false);
+    try {
+      await api.post(`/jobs/${selectedJob.id}/remix-audio`, null, {
+        params: { voiceover_url: swapAudioUrl.trim() },
+      });
+      // poll until done
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        const j = await api.get(`/jobs/${selectedJob.id}`);
+        if (j.data.status === "completed" || j.data.status === "failed") break;
+      }
+      // reload renders
+      const r = await api.get(`/jobs/${selectedJob.id}/renders`);
+      const newRenders: RenderVersion[] = r.data.filter((rv: RenderVersion) => rv.final_video_url);
+      if (newRenders.length > 0) {
+        setRenders(prev => {
+          const others = prev.filter(rv => rv.content_job_id !== selectedJob.id);
+          return [...newRenders.map(rv => ({ ...rv, jobId: selectedJob.id })), ...others];
+        });
+        setSelected({ ...newRenders[0], jobId: selectedJob.id } as RenderVersion);
+      }
+      setSwapDone(true);
+      setSwapAudioUrl("");
+    } catch { /* ignore */ }
+    finally { setSwapping(false); }
   };
 
   const handleChat = (e: React.FormEvent) => {
@@ -199,6 +232,31 @@ export default function PreviewPage() {
           {remixing ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> : <Sparkles size={13} />}
           Remix
         </button>
+
+        {/* Swap audio */}
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <input
+            value={swapAudioUrl}
+            onChange={e => { setSwapAudioUrl(e.target.value); setSwapDone(false); }}
+            placeholder="วาง Audio URL จาก Voice Generator..."
+            style={{
+              width: 260, padding: "6px 10px", borderRadius: 8, fontSize: 11,
+              background: "#1a1a22", border: `1px solid ${swapDone ? "rgba(0,255,212,.4)" : "var(--gb)"}`,
+              color: "var(--text)", outline: "none",
+            }}
+          />
+          <button onClick={handleSwapAudio} disabled={swapping || !swapAudioUrl.trim()} style={{
+            display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8,
+            background: swapDone ? "rgba(0,255,212,.15)" : "rgba(77,127,255,.15)",
+            border: `1px solid ${swapDone ? "rgba(0,255,212,.4)" : "rgba(77,127,255,.3)"}`,
+            color: swapDone ? "var(--teal)" : "var(--blue)", fontSize: 11, fontWeight: 700,
+            cursor: swapping || !swapAudioUrl.trim() ? "not-allowed" : "pointer",
+            opacity: !swapAudioUrl.trim() ? 0.4 : 1,
+          }}>
+            {swapping ? <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> : swapDone ? <Check size={11} /> : <Play size={11} />}
+            {swapDone ? "เสร็จ!" : "ใส่เสียง"}
+          </button>
+        </div>
 
         {/* Copy style */}
         <button onClick={copyStyle} style={{
