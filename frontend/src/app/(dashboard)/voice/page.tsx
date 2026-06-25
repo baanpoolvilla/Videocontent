@@ -13,10 +13,9 @@ function toAudioUrl(path: string) {
 }
 
 const VOICE_STYLES = [
-  { id: "เป็นกันเอง (หญิง)", label: "เป็นกันเอง", sublabel: "หญิง · Rachel", emoji: "👩" },
-  { id: "มืออาชีพ (ชาย)",    label: "มืออาชีพ",   sublabel: "ชาย · Adam",   emoji: "👔" },
-  { id: "สดใส (หญิง)",       label: "สดใส",       sublabel: "หญิง · Bella", emoji: "✨" },
-  { id: "หนักแน่น (ชาย)",    label: "หนักแน่น",   sublabel: "ชาย · Arnold", emoji: "💪" },
+  { id: "หญิง (ไทย)",   label: "หญิง",   sublabel: "Premwadee · นุ่มนวล", emoji: "👩" },
+  { id: "ชาย (ไทย)",    label: "ชาย",    sublabel: "Niwat · มืออาชีพ",   emoji: "👔" },
+  { id: "หญิง 2 (ไทย)", label: "หญิง 2", sublabel: "Achara · สดใส",       emoji: "✨" },
 ];
 
 const SAMPLE_TEXTS = [

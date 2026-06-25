@@ -49,7 +49,9 @@ class TTSService:
           2. Edge TTS    — free Microsoft neural Thai voice (default)
           3. gTTS        — last resort fallback
         """
-        if settings.ELEVENLABS_API_KEY:
+        # Skip ElevenLabs for Thai Edge TTS voices — use Edge TTS directly
+        is_thai_voice = voice_style in EDGE_VOICE_MAP or voice_style in EDGE_STYLE_TO_VOICE and EDGE_STYLE_TO_VOICE[voice_style].startswith("th-TH")
+        if settings.ELEVENLABS_API_KEY and not is_thai_voice:
             logger.info(f"[TTS] using ElevenLabs voice_style={voice_style}")
             try:
                 return await self._elevenlabs(text, job_id, voice_style)
