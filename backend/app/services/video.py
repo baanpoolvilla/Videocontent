@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import tempfile
@@ -11,6 +12,10 @@ logger = logging.getLogger(__name__)
 OUT_W, OUT_H = 1080, 1920
 # Pre-scale size (30% larger for Ken Burns headroom)
 PRE_W, PRE_H = int(OUT_W * 1.3), int(OUT_H * 1.3)   # 1404 x 2496
+
+# Crossfade settings for AI clips
+FADE_DUR = 0.5          # seconds — dissolve between clips
+FADE_TRANSITION = "dissolve"   # xfade transition type
 
 # Scale+crop any image to PRE_W x PRE_H preserving aspect ratio, then Ken Burns
 _SCALE_CROP = (
@@ -39,7 +44,7 @@ def _kb_zoom_out(d: int) -> str:
 def _kb_pan_left(d: int) -> str:
     """Pan: left edge → right edge at fixed zoom 1.2"""
     z = 1.2
-    max_x = int(PRE_W - PRE_W / z)   # max x offset in input space
+    max_x = int(PRE_W - PRE_W / z)
     return (
         f"{_SCALE_CROP},"
         f"zoompan=z={z}:"
@@ -70,26 +75,45 @@ class VideoService:
         duration_sec: int = 30,
         logo_url: str = "",
     ) -> dict:
+        """Compose AI-generated clips into final video with crossfade transitions."""
         with tempfile.TemporaryDirectory() as tmpdir:
+            # 1. Download all clips
             clip_paths = []
             for i, url in enumerate(clip_urls):
                 p = os.path.join(tmpdir, f"clip_{i}.mp4")
                 await self._download_file(url, p)
                 clip_paths.append(p)
 
-            concat_file = os.path.join(tmpdir, "concat.txt")
-            with open(concat_file, "w") as f:
-                for cp in clip_paths:
-                    f.write(f"file '{cp}'\n")
+            # 2. Normalize: same resolution, fps, codec — strip audio (voiceover added later)
+            norm_paths = []
+            for i, cp in enumerate(clip_paths):
+                np_ = os.path.join(tmpdir, f"norm_{i}.mp4")
+                await self._run_ffmpeg([
+                    "ffmpeg", "-y", "-i", cp,
+                    "-vf", (
+                        f"scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=increase,"
+                        f"crop={OUT_W}:{OUT_H}"
+                    ),
+                    "-r", "25",
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                    "-pix_fmt", "yuv420p", "-an",
+                    np_,
+                ])
+                norm_paths.append(np_)
+                logger.info(f"[VIDEO] normalized clip {i}: {cp}")
 
-            merged = os.path.join(tmpdir, "merged.mp4")
-            await self._run_ffmpeg([
-                "ffmpeg", "-y",
-                "-f", "concat", "-safe", "0", "-i", concat_file,
-                "-c", "copy", merged,
-            ])
+            # 3. Merge with crossfade dissolve between clips
+            if len(norm_paths) == 1:
+                merged = norm_paths[0]
+                logger.info("[VIDEO] single clip — no xfade needed")
+            else:
+                merged = os.path.join(tmpdir, "merged.mp4")
+                durations = [await self._get_duration(p) for p in norm_paths]
+                fade_dur = min(FADE_DUR, min(durations) * 0.15)
+                logger.info(f"[VIDEO] xfade {len(norm_paths)} clips fade={fade_dur:.2f}s transition={FADE_TRANSITION}")
+                await self._xfade_clips(norm_paths, durations, fade_dur, merged)
 
-            # optional logo overlay
+            # 4. Optional logo overlay
             logo_path = None
             if logo_url:
                 logo_path = os.path.join(tmpdir, "logo.png")
@@ -98,13 +122,9 @@ class VideoService:
                 except Exception:
                     logo_path = None
 
-            output_path = os.path.join(tmpdir, "output.mp4")
             base = merged
-
-            # re-encode with logo if present
             if logo_path:
                 base = os.path.join(tmpdir, "with_logo.mp4")
-                # scale logo to 15% of video width, place bottom-right with 30px margin + fade in/out
                 await self._run_ffmpeg([
                     "ffmpeg", "-y",
                     "-i", merged, "-i", logo_path,
@@ -112,11 +132,13 @@ class VideoService:
                     "[1:v]scale=iw*0.15:-1,format=rgba,colorchannelmixer=aa=0.85[logo];"
                     "[0:v][logo]overlay=W-w-30:H-h-30[v]",
                     "-map", "[v]", "-map", "0:a?",
-                    "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "18",
                     "-c:a", "copy", "-movflags", "+faststart",
                     base,
                 ])
 
+            # 5. Mix voiceover
+            output_path = os.path.join(tmpdir, "output.mp4")
             if voiceover_url:
                 audio_path = os.path.join(tmpdir, "audio.mp3")
                 await self._download_file(voiceover_url, audio_path)
@@ -197,9 +219,6 @@ class VideoService:
                 audio_path = os.path.join(tmpdir, "audio.mp3")
                 await self._download_file(voiceover_url, audio_path)
                 logger.info(f"[REMIX] audio downloaded size={os.path.getsize(audio_path)}")
-                # Explicit map: video from input 0, audio from input 1
-                # -map 0:v:0 ensures we copy the video stream
-                # -map 1:a:0 ensures we use the NEW audio (not any silent track from the source)
                 await self._run_ffmpeg([
                     "ffmpeg", "-y",
                     "-i", video_path, "-i", audio_path,
@@ -211,7 +230,6 @@ class VideoService:
                 ])
             else:
                 logger.warning(f"[REMIX] no voiceover_url — stripping audio from job={job_id}")
-                # strip existing audio
                 await self._run_ffmpeg([
                     "ffmpeg", "-y", "-i", video_path,
                     "-map", "0:v:0",
@@ -231,6 +249,67 @@ class VideoService:
             prefix=job_id,
         )
         return {"url": url, "size_bytes": len(video_bytes)}
+
+    async def _get_duration(self, video_path: str) -> float:
+        """Get video duration in seconds using ffprobe."""
+        proc = await asyncio.create_subprocess_exec(
+            "ffprobe", "-v", "quiet",
+            "-print_format", "json",
+            "-show_streams", video_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await proc.communicate()
+        try:
+            data = json.loads(stdout)
+            for stream in data.get("streams", []):
+                if stream.get("codec_type") == "video":
+                    return float(stream.get("duration", 5.0))
+        except Exception:
+            pass
+        return 5.0
+
+    async def _xfade_clips(
+        self,
+        clip_paths: list[str],
+        durations: list[float],
+        fade_dur: float,
+        output: str,
+    ):
+        """Chain clips with xfade dissolve transition using calculated offsets."""
+        n = len(clip_paths)
+
+        inputs = []
+        for cp in clip_paths:
+            inputs += ["-i", cp]
+
+        # Build chained xfade filter
+        # offset[i] = sum(d[0..i]) - (i+1)*fade_dur  (time in the chained stream where transition starts)
+        filter_parts = []
+        cumulative = 0.0
+
+        for i in range(n - 1):
+            cumulative += durations[i]
+            offset = max(0.0, cumulative - (i + 1) * fade_dur)
+
+            in_a = "[0:v]" if i == 0 else f"[v{i-1}{i}]"
+            in_b = f"[{i+1}:v]"
+            out_label = "[vout]" if i == n - 2 else f"[v{i}{i+1}]"
+
+            filter_parts.append(
+                f"{in_a}{in_b}xfade=transition={FADE_TRANSITION}"
+                f":duration={fade_dur:.3f}:offset={offset:.3f}{out_label}"
+            )
+
+        await self._run_ffmpeg([
+            "ffmpeg", "-y",
+            *inputs,
+            "-filter_complex", ";".join(filter_parts),
+            "-map", "[vout]",
+            "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+            "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+            output,
+        ])
 
     async def _download_file(self, url: str, dest: str):
         if url.startswith("/"):
@@ -270,20 +349,15 @@ class VideoService:
             ])
             clip_paths.append(clip_path)
 
-        # Concat clips without re-encode
-        concat_file = os.path.join(tmpdir, "concat.txt")
-        with open(concat_file, "w") as f:
-            for cp in clip_paths:
-                f.write(f"file '{cp}'\n")
-
+        # Crossfade between Ken Burns clips too
         merged = os.path.join(tmpdir, "merged.mp4")
-        await self._run_ffmpeg([
-            "ffmpeg", "-y",
-            "-f", "concat", "-safe", "0", "-i", concat_file,
-            "-c", "copy", merged,
-        ])
+        if len(clip_paths) == 1:
+            merged = clip_paths[0]
+        else:
+            durations = [per_image] * len(clip_paths)
+            fade_dur = min(FADE_DUR, per_image * 0.15)
+            await self._xfade_clips(clip_paths, durations, fade_dur, merged)
 
-        # Mix with audio (or video only)
         if audio_path and os.path.exists(audio_path):
             await self._run_ffmpeg([
                 "ffmpeg", "-y",
