@@ -391,7 +391,7 @@ export default function StoryboardPage() {
       <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--faint)" }}>Story Mode</p>
       <h1 style={{ margin: "0 0 4px", fontSize: 24, fontWeight: 800 }}>Storyboard Editor</h1>
       <p style={{ margin: "0 0 24px", fontSize: 13, color: "var(--dim)" }}>
-        แต่ละคลิปมี prompt ของตัวเอง · พิมพ์ concept (ไทยหรือ English ก็ได้) → Gemini อ่านรูป + concept → เขียน prompt ~120 คำ → ส่งไป AI Model ที่เลือก
+        แต่ละคลิปมี prompt ของตัวเอง · พิมพ์ concept (ไทยหรือ English ก็ได้) → Gemini อ่านรูป + concept → เขียน prompt 140-155 คำ → ส่งไป AI Model ที่เลือก
       </p>
 
       {/* ── Model selector ── */}
@@ -659,7 +659,7 @@ export default function StoryboardPage() {
           <div style={{ background: "rgba(0,0,0,.2)", border: "1px solid var(--gb)", borderRadius: 12, padding: "14px 16px", marginBottom: 14, fontSize: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px", color: "var(--faint)", lineHeight: 2.1 }}>
             <span>AI Model:</span><b style={{ color: modelDef.color }}>{modelDef.label} — {modelDef.outputLine1}</b>
             <span>จำนวนคลิป:</span><b style={{ color: "var(--dim)" }}>{slots.length} คลิป × {slots.map(s=>s.duration).join("/")} วิ = {totalDuration} วิ</b>
-            {modelDef.isAI && <><span>ทุก prompt ก่อน render:</span><b style={{ color: "#22D499" }}>Gemini อ่านรูป + concept ที่คุณเขียน → prompt 110+ คำ</b></>}
+            {modelDef.isAI && <><span>ทุก prompt ก่อน render:</span><b style={{ color: "#22D499" }}>Gemini อ่านรูป + concept ที่คุณเขียน → prompt 140-155 คำ</b></>}
             {modelDef.isAI && <><span>concept ของคุณ:</span><b style={{ color: "#f59e0b" }}>ถูกรักษาไว้เป็น scene หลัก — Gemini เพิ่ม cinematic detail รอบๆ</b></>}
             {modelDef.isAI && <><span>Prompt limit:</span><b style={{ color: "var(--dim)" }}>{modelDef.promptLimit?.toLocaleString()} ตัวอักษร · 1 รูป/คลิป</b></>}
             {modelDef.isAI && <><span>เสียงพากย์:</span><b style={{ color: "var(--ok)" }}>Gemini script + ElevenLabs voice</b></>}
@@ -671,16 +671,24 @@ export default function StoryboardPage() {
             <div style={{ marginBottom: 12, padding: "10px 14px", background: `${modelDef.color}0a`, border: `1px solid ${modelDef.color}30`, borderRadius: 10, fontSize: 11.5, color: "var(--dim)", lineHeight: 1.8 }}>
               <b style={{ color: modelDef.color }}>Flow อัตโนมัติเมื่อกด render ({modelDef.label}):</b>
               {" "}Gemini Vision อ่านรูปแต่ละคลิป + concept ที่คุณพิมพ์ →
-              {" "}เขียน prompt ~120 คำ (รักษา concept ไว้เป็น scene หลัก เพิ่ม camera/light/atmosphere) →
+              {" "}เขียน prompt 140-155 คำ (รักษา concept ไว้เป็น scene หลัก เพิ่ม camera/light/atmosphere) →
               {" "}ส่งให้ {modelDef.label} สร้างวิดีโอทีละคลิป → ต่อเป็นวิดีโอเดียว + เสียงพากย์ AI
+            </div>
+          )}
+
+          {modelDef.isAI && totalCost > 5 && (
+            <div style={{ marginBottom: 10, padding: "10px 14px", background: "rgba(255,77,106,.08)", border: "1px solid rgba(255,77,106,.3)", borderRadius: 10, fontSize: 12, color: "#f87171", lineHeight: 1.6 }}>
+              ⚠️ ราคาสูง — {slots.length} คลิป × ${modelDef.pricePerClip} = <b>${totalCost.toFixed(2)} (~{Math.round(totalCost * 35)} บาท)</b> · กด Generate เมื่อพร้อมจริงๆ
             </div>
           )}
 
           <button onClick={runRender} style={{
             width: "100%", padding: "15px", borderRadius: 14, cursor: "pointer",
-            background: `linear-gradient(90deg,${modelDef.color},var(--blue))`, border: "none",
-            color: "#06060A", fontSize: 15, fontWeight: 900,
-            boxShadow: `0 6px 24px ${modelDef.color}40`,
+            background: totalCost > 5 && modelDef.isAI
+              ? "linear-gradient(90deg,#f87171,#ef4444)"
+              : `linear-gradient(90deg,${modelDef.color},var(--blue))`,
+            border: "none", color: "#fff", fontSize: 15, fontWeight: 900,
+            boxShadow: totalCost > 5 && modelDef.isAI ? "0 6px 24px rgba(239,68,68,.4)" : `0 6px 24px ${modelDef.color}40`,
           }}>
             {!modelDef.isAI
               ? `สร้าง Ken Burns ${slots.length} คลิป (ฟรี) →`
