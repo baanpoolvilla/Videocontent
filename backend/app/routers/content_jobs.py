@@ -514,6 +514,124 @@ async def _do_remix_audio(job_id: UUID, video_url: str, voiceover_url: str, voic
                 pass
 
 
+from pydantic import BaseModel as _BM
+class _StoryClip(_BM):
+    image_index: int = 0
+    prompt: str = ""
+    duration_sec: int = 5
+
+class _StoryRequest(_BM):
+    clips: list[_StoryClip]
+    ai_model: str = "hailuo2pro"
+    aspect_ratio: str = "9:16"
+    voiceover_url: str = ""
+
+@router.post("/{job_id}/story-render", response_model=dict, status_code=202)
+async def story_render(
+    job_id: UUID,
+    body: _StoryRequest,
+    background_tasks: BackgroundTasks,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    product_result = await db.execute(select(Product).where(Product.id == job.product_id))
+    product = product_result.scalar_one_or_none()
+    image_urls = list(product.media_urls or []) if product else []
+    job.status = "processing"
+    await db.commit()
+    background_tasks.add_task(_do_story_render, job_id=job_id, image_urls=image_urls, body=body)
+    return {"status": "processing", "job_id": str(job_id), "clips": len(body.clips)}
+
+
+async def _do_story_render(job_id: UUID, image_urls: list[str], body: _StoryRequest):
+    from app.services.wan import MODELS as WAN_MODELS
+    import re
+    fal_model = WAN_MODELS.get(body.ai_model, WAN_MODELS["hailuo2pro"])
+    aspect = body.aspect_ratio.replace("x", ":")
+
+    async with AsyncSessionLocal() as db:
+        try:
+            clip_urls: list[str] = []
+
+            for slot in body.clips:
+                idx = min(slot.image_index, len(image_urls) - 1)
+                img_path = image_urls[idx] if image_urls else ""
+                prompt = re.sub(r'[฀-๿]+', '', slot.prompt).strip() or _STYLE_PROMPTS.get("luxury", "")
+
+                if body.ai_model != "kenburs" and img_path and settings.FAL_KEY:
+                    raw = img_path.strip("/")
+                    public_url = f"{settings.API_BASE_URL}/api/v1/files/{raw}"
+                    try:
+                        result = await wan_service.generate_clip(
+                            image_url=public_url,
+                            prompt=prompt[:2000],
+                            duration=slot.duration_sec,
+                            aspect_ratio=aspect,
+                            model=fal_model,
+                        )
+                        clip_urls.append(result["video_url"])
+                        logger.info(f"[STORY] clip done idx={idx} url={result['video_url'][:60]}")
+                    except Exception as e:
+                        logger.warning(f"[STORY] clip failed idx={idx}: {e} — falling back to kenburs")
+                        # fallback: ken burns for this clip
+                        kb_result = await video_service.render_video(
+                            job_id=f"{job_id}_s{idx}",
+                            voiceover_url="",
+                            image_urls=[img_path],
+                            duration_sec=slot.duration_sec,
+                        )
+                        clip_urls.append(kb_result["url"])
+                else:
+                    kb_result = await video_service.render_video(
+                        job_id=f"{job_id}_s{idx}",
+                        voiceover_url="",
+                        image_urls=[img_path] if img_path else [],
+                        duration_sec=slot.duration_sec,
+                    )
+                    clip_urls.append(kb_result["url"])
+
+            total_dur = sum(s.duration_sec for s in body.clips)
+            final = await video_service.compose_from_clips(
+                job_id=str(job_id),
+                clip_urls=clip_urls,
+                voiceover_url=body.voiceover_url,
+                duration_sec=total_dur,
+            )
+
+            result2 = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+            job2 = result2.scalar_one_or_none()
+            if job2:
+                render = RenderVersion(
+                    content_job_id=job_id,
+                    version_label="story",
+                    final_video_url=final["url"],
+                    status="completed",
+                    ffmpeg_config={"provider": "story", "clips": len(body.clips), "model": body.ai_model},
+                )
+                db.add(render)
+                job2.status = "completed"
+                job2.review_status = "review_needed"
+                await db.commit()
+                logger.info(f"[STORY] done job={job_id} clips={len(clip_urls)} url={final['url'][:60]}")
+
+        except Exception as e:
+            logger.error(f"[STORY] failed job={job_id}: {e}")
+            try:
+                async with AsyncSessionLocal() as db2:
+                    r = await db2.execute(select(ContentJob).where(ContentJob.id == job_id))
+                    j = r.scalar_one_or_none()
+                    if j:
+                        j.status = "failed"
+                        j.error_message = str(e)[:500]
+                        await db2.commit()
+            except Exception:
+                pass
+
+
 @router.post("/{job_id}/kling-render", response_model=dict)
 async def kling_render(
     job_id: UUID,
