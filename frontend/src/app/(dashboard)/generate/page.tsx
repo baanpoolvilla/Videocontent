@@ -13,7 +13,7 @@ interface Product { id: string; name: string; media_urls: string[]; }
 type Phase = "home" | "story" | "generating" | "prompt_edit" | "rendering" | "done" | "error";
 type Mode  = "assets" | "script" | "audio" | "ads";
 type AspectRatio = "9:16" | "1:1" | "16:9";
-type AIModel = "kenburs" | "kling3s" | "seedance2" | "seedance2_pro" | "hailuo2pro";
+type AIModel = "kenburs" | "hailuo2pro" | "wan21" | "kling3s" | "kling3s_pro" | "seedance2" | "seedance2_pro";
 
 interface ChatMsg {
   role: "user" | "ai" | "loading";
@@ -127,11 +127,29 @@ const MODEL_OPTIONS: { id: AIModel; label: string; desc: string; priceClip: stri
   {
     id: "hailuo2pro",
     label: "Hailuo 2.3 Pro",
-    desc: "Minimax — motion ละเอียดสูง",
+    desc: "Minimax — motion ลื่น atmospheric",
     priceClip: "$0.49 / คลิป",
     price3clips: "~$1.47 / วิดีโอ",
     badge: "ถูก",
     color: "#A78BFA",
+  },
+  {
+    id: "wan21",
+    label: "Wan 2.1",
+    desc: "Alibaba — เข้าใจ prompt ดี ราคาประหยัด",
+    priceClip: "$0.30 / คลิป",
+    price3clips: "~$0.90 / วิดีโอ",
+    badge: "ถูกสุด",
+    color: "#34D399",
+  },
+  {
+    id: "kling3s_pro",
+    label: "Kling v3 Pro",
+    desc: "Kuaishou — คุณภาพสูงสุด ระดับภาพยนตร์",
+    priceClip: "$2.88 / คลิป",
+    price3clips: "~$8.64 / วิดีโอ",
+    badge: "Pro",
+    color: "#818CF8",
   },
 ];
 
@@ -365,7 +383,8 @@ export default function GeneratePage() {
           params: {
             style: styleId,
             concept: answers.visual || "",
-            image_url: imgUrl,  // Gemini Vision reads the actual product image
+            image_url: imgUrl,
+            ai_model: aiModel,
           },
         });
         suggested = suggestRes.data.video_prompt || "";
@@ -873,6 +892,7 @@ export default function GeneratePage() {
             style: pendingStyle,
             concept: answers.visual || "",
             image_url: imgUrl,
+            ai_model: aiModel,
           },
         });
         setVideoPrompt(r.data.video_prompt || "");

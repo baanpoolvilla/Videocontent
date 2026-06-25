@@ -245,7 +245,7 @@ export default function StoryboardPage() {
     try {
       const jobId = await getOrCreateJob(product.id);
       const r = await api.get(`/jobs/${jobId}/suggest-video-prompt`, {
-        params: { style: "luxury", concept: slots[i].prompt, image_url: slotImgUrl(slots[i]), ai_model: aiModel },
+        params: { style: "luxury", concept: slots[i].prompt, image_url: slotImgUrl(slots[i]), ai_model: aiModel, slot_index: i, total_slots: slots.length },
       });
       updateSlot(i, { prompt: r.data.video_prompt || "" });
     } catch { /* keep */ }
@@ -266,6 +266,8 @@ export default function StoryboardPage() {
             concept: slot.prompt,
             image_url: slotImgUrl(slot),
             ai_model: aiModel,
+            slot_index: i,
+            total_slots: enhanced.length,
           },
         });
         if (r.data.video_prompt) {
