@@ -14,6 +14,7 @@ interface ClipSlot {
   imageIndex: number;
   prompt: string;
   duration: number;
+  label: string;
 }
 
 interface ModelDef {
@@ -197,7 +198,7 @@ export default function StoryboardPage() {
     setSessionJobId(null);
     setImgPickerOpen(null);
     const defaultDur = MODELS.find(m => m.id === aiModel)!.durations[0];
-    setSlots(p.media_urls.slice(0, 6).map((_, i) => ({ imageIndex: i, prompt: "", duration: defaultDur })));
+    setSlots(p.media_urls.slice(0, 6).map((_, i) => ({ imageIndex: i, prompt: "", duration: defaultDur, label: "" })));
   };
 
   const getOrCreateJob = async (productId: string): Promise<string> => {
@@ -228,7 +229,7 @@ export default function StoryboardPage() {
     const usedSet = new Set(slots.map(s => s.imageIndex));
     const nextFree = product.media_urls.findIndex((_, idx) => !usedSet.has(idx));
     const addIdx = nextFree >= 0 ? nextFree : slots.length % product.media_urls.length;
-    setSlots(prev => [...prev, { imageIndex: addIdx, prompt: "", duration: modelDef.durations[0] }]);
+    setSlots(prev => [...prev, { imageIndex: addIdx, prompt: "", duration: modelDef.durations[0], label: "" }]);
   };
 
   // Build public image URL for a given slot
@@ -293,10 +294,11 @@ export default function StoryboardPage() {
         const enhanced = await autoEnhanceAll(jobId, slots);
         setSlots(enhanced);
 
-        // 2. Generate script for voiceover
+        // 2. Generate script for voiceover — pass scenes so Gemini writes voiceover matching each room/clip
         setRenderStep("Gemini เขียน script เสียงพากย์...");
+        const scenesJson = JSON.stringify(enhanced.map((s, idx) => s.label.trim() || `Scene ${idx + 1}`));
         await api.post(`/jobs/${jobId}/generate-script`, null, {
-          params: { tone_of_voice: "luxury cinematic", duration_sec: totalDuration, concept: "" },
+          params: { tone_of_voice: "luxury cinematic", duration_sec: totalDuration, concept: "", scenes: scenesJson },
         });
 
         // 3. Generate voiceover
@@ -316,6 +318,7 @@ export default function StoryboardPage() {
             image_index: s.imageIndex,
             prompt: s.prompt,
             duration_sec: Math.min(s.duration, modelDef.durations[modelDef.durations.length - 1]),
+            label: s.label || "",
           })),
           ai_model: aiModel,
           aspect_ratio: "9:16",
@@ -619,6 +622,27 @@ export default function StoryboardPage() {
                           Gemini จะรักษา concept นี้ไว้ทั้งหมด + เพิ่ม camera move / lighting / atmosphere ให้วิดีโอสวยขึ้น
                         </div>
                       )}
+
+                      {/* Text label overlay — optional, user-typed, shown first 3s of clip */}
+                      <div style={{ marginTop: 8 }}>
+                        <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>
+                          Text บนจอ <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(ไม่บังคับ — ขึ้น 3 วิแรก fade in/out)</span>
+                        </div>
+                        <input
+                          type="text"
+                          value={slot.label}
+                          onChange={e => updateSlot(i, { label: e.target.value })}
+                          placeholder="เช่น  ห้องนอน · Living Room · ห้องครัว"
+                          maxLength={35}
+                          style={{
+                            width: "100%", background: "#1a1a22",
+                            border: slot.label.trim() ? "1px solid rgba(0,255,212,.3)" : "1px solid var(--gb)",
+                            borderRadius: 8, padding: "6px 10px",
+                            color: "var(--text)", fontSize: 12, outline: "none",
+                            boxSizing: "border-box",
+                          }}
+                        />
+                      </div>
                     </div>
 
                     {/* Duration selector */}

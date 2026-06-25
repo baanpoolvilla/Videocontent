@@ -159,6 +159,7 @@ async def generate_script(
     cta_style: str = "",
     duration_sec: int = 30,
     concept: str = "",
+    scenes: str = "",   # JSON array of scene descriptions, e.g. '["สระน้ำ","ห้องนอน"]'
 ):
     result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
     job = result.scalar_one_or_none()
@@ -194,6 +195,14 @@ async def generate_script(
         "mood": analysis.mood or "",
     }
 
+    import json as _json
+    scenes_list: list[str] = []
+    if scenes:
+        try:
+            scenes_list = _json.loads(scenes)
+        except Exception:
+            pass
+
     ai_result = await ai_service.generate_script(
         product_name=product.name,
         analysis=analysis_data,
@@ -201,6 +210,7 @@ async def generate_script(
         cta_style=cta_style,
         duration_sec=duration_sec,
         concept=concept,
+        scenes=scenes_list,
     )
 
     existing = await db.execute(select(Script).where(Script.content_job_id == job_id))
@@ -519,6 +529,7 @@ class _StoryClip(_BM):
     image_index: int = 0
     prompt: str = ""
     duration_sec: int = 5
+    label: str = ""     # optional text overlay — shown first 3s of clip, empty = no overlay
 
 class _StoryRequest(_BM):
     clips: list[_StoryClip]
@@ -595,11 +606,13 @@ async def _do_story_render(job_id: UUID, image_urls: list[str], body: _StoryRequ
                     clip_urls.append(kb_result["url"])
 
             total_dur = sum(s.duration_sec for s in body.clips)
+            labels = [s.label for s in body.clips]
             final = await video_service.compose_from_clips(
                 job_id=str(job_id),
                 clip_urls=clip_urls,
                 voiceover_url=body.voiceover_url,
                 duration_sec=total_dur,
+                labels=labels,
             )
 
             result2 = await db.execute(select(ContentJob).where(ContentJob.id == job_id))

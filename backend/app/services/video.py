@@ -74,8 +74,9 @@ class VideoService:
         voiceover_url: str,
         duration_sec: int = 30,
         logo_url: str = "",
+        labels: list[str] = [],
     ) -> dict:
-        """Compose AI-generated clips into final video with crossfade transitions."""
+        """Compose AI-generated clips into final video with crossfade transitions and optional text labels."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # 1. Download all clips
             clip_paths = []
@@ -85,22 +86,43 @@ class VideoService:
                 clip_paths.append(p)
 
             # 2. Normalize: same resolution, fps, codec — strip audio (voiceover added later)
+            # If label is set for this clip, burn it in as a fade-in/fade-out text overlay (first 3s only)
             norm_paths = []
             for i, cp in enumerate(clip_paths):
                 np_ = os.path.join(tmpdir, f"norm_{i}.mp4")
+                label = labels[i].strip() if i < len(labels) else ""
+                # Sanitize: remove ffmpeg filter special chars
+                safe_label = label.replace("'", "").replace("\\", "").replace(":", " ").replace("[", "").replace("]", "").replace(";", "")[:35]
+
+                base_vf = (
+                    f"scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=increase,"
+                    f"crop={OUT_W}:{OUT_H}"
+                )
+                if safe_label:
+                    # Text fades in 0→0.5s, stays until 2.5s, fades out 2.5→3.0s
+                    alpha_expr = "if(lt(t,0.5),(t/0.5),if(lt(t,2.5),1,if(lt(t,3.0),((3.0-t)/0.5),0)))"
+                    vf = (
+                        f"{base_vf},"
+                        f"drawtext=text='{safe_label}'"
+                        f":fontsize=52:fontcolor=white"
+                        f":x=(w-text_w)/2:y=h*0.82"
+                        f":alpha='{alpha_expr}'"
+                        f":box=1:boxcolor=black@0.45:boxborderw=14"
+                        f":shadowcolor=black@0.7:shadowx=2:shadowy=2"
+                    )
+                else:
+                    vf = base_vf
+
                 await self._run_ffmpeg([
                     "ffmpeg", "-y", "-i", cp,
-                    "-vf", (
-                        f"scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=increase,"
-                        f"crop={OUT_W}:{OUT_H}"
-                    ),
+                    "-vf", vf,
                     "-r", "25",
                     "-c:v", "libx264", "-preset", "fast", "-crf", "18",
                     "-pix_fmt", "yuv420p", "-an",
                     np_,
                 ])
                 norm_paths.append(np_)
-                logger.info(f"[VIDEO] normalized clip {i}: {cp}")
+                logger.info(f"[VIDEO] normalized clip {i} label={repr(safe_label)}")
 
             # 3. Merge with crossfade dissolve between clips
             if len(norm_paths) == 1:
