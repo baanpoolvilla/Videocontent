@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import make_asgi_app
@@ -7,9 +8,20 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger("app").setLevel(logging.INFO)
 
 from app.core.config import settings
-from app.routers import assets, auth, billing, brand_profiles, content_jobs, dashboard, files, image_to_video, products, prompts, schedule, voice
+from app.core.database import engine, Base
+from app.routers import assets, audio_assets, auth, billing, brand_profiles, content_jobs, dashboard, files, image_to_video, products, prompts, schedule, voice
+import app.models  # noqa: F401 — ensure all models are registered before create_all
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+
 
 app = FastAPI(
+    lifespan=lifespan,
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     docs_url=f"{settings.API_PREFIX}/docs",
@@ -41,6 +53,7 @@ app.include_router(assets.router, prefix=settings.API_PREFIX)
 app.include_router(prompts.router, prefix=settings.API_PREFIX)
 app.include_router(image_to_video.router, prefix=settings.API_PREFIX)
 app.include_router(voice.router, prefix=settings.API_PREFIX)
+app.include_router(audio_assets.router, prefix=settings.API_PREFIX)
 app.include_router(billing.router, prefix=settings.API_PREFIX)
 
 

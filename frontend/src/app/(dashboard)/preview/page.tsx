@@ -7,7 +7,13 @@ import {
   Download, Play, RefreshCw, Loader2, Send,
   ToggleLeft, ToggleRight, Share2, Copy, Check,
   ChevronLeft, ChevronRight, Sparkles, Film,
+  Headphones, Upload, X, Pause,
 } from "lucide-react";
+
+interface AudioAsset {
+  id: string; name: string; url: string;
+  voice_style: string | null; characters_used: number; created_at: string;
+}
 
 interface Job {
   id: string; product_id: string; status: string;
@@ -63,6 +69,13 @@ export default function PreviewPage() {
   const [originalVol, setOriginalVol] = useState(0);
   const [voiceVol, setVoiceVol]       = useState(100);
   const [showVolPanel, setShowVolPanel] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
+  const [audioAssets, setAudioAssets] = useState<AudioAsset[]>([]);
+  const [loadingAssets, setLoadingAssets] = useState(false);
+  const [previewPlayId, setPreviewPlayId] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const uploadRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -123,6 +136,59 @@ export default function PreviewPage() {
       router.push("/generate");
     } catch { /* ignore */ }
     finally { setRemixing(false); }
+  };
+
+  const openPicker = async () => {
+    setShowPicker(true);
+    setLoadingAssets(true);
+    try {
+      const r = await api.get("/audio-assets/");
+      setAudioAssets(r.data);
+    } finally {
+      setLoadingAssets(false);
+    }
+  };
+
+  const pickAsset = (asset: AudioAsset) => {
+    setSwapAudioUrl(fileUrl(asset.url));
+    setSwapDone(false);
+    setShowPicker(false);
+  };
+
+  const togglePreview = (asset: AudioAsset) => {
+    const url = fileUrl(asset.url);
+    if (previewPlayId === asset.id) {
+      previewAudioRef.current?.pause();
+      setPreviewPlayId(null);
+    } else {
+      previewAudioRef.current?.pause();
+      const audio = new Audio(url);
+      previewAudioRef.current = audio;
+      audio.play();
+      audio.onended = () => setPreviewPlayId(null);
+      setPreviewPlayId(asset.id);
+    }
+  };
+
+  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const r = await api.post("/files/upload-audio", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setSwapAudioUrl(r.data.url);
+      setSwapDone(false);
+      setShowPicker(false);
+    } catch {
+      alert("อัปโหลดไม่สำเร็จ — ลองอีกครั้ง");
+    } finally {
+      setUploading(false);
+      if (uploadRef.current) uploadRef.current.value = "";
+    }
   };
 
   const handleSwapAudio = async () => {
@@ -250,16 +316,17 @@ export default function PreviewPage() {
         {/* Swap audio */}
         <div style={{ position: "relative" }}>
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-            <input
-              value={swapAudioUrl}
-              onChange={e => { setSwapAudioUrl(e.target.value); setSwapDone(false); }}
-              placeholder="วาง Audio URL จาก Voice Generator..."
-              style={{
-                width: 220, padding: "6px 10px", borderRadius: 8, fontSize: 11,
-                background: "#1a1a22", border: `1px solid ${swapDone ? "rgba(0,255,212,.4)" : "var(--gb)"}`,
-                color: "var(--text)", outline: "none",
-              }}
-            />
+            {/* Picker button */}
+            <button onClick={openPicker} style={{
+              display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8,
+              background: swapAudioUrl ? "rgba(0,255,212,.1)" : "var(--glass)",
+              border: `1px solid ${swapAudioUrl ? "rgba(0,255,212,.35)" : "var(--gb)"}`,
+              color: swapAudioUrl ? "var(--teal)" : "var(--dim)", fontSize: 11, fontWeight: 700, cursor: "pointer",
+              maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>
+              <Headphones size={12} />
+              {swapAudioUrl ? "เสียงพร้อมแล้ว ✓" : "เลือกเสียง"}
+            </button>
             {/* Volume toggle */}
             <button
               onClick={() => setShowVolPanel(v => !v)}
@@ -654,6 +721,95 @@ export default function PreviewPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Audio Picker Modal ── */}
+      {showPicker && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 100,
+          background: "rgba(0,0,0,.7)", display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 20,
+        }} onClick={() => setShowPicker(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: "#13131a", border: "1px solid var(--gb)", borderRadius: 18,
+            width: "100%", maxWidth: 520, maxHeight: "80vh",
+            display: "flex", flexDirection: "column", overflow: "hidden",
+            boxShadow: "0 24px 64px rgba(0,0,0,.8)",
+          }}>
+            {/* Modal header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px", borderBottom: "1px solid var(--gb)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Headphones size={16} color="var(--teal)" />
+                <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>เลือกเสียงพากย์</span>
+              </div>
+              <button onClick={() => setShowPicker(false)} style={{ background: "none", border: "none", color: "var(--faint)", cursor: "pointer" }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Upload from device */}
+            <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--gb)" }}>
+              <input ref={uploadRef} type="file" accept="audio/*" style={{ display: "none" }} onChange={handleUploadFile} />
+              <button onClick={() => uploadRef.current?.click()} disabled={uploading} style={{
+                width: "100%", padding: "10px", borderRadius: 10, cursor: "pointer",
+                background: "rgba(77,127,255,.08)", border: "1px dashed rgba(77,127,255,.3)",
+                color: "var(--blue)", fontSize: 12, fontWeight: 700,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+              }}>
+                {uploading ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> : <Upload size={13} />}
+                {uploading ? "กำลังอัปโหลด..." : "อัปโหลดไฟล์เสียงจากเครื่อง"}
+              </button>
+            </div>
+
+            {/* Library list */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "10px 20px 16px" }}>
+              {loadingAssets ? (
+                <div style={{ display: "flex", justifyContent: "center", padding: 32 }}>
+                  <Loader2 size={22} color="var(--teal)" style={{ animation: "spin 1s linear infinite" }} />
+                </div>
+              ) : audioAssets.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "32px 0", color: "var(--faint)", fontSize: 13 }}>
+                  ยังไม่มีเสียงในคลัง — ไปสร้างใน Voice Generator ก่อน
+                </div>
+              ) : (
+                <>
+                  <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 700, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".05em" }}>
+                    คลังเสียง ({audioAssets.length})
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                    {audioAssets.map(asset => (
+                      <div key={asset.id} style={{
+                        display: "flex", alignItems: "center", gap: 10,
+                        padding: "10px 12px", borderRadius: 10,
+                        background: "rgba(255,255,255,.03)", border: "1px solid var(--gb)",
+                        cursor: "pointer",
+                      }} onClick={() => pickAsset(asset)}>
+                        <button onClick={e => { e.stopPropagation(); togglePreview(asset); }} style={{
+                          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                          background: previewPlayId === asset.id ? "rgba(0,255,212,.2)" : "rgba(255,255,255,.06)",
+                          border: `1px solid ${previewPlayId === asset.id ? "rgba(0,255,212,.4)" : "rgba(255,255,255,.1)"}`,
+                          color: previewPlayId === asset.id ? "var(--teal)" : "var(--dim)",
+                          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>
+                          {previewPlayId === asset.id ? <Pause size={12} /> : <Play size={12} />}
+                        </button>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {asset.name}
+                          </p>
+                          <p style={{ margin: "2px 0 0", fontSize: 10, color: "var(--faint)" }}>
+                            {asset.voice_style} · {asset.characters_used} chars
+                          </p>
+                        </div>
+                        <span style={{ fontSize: 11, color: "var(--teal)", fontWeight: 700, flexShrink: 0 }}>เลือก →</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }

@@ -9,9 +9,10 @@ from app.models.platform_account import PlatformAccount
 from app.models.scheduled_post import ScheduledPost
 from app.models.asset import Asset
 from app.models.prompt_template import PromptTemplate
+from app.models.audio_asset import AudioAsset
 
 __all__ = [
     "User", "BrandProfile", "Product", "Analysis", "ContentJob",
     "Script", "RenderVersion", "PlatformAccount", "ScheduledPost",
-    "Asset", "PromptTemplate",
+    "Asset", "PromptTemplate", "AudioAsset",
 ]

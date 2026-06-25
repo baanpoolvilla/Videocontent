@@ -2,7 +2,8 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Mic2, Play, Download, Loader2, Volume2, Copy, Check, Film } from "lucide-react";
+import { Mic2, Download, Loader2, Volume2, Copy, Check, Film, BookmarkPlus } from "lucide-react";
+import { api } from "@/lib/api";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const API = `${BASE}/api/v1`;
@@ -39,13 +40,35 @@ export default function VoicePage() {
   const [result, setResult] = useState<{ url: string; characters_used: number; provider: string; voice_style?: string } | null>(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  async function saveToLibrary() {
+    if (!result) return;
+    setSaving(true);
+    try {
+      const name = text.trim().slice(0, 50) || "เสียงพากย์";
+      await api.post("/audio-assets/", {
+        name,
+        url: result.url,
+        voice_style: voice,
+        characters_used: result.characters_used,
+        script_text: text.trim(),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function generate() {
     if (!text.trim()) return;
     setLoading(true);
     setError("");
     setResult(null);
+    setSaved(false);
     try {
       const res = await fetch(`${API}/voice/generate`, {
         method: "POST",
@@ -297,43 +320,45 @@ export default function VoicePage() {
 
               {/* Action buttons */}
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
-                {/* Primary: ใส่ลงวิดีโอ */}
+                {/* บันทึกลงคลัง */}
+                <button onClick={saveToLibrary} disabled={saving || saved} style={{
+                  width: "100%", padding: "11px 0", borderRadius: 9, cursor: saving ? "wait" : "pointer",
+                  background: saved ? "rgba(0,255,212,.15)" : "rgba(255,176,46,.12)",
+                  border: `1px solid ${saved ? "rgba(0,255,212,.4)" : "rgba(255,176,46,.3)"}`,
+                  color: saved ? "#00FFD4" : "#ffb02e", fontSize: 13, fontWeight: 800,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                }}>
+                  {saving ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> : saved ? <Check size={13} /> : <BookmarkPlus size={13} />}
+                  {saved ? "บันทึกแล้ว!" : saving ? "กำลังบันทึก..." : "บันทึกลงคลัง"}
+                </button>
+                {/* ใส่ลงวิดีโอ */}
                 <button
                   onClick={() => router.push(`/preview?audio_url=${encodeURIComponent(toAudioUrl(result.url))}`)}
                   style={{
-                    width: "100%", padding: "11px 0", borderRadius: 9, cursor: "pointer",
-                    background: "linear-gradient(135deg, rgba(0,255,212,.2), rgba(77,127,255,.2))",
-                    border: "1px solid rgba(0,255,212,.4)",
+                    width: "100%", padding: "10px 0", borderRadius: 9, cursor: "pointer",
+                    background: "linear-gradient(135deg, rgba(0,255,212,.15), rgba(77,127,255,.15))",
+                    border: "1px solid rgba(0,255,212,.3)",
                     color: "#00FFD4", fontSize: 13, fontWeight: 800,
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
                   }}
                 >
-                  <Film size={14} />
-                  ใส่ลงวิดีโอ →
+                  <Film size={13} /> ใส่ลงวิดีโอ →
                 </button>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <a
-                    href={toAudioUrl(result.url)}
-                    download="voiceover.mp3"
-                    style={{
-                      flex: 1, padding: "8px 0", borderRadius: 9, textDecoration: "none",
-                      background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)",
-                      color: "#9ca3af", fontSize: 12, fontWeight: 700,
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                    }}
-                  >
-                    <Download size={13} />
-                    ดาวน์โหลด
+                  <a href={toAudioUrl(result.url)} download="voiceover.mp3" style={{
+                    flex: 1, padding: "8px 0", borderRadius: 9, textDecoration: "none",
+                    background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)",
+                    color: "#9ca3af", fontSize: 12, fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  }}>
+                    <Download size={13} /> ดาวน์โหลด
                   </a>
-                  <button
-                    onClick={copyUrl}
-                    style={{
-                      padding: "8px 14px", borderRadius: 9, cursor: "pointer",
-                      background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)",
-                      color: copied ? "#00FFD4" : "#9ca3af", fontSize: 12, fontWeight: 700,
-                      display: "flex", alignItems: "center", gap: 5,
-                    }}
-                  >
+                  <button onClick={copyUrl} style={{
+                    padding: "8px 14px", borderRadius: 9, cursor: "pointer",
+                    background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)",
+                    color: copied ? "#00FFD4" : "#9ca3af", fontSize: 12, fontWeight: 700,
+                    display: "flex", alignItems: "center", gap: 5,
+                  }}>
                     {copied ? <Check size={13} /> : <Copy size={13} />}
                     {copied ? "Copied!" : "Copy URL"}
                   </button>
