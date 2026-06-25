@@ -173,19 +173,37 @@ function getPromptStatus(prompt: string): { state: PromptState; label: string; c
   return { state: "good", label: "✅ concept ดี — Gemini รักษาไว้ + เพิ่ม cinematic detail", color: "#22D499", borderColor: "rgba(34,212,153,.2)" };
 }
 
+const VIDEO_TYPES = [
+  { id: "รีวิวบ้าน",         icon: "🏠", desc: "แนะนำห้องต่างๆ มีผู้บรรยาย" },
+  { id: "Luxury Showcase",  icon: "✨", desc: "cinematic สวยหรู ไม่มีคนพูด" },
+  { id: "ปาร์ตี้/เฮฮา",     icon: "🎉", desc: "สนุก energetic บรรยากาศงาน" },
+  { id: "โปรโมทราคา",       icon: "💰", desc: "เน้นราคา / โปรโมชัน / CTA" },
+];
+
 export default function StoryboardPage() {
   const router = useRouter();
   const [products, setProducts]         = useState<Product[]>([]);
   const [product, setProduct]           = useState<Product | null>(null);
   const [slots, setSlots]               = useState<ClipSlot[]>([]);
   const [aiModel, setAiModel]           = useState<AIModel>("hailuo2pro");
-  const [phase, setPhase]               = useState<"setup" | "rendering" | "done" | "error">("setup");
+  const [phase, setPhase]               = useState<"product_select" | "questions" | "ai_generating" | "setup" | "rendering" | "done" | "error">("product_select");
   const [renderStep, setRenderStep]     = useState("");
   const [errMsg, setErrMsg]             = useState("");
   const [videoUrl, setVideoUrl]         = useState("");
   const [generating, setGenerating]     = useState<number | null>(null);
   const [sessionJobId, setSessionJobId] = useState<string | null>(null);
   const [imgPickerOpen, setImgPickerOpen] = useState<number | null>(null);
+
+  // Guided questions state
+  const [videoType, setVideoType]       = useState("รีวิวบ้าน");
+  const [focusInput, setFocusInput]     = useState("");
+  const [targetDuration, setTargetDuration] = useState(30);
+
+  // Audio mode
+  const [audioMode, setAudioMode]       = useState<"ai" | "upload" | "none">("ai");
+  const [uploadedAudioUrl, setUploadedAudioUrl] = useState("");
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState("");
 
   const modelDef = MODELS.find(m => m.id === aiModel)!;
 
@@ -197,8 +215,7 @@ export default function StoryboardPage() {
     setProduct(p);
     setSessionJobId(null);
     setImgPickerOpen(null);
-    const defaultDur = MODELS.find(m => m.id === aiModel)!.durations[0];
-    setSlots(p.media_urls.slice(0, 6).map((_, i) => ({ imageIndex: i, prompt: "", duration: defaultDur, label: "" })));
+    setPhase("questions");
   };
 
   const getOrCreateJob = async (productId: string): Promise<string> => {
@@ -238,6 +255,49 @@ export default function StoryboardPage() {
     const imgPath = product.media_urls[slot.imageIndex] || "";
     const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     return imgPath.startsWith("/") ? `${base}/api/v1/files/${imgPath.slice(1)}` : imgPath;
+  };
+
+  const generateAIStoryboard = async () => {
+    if (!product) return;
+    setPhase("ai_generating");
+    try {
+      const jobId = await getOrCreateJob(product.id);
+      const r = await api.post(`/jobs/${jobId}/ai-storyboard`, null, {
+        params: { video_type: videoType, focus: focusInput, duration_sec: targetDuration, ai_model: aiModel },
+      });
+      const clips: { image_index: number; label: string; concept: string; duration_sec: number }[] = r.data.clips || [];
+      const defaultDur = MODELS.find(m => m.id === aiModel)!.durations[0];
+      setSlots(clips.map(c => ({
+        imageIndex: Math.min(c.image_index, product.media_urls.length - 1),
+        prompt: c.concept || "",
+        duration: MODELS.find(m => m.id === aiModel)!.durations.includes(c.duration_sec) ? c.duration_sec : defaultDur,
+        label: c.label || "",
+      })));
+      setPhase("setup");
+    } catch (e) {
+      // fallback: distribute images evenly
+      const defaultDur = MODELS.find(m => m.id === aiModel)!.durations[0];
+      setSlots(product.media_urls.slice(0, 6).map((_, i) => ({
+        imageIndex: i, prompt: "", duration: defaultDur, label: "",
+      })));
+      setPhase("setup");
+    }
+  };
+
+  const uploadAudio = async (file: File) => {
+    if (!product) return;
+    setUploadingAudio(true);
+    try {
+      const jobId = await getOrCreateJob(product.id);
+      const formData = new FormData();
+      formData.append("file", file);
+      const r = await api.post(`/jobs/${jobId}/upload-audio`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setUploadedAudioUrl(r.data.url || "");
+      setUploadedFileName(file.name);
+    } catch { setUploadedAudioUrl(""); }
+    setUploadingAudio(false);
   };
 
   const suggestPrompt = async (i: number) => {
@@ -289,29 +349,35 @@ export default function StoryboardPage() {
       const jobId = await getOrCreateJob(product.id);
 
       if (modelDef.isAI) {
-        // 1. Enhance ALL prompts — Gemini reads each image + user's concept → 110+ word cinematic prompt
+        // 1. Enhance ALL prompts — Gemini reads each image + user's concept → 140-155 word cinematic prompt
         setRenderStep(`Gemini Vision อ่านรูป ${slots.length} คลิป และเขียน prompt ละเอียด...`);
         const enhanced = await autoEnhanceAll(jobId, slots);
         setSlots(enhanced);
 
-        // 2. Generate script for voiceover — pass scenes so Gemini writes voiceover matching each room/clip
-        setRenderStep("Gemini เขียน script เสียงพากย์...");
-        const scenesJson = JSON.stringify(enhanced.map((s, idx) => s.label.trim() || `Scene ${idx + 1}`));
-        await api.post(`/jobs/${jobId}/generate-script`, null, {
-          params: { tone_of_voice: "luxury cinematic", duration_sec: totalDuration, concept: "", scenes: scenesJson },
-        });
-
-        // 3. Generate voiceover
-        setRenderStep("ElevenLabs สร้างเสียงพากย์...");
+        // 2. Voiceover — depends on audioMode
         let voiceoverUrl = "";
-        try {
-          const voRes = await api.post(`/jobs/${jobId}/voiceover`, null, {
-            params: { voice_style: "เป็นกันเอง (หญิง)" },
+        if (audioMode === "upload" && uploadedAudioUrl) {
+          // User uploaded their own audio — skip ElevenLabs entirely
+          voiceoverUrl = uploadedAudioUrl;
+          setRenderStep("ใช้เสียงที่อัพโหลด...");
+        } else if (audioMode === "ai") {
+          // AI voice: generate script → ElevenLabs
+          setRenderStep("Gemini เขียน script เสียงพากย์...");
+          const scenesJson = JSON.stringify(enhanced.map((s, idx) => s.label.trim() || `Scene ${idx + 1}`));
+          await api.post(`/jobs/${jobId}/generate-script`, null, {
+            params: { tone_of_voice: "luxury cinematic", duration_sec: totalDuration, concept: videoType, scenes: scenesJson },
           });
-          voiceoverUrl = (voRes.data as { voiceover_url?: string }).voiceover_url || "";
-        } catch { /* optional */ }
+          setRenderStep("ElevenLabs สร้างเสียงพากย์...");
+          try {
+            const voRes = await api.post(`/jobs/${jobId}/voiceover`, null, {
+              params: { voice_style: "เป็นกันเอง (หญิง)" },
+            });
+            voiceoverUrl = (voRes.data as { voiceover_url?: string }).voiceover_url || "";
+          } catch { /* voiceover optional */ }
+        }
+        // audioMode "none" → voiceoverUrl stays ""
 
-        // 4. Story render with enhanced prompts (pass `enhanced` directly, not stale state)
+        // 3. Story render
         setRenderStep(`${modelDef.label} render ${slots.length} คลิป... รอ ${slots.length * 1}–${slots.length * 4} นาที`);
         await api.post(`/jobs/${jobId}/story-render`, {
           clips: enhanced.map(s => ({
@@ -354,6 +420,18 @@ export default function StoryboardPage() {
       setPhase("error");
     }
   };
+
+  /* ─── AI generating storyboard screen ─── */
+  if (phase === "ai_generating") return (
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, background: "var(--bg)", padding: 32 }}>
+      <Loader2 size={44} style={{ animation: "spin 1s linear infinite", color: "var(--teal)" }} />
+      <div style={{ fontSize: 20, fontWeight: 900 }}>Gemini กำลังวาง storyboard...</div>
+      <div style={{ padding: "12px 20px", background: "var(--glass)", border: "1px solid var(--gb)", borderRadius: 12, fontSize: 13, color: "var(--dim)", maxWidth: 360, textAlign: "center", lineHeight: 1.7 }}>
+        Gemini อ่านคำตอบของคุณ → วางแผน scene ต่อคลิป → เลือกรูป → เขียน concept ให้แต่ละ scene
+      </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
 
   /* ─── Loading screens ─── */
   if (phase === "rendering") return (
@@ -465,7 +543,7 @@ export default function StoryboardPage() {
       </div>
 
       {/* ── Product selector ── */}
-      {!product ? (
+      {phase === "product_select" ? (
         <div>
           <p style={{ fontSize: 13, fontWeight: 700, color: "var(--dim)", marginBottom: 12 }}>เลือก Asset:</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px,1fr))", gap: 10 }}>
@@ -481,6 +559,77 @@ export default function StoryboardPage() {
             ))}
           </div>
         </div>
+      ) : phase === "questions" && product ? (
+        /* ── Guided questions (Opus-style) ── */
+        <div style={{ maxWidth: 540, margin: "0 auto" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, padding: "10px 14px", background: "rgba(0,255,212,.06)", border: "1px solid rgba(0,255,212,.2)", borderRadius: 12 }}>
+            {product.media_urls?.[0] && <img src={imgProxy(product.media_urls[0])} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover" }} />}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{product.name}</div>
+              <div style={{ fontSize: 11, color: "var(--faint)" }}>{product.media_urls.length} รูป</div>
+            </div>
+            <button onClick={() => { setProduct(null); setPhase("product_select"); }} style={{ fontSize: 11, color: "var(--faint)", background: "none", border: "none", cursor: "pointer" }}>เปลี่ยน</button>
+          </div>
+
+          {/* Q1: Video type */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>1. อยากทำวิดีโอแบบไหน?</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {VIDEO_TYPES.map(vt => (
+                <button key={vt.id} onClick={() => setVideoType(vt.id)} style={{
+                  padding: "12px 14px", borderRadius: 12, cursor: "pointer", textAlign: "left",
+                  border: `2px solid ${videoType === vt.id ? "var(--teal)" : "var(--gb)"}`,
+                  background: videoType === vt.id ? "rgba(0,255,212,.08)" : "var(--glass)",
+                }}>
+                  <div style={{ fontSize: 18, marginBottom: 4 }}>{vt.icon}</div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: videoType === vt.id ? "var(--teal)" : "var(--text)" }}>{vt.id}</div>
+                  <div style={{ fontSize: 10, color: "var(--faint)", marginTop: 2 }}>{vt.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Q2: Focus */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8 }}>2. เน้นอะไรเป็นพิเศษ? <span style={{ fontWeight: 400, color: "var(--faint)", fontSize: 11 }}>(ไม่บังคับ)</span></div>
+            <input
+              type="text"
+              value={focusInput}
+              onChange={e => setFocusInput(e.target.value)}
+              placeholder="เช่น สระน้ำ · ห้องนอน ocean view · outdoor dining · วิวทะเล"
+              style={{ width: "100%", background: "#1a1a22", border: "1px solid var(--gb)", borderRadius: 10, padding: "10px 14px", color: "var(--text)", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+            />
+          </div>
+
+          {/* Q3: Duration */}
+          <div style={{ marginBottom: 28 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>3. วิดีโอยาวแค่ไหน?</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[15, 30, 60].map(d => (
+                <button key={d} onClick={() => setTargetDuration(d)} style={{
+                  flex: 1, padding: "12px", borderRadius: 10, cursor: "pointer",
+                  border: `2px solid ${targetDuration === d ? "var(--teal)" : "var(--gb)"}`,
+                  background: targetDuration === d ? "rgba(0,255,212,.08)" : "var(--glass)",
+                  color: targetDuration === d ? "var(--teal)" : "var(--faint)",
+                  fontSize: 14, fontWeight: 800,
+                }}>{d} วิ</button>
+              ))}
+            </div>
+          </div>
+
+          <button onClick={generateAIStoryboard} style={{
+            width: "100%", padding: "15px", borderRadius: 14, cursor: "pointer",
+            background: "linear-gradient(90deg,var(--teal),var(--blue))",
+            border: "none", color: "#06060A", fontSize: 15, fontWeight: 900,
+            boxShadow: "0 6px 24px rgba(0,255,212,.3)",
+          }}>
+            <Wand2 size={16} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />
+            Gemini วาง Storyboard ให้เลย →
+          </button>
+          <div style={{ marginTop: 10, textAlign: "center", fontSize: 11, color: "var(--faint)" }}>
+            Gemini เลือกรูป + เขียน concept ต่อ scene ให้อัตโนมัติ — คุณแก้ได้ก่อน render
+          </div>
+        </div>
       ) : (
         <>
           {/* Product header */}
@@ -490,7 +639,7 @@ export default function StoryboardPage() {
               <div style={{ fontSize: 13, fontWeight: 700 }}>{product.name}</div>
               <div style={{ fontSize: 11, color: "var(--faint)" }}>{slots.length} คลิป · รวม {totalDuration} วิ · {product.media_urls.length} รูป</div>
             </div>
-            <button onClick={() => { setProduct(null); setSlots([]); setSessionJobId(null); }} style={{ fontSize: 11, color: "var(--faint)", background: "none", border: "none", cursor: "pointer" }}>เปลี่ยน</button>
+            <button onClick={() => { setProduct(null); setSlots([]); setSessionJobId(null); setPhase("product_select"); }} style={{ fontSize: 11, color: "var(--faint)", background: "none", border: "none", cursor: "pointer" }}>เปลี่ยน</button>
           </div>
 
           {/* Clip slots */}
@@ -700,20 +849,69 @@ export default function StoryboardPage() {
             </div>
           )}
 
+          {/* ── Audio mode selector ── */}
+          <div style={{ marginBottom: 14, padding: "14px 16px", background: "var(--glass)", border: "1px solid var(--gb)", borderRadius: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10 }}>เสียงพากย์</div>
+            <div style={{ display: "flex", gap: 8, marginBottom: audioMode === "upload" ? 10 : 0 }}>
+              {[
+                { id: "ai", label: "🤖 AI voice", desc: "Gemini เขียน script + ElevenLabs" },
+                { id: "upload", label: "🎙️ เสียงตัวเอง", desc: "อัพโหลด mp3/m4a/wav" },
+                { id: "none", label: "🔇 ไม่มีเสียง", desc: "" },
+              ].map(m => (
+                <button key={m.id} onClick={() => setAudioMode(m.id as "ai" | "upload" | "none")} style={{
+                  flex: 1, padding: "10px 8px", borderRadius: 10, cursor: "pointer", textAlign: "center",
+                  border: `2px solid ${audioMode === m.id ? "var(--teal)" : "var(--gb)"}`,
+                  background: audioMode === m.id ? "rgba(0,255,212,.08)" : "transparent",
+                  color: audioMode === m.id ? "var(--teal)" : "var(--faint)",
+                  fontSize: 12, fontWeight: 700,
+                }}>
+                  <div>{m.label}</div>
+                  {m.desc && <div style={{ fontSize: 9, fontWeight: 400, marginTop: 2, opacity: .7 }}>{m.desc}</div>}
+                </button>
+              ))}
+            </div>
+            {audioMode === "upload" && (
+              <div>
+                <label style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "10px 14px",
+                  borderRadius: 10, border: "1.5px dashed rgba(0,255,212,.35)",
+                  background: "rgba(0,255,212,.04)", cursor: "pointer",
+                }}>
+                  <input type="file" accept="audio/*" style={{ display: "none" }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) uploadAudio(f); }} />
+                  {uploadingAudio
+                    ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /><span style={{ fontSize: 12, color: "var(--dim)" }}>กำลังอัพโหลด...</span></>
+                    : uploadedAudioUrl
+                    ? <><span style={{ fontSize: 14 }}>✅</span><span style={{ fontSize: 12, color: "var(--ok)" }}>{uploadedFileName || "อัพโหลดสำเร็จ"}</span><span style={{ fontSize: 10, color: "var(--faint)", marginLeft: 4 }}>คลิกเพื่อเปลี่ยน</span></>
+                    : <><span style={{ fontSize: 14 }}>📁</span><span style={{ fontSize: 12, color: "var(--teal)" }}>เลือกไฟล์เสียง (mp3, m4a, wav)</span></>
+                  }
+                </label>
+                {!uploadedAudioUrl && !uploadingAudio && (
+                  <div style={{ marginTop: 6, fontSize: 10, color: "var(--faint)" }}>อัพโหลดก่อนกด render</div>
+                )}
+              </div>
+            )}
+          </div>
+
           {modelDef.isAI && totalCost > 5 && (
             <div style={{ marginBottom: 10, padding: "10px 14px", background: "rgba(255,77,106,.08)", border: "1px solid rgba(255,77,106,.3)", borderRadius: 10, fontSize: 12, color: "#f87171", lineHeight: 1.6 }}>
               ⚠️ ราคาสูง — {slots.length} คลิป × ${modelDef.pricePerClip} = <b>${totalCost.toFixed(2)} (~{Math.round(totalCost * 35)} บาท)</b> · กด Generate เมื่อพร้อมจริงๆ
             </div>
           )}
 
-          <button onClick={runRender} style={{
-            width: "100%", padding: "15px", borderRadius: 14, cursor: "pointer",
-            background: totalCost > 5 && modelDef.isAI
-              ? "linear-gradient(90deg,#f87171,#ef4444)"
-              : `linear-gradient(90deg,${modelDef.color},var(--blue))`,
-            border: "none", color: "#fff", fontSize: 15, fontWeight: 900,
-            boxShadow: totalCost > 5 && modelDef.isAI ? "0 6px 24px rgba(239,68,68,.4)" : `0 6px 24px ${modelDef.color}40`,
-          }}>
+          <button
+            onClick={runRender}
+            disabled={audioMode === "upload" && !uploadedAudioUrl}
+            style={{
+              width: "100%", padding: "15px", borderRadius: 14,
+              cursor: audioMode === "upload" && !uploadedAudioUrl ? "not-allowed" : "pointer",
+              opacity: audioMode === "upload" && !uploadedAudioUrl ? 0.45 : 1,
+              background: totalCost > 5 && modelDef.isAI
+                ? "linear-gradient(90deg,#f87171,#ef4444)"
+                : `linear-gradient(90deg,${modelDef.color},var(--blue))`,
+              border: "none", color: "#fff", fontSize: 15, fontWeight: 900,
+              boxShadow: totalCost > 5 && modelDef.isAI ? "0 6px 24px rgba(239,68,68,.4)" : `0 6px 24px ${modelDef.color}40`,
+            }}>
             {!modelDef.isAI
               ? `สร้าง Ken Burns ${slots.length} คลิป (ฟรี) →`
               : `สร้างวิดีโอ AI ${slots.length} คลิป ~${Math.round(totalCost * 35)} บาท →`

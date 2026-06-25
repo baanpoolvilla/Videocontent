@@ -4,7 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File
 from sqlalchemy import select, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -801,6 +801,69 @@ async def suggest_video_prompt(
         video_prompt = _STYLE_PROMPTS.get(style, _STYLE_PROMPTS["playful"])
 
     return {"video_prompt": video_prompt, "style": style, "concept": concept}
+
+
+@router.post("/{job_id}/ai-storyboard", response_model=dict)
+async def ai_storyboard(
+    job_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    video_type: str = "รีวิวบ้าน",
+    focus: str = "",
+    duration_sec: int = 30,
+    ai_model: str = "hailuo2pro",
+):
+    """Generate a complete storyboard plan from 3 user answers — Gemini decides scenes, labels, concepts."""
+    result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    product_result = await db.execute(select(Product).where(Product.id == job.product_id))
+    product = product_result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    image_urls = list(product.media_urls or [])
+    if not image_urls:
+        raise HTTPException(status_code=400, detail="Product has no images")
+    storyboard = await ai_service.generate_storyboard(
+        product_name=product.name,
+        image_count=len(image_urls),
+        video_type=video_type,
+        focus=focus,
+        duration_sec=duration_sec,
+        ai_model=ai_model,
+    )
+    return storyboard
+
+
+@router.post("/{job_id}/upload-audio", response_model=dict)
+async def upload_audio(
+    job_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    file: UploadFile = File(...),
+):
+    """Upload user's own audio file to use as voiceover — skip ElevenLabs."""
+    result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if file is None:
+        raise HTTPException(status_code=400, detail="No file uploaded")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    ext = (file.filename or "audio.mp3").rsplit(".", 1)[-1].lower()
+    ct = file.content_type or "audio/mpeg"
+    url = await storage_service.upload_bytes(
+        data=data,
+        filename=f"voiceover.{ext}",
+        content_type=ct,
+        bucket="renders",
+        prefix=str(job_id),
+    )
+    logger.info(f"[UPLOAD-AUDIO] job={job_id} size={len(data)} url={url[:60]}")
+    return {"url": url, "filename": file.filename, "size_bytes": len(data)}
 
 
 @router.post("/{job_id}/wan-render", response_model=dict)
