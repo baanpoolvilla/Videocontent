@@ -31,7 +31,7 @@ class AIService:
         self.model_name = "gemini-2.5-flash"
 
     def _generate(self, prompt: str, system: str = "", temperature: float = 0.7) -> str:
-        config = genai.types.GenerationConfig(temperature=temperature, max_output_tokens=1024)
+        config = genai.types.GenerationConfig(temperature=temperature, max_output_tokens=8192)
         full_prompt = f"{system}\n\n{prompt}" if system else prompt
         response = self.model.generate_content(full_prompt, generation_config=config)
         return response.text.strip()
@@ -196,7 +196,7 @@ class AIService:
             f"6. Output raw prompt text ONLY — no labels, no numbering, no markdown."
         )
 
-        config = genai.types.GenerationConfig(temperature=0.82, max_output_tokens=500)
+        config = genai.types.GenerationConfig(temperature=0.82, max_output_tokens=8192)
         response = self.model.generate_content([prompt_text, img], generation_config=config)
         raw = response.text.strip()
         clean = _clean_prompt(raw)
