@@ -9,11 +9,17 @@ FAL_QUEUE = "https://queue.fal.run"
 
 # Model IDs on fal.ai (verified from fal.ai sandbox)
 MODELS = {
-    "kling3s":       "fal-ai/kling-video/v3/standard/image-to-video",        # $1.89/คลิป — ถูกสุด
+    "kling3s":       "fal-ai/kling-video/v3/standard/image-to-video",        # $1.89/คลิป
     "seedance2":     "bytedance/seedance-2.0/fast/image-to-video",            # $2.43/คลิป
     "seedance2_pro": "bytedance/seedance-2.0/image-to-video",                 # $4.25/คลิป
-    "hailuo2pro":    "fal-ai/minimax/hailuo-2.3/pro/image-to-video",          # $0.49/คลิป
+    "hailuo2pro":    "fal-ai/minimax/hailuo-2.3/pro/image-to-video",          # $0.49/คลิป — min 6s
     "kenburs":       "kenburs",
+}
+
+# Minimum duration (seconds) accepted by each fal.ai model
+# Hailuo 2.3 Pro requires minimum 6s — sending 5 returns 422 and falls back to Ken Burns
+MODEL_MIN_DURATION: dict[str, int] = {
+    "fal-ai/minimax/hailuo-2.3/pro/image-to-video": 6,
 }
 
 DEFAULT_I2V = MODELS["kling3s"]
@@ -32,12 +38,18 @@ class WanService:
         duration: str = "5",
         model: str = DEFAULT_I2V,
     ) -> dict:
+        dur_int = int(duration) if str(duration).isdigit() else 5
+        # Enforce per-model minimum duration (e.g. Hailuo requires >= 6s)
+        min_dur = MODEL_MIN_DURATION.get(model, 5)
+        dur_int = max(dur_int, min_dur)
         payload = {
             "image_url": image_url,
             "prompt": prompt[:2000],
-            "duration": int(duration) if str(duration).isdigit() else 5,
+            "duration": dur_int,
             "aspect_ratio": aspect_ratio,
         }
+        logger.info(f"[FAL] image_to_video model={model} duration={dur_int}s aspect={aspect_ratio} image={image_url[:60]}")
+        logger.info(f"[FAL] prompt preview: {prompt[:120]}")
         return await self._run(model, payload)
 
     async def text_to_video(

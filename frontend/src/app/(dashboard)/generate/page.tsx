@@ -353,11 +353,20 @@ export default function GeneratePage() {
         voiceoverUrl = voiceRes.data.voiceover_url;
       }
 
-      // suggest video prompt from AI — pass user's visual concept for better prompt
+      // suggest video prompt from AI — pass image_url so Gemini Vision can read the actual image
       let suggested = "";
       try {
+        const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const firstImg = product?.media_urls?.[0];
+        const imgUrl = firstImg?.startsWith("/")
+          ? `${base}/api/v1/files/${firstImg.slice(1)}`
+          : firstImg || "";
         const suggestRes = await api.get(`/jobs/${jobId}/suggest-video-prompt`, {
-          params: { style: styleId, concept: answers.visual || "" },
+          params: {
+            style: styleId,
+            concept: answers.visual || "",
+            image_url: imgUrl,  // Gemini Vision reads the actual product image
+          },
         });
         suggested = suggestRes.data.video_prompt || "";
       } catch { /* use style default */ }
@@ -854,7 +863,18 @@ export default function GeneratePage() {
     const modelLabel = MODEL_OPTIONS.find(m => m.id === aiModel)?.label ?? aiModel;
     const regenPrompt = async () => {
       try {
-        const r = await api.get(`/jobs/${pendingJobId}/suggest-video-prompt`, { params: { style: pendingStyle } });
+        const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const firstImg = product?.media_urls?.[0];
+        const imgUrl = firstImg?.startsWith("/")
+          ? `${base}/api/v1/files/${firstImg.slice(1)}`
+          : firstImg || "";
+        const r = await api.get(`/jobs/${pendingJobId}/suggest-video-prompt`, {
+          params: {
+            style: pendingStyle,
+            concept: answers.visual || "",
+            image_url: imgUrl,
+          },
+        });
         setVideoPrompt(r.data.video_prompt || "");
       } catch { /* keep existing */ }
     };

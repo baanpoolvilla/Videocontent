@@ -754,11 +754,13 @@ async def suggest_video_prompt(
     script_text = script.full_script if script else ""
 
     # Use vision: prefer caller-supplied image_url, then first product image
+    # Use INTERNAL URL for Gemini image loading (backend→backend, avoids DNS/HTTPS issues)
     image_urls = list(product.media_urls or []) if product else []
     if not image_url:
         raw = image_urls[0] if image_urls else None
         if raw:
-            image_url = f"{settings.API_BASE_URL}/api/v1/files/{raw.strip('/')}"
+            image_url = f"{settings.API_INTERNAL_URL}/api/v1/files/{raw.strip('/')}"
+    logger.info(f"[SUGGEST] image_url={image_url[:80] if image_url else 'NONE'} style={style}")
 
     try:
         if image_url:
