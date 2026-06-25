@@ -737,6 +737,7 @@ async def suggest_video_prompt(
     db: Annotated[AsyncSession, Depends(get_db)],
     style: str = "playful",
     concept: str = "",
+    image_url: str = "",
 ):
     result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
     job = result.scalar_one_or_none()
@@ -752,15 +753,17 @@ async def suggest_video_prompt(
     script = script_result.scalars().first()
     script_text = script.full_script if script else ""
 
-    # Use vision if product has images, otherwise fall back to text-based prompt
+    # Use vision: prefer caller-supplied image_url, then first product image
     image_urls = list(product.media_urls or []) if product else []
-    first_image = image_urls[0] if image_urls else None
+    if not image_url:
+        raw = image_urls[0] if image_urls else None
+        if raw:
+            image_url = f"{settings.API_BASE_URL}/api/v1/files/{raw.strip('/')}"
 
     try:
-        if first_image:
-            public_image_url = f"{settings.API_BASE_URL}/api/v1/files/{first_image.strip('/')}"
+        if image_url:
             video_prompt = await ai_service.suggest_video_prompt_from_image(
-                image_url=public_image_url,
+                image_url=image_url,
                 product_name=product.name if product else "",
                 style=style,
                 concept=concept,

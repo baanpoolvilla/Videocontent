@@ -54,17 +54,24 @@ class AIService:
         concept_block = f"\nUSER VISUAL REQUEST (highest priority): {concept}" if concept.strip() else ""
 
         prompt_text = (
-            f"You are the creative director of award-winning luxury resort commercials.\n"
-            f"Look at this resort image carefully and write ONE ultra-cinematic AI video prompt in English.\n\n"
+            f"You are a specialist in writing prompts for Hailuo 2.3 Pro image-to-video AI.\n"
+            f"Hailuo ANIMATES the uploaded image — it CANNOT add new people or change locations.\n"
+            f"Look at this image carefully. Write ONE prompt that makes Hailuo create a stunning video FROM this exact image.\n\n"
             f"PRODUCT: {product_name} — private pool villa, Pattaya-Jomtien, Thailand\n"
             f"STYLE: {style_feel}{concept_block}\n\n"
+            f"HAILUO WORKS BEST WITH:\n"
+            f"- Smooth camera moves: slow dolly, gentle crane, subtle zoom, soft pan\n"
+            f"- Light effects: golden sparkle, water shimmer, ripple reflections, bokeh glow\n"
+            f"- Atmosphere: sunset warmth, morning mist, candlelight flicker, gentle breeze\n"
+            f"- Natural motion: water ripples, curtains swaying, leaves rustling, steam rising\n\n"
             f"RULES:\n"
-            f"1. English ONLY.\n"
+            f"1. English ONLY — zero Thai characters.\n"
             f"2. 50-70 words exactly.\n"
-            f"3. Start with SHOT TYPE based on what you see in the image.\n"
-            f"4. Describe: shot type -> what's in frame -> camera movement -> lighting -> color grade -> mood.\n"
-            f"5. Use power-words: cinematic, ultra-realistic, slow-motion, photorealistic, 4K.\n"
-            f"6. NO explanations, NO labels — raw prompt text only."
+            f"3. Start with camera movement (e.g. 'Slow dolly push-in over', 'Gentle crane descent').\n"
+            f"4. Describe ONLY what is visible in the image — no new people or locations.\n"
+            f"5. Include: camera move → subject in frame → atmosphere/motion → lighting → color grade.\n"
+            f"6. End with quality tags: cinematic, photorealistic, 4K, slow motion.\n"
+            f"7. NO explanations, NO labels — raw prompt text only."
         )
 
         config = genai.types.GenerationConfig(temperature=0.85, max_output_tokens=200)

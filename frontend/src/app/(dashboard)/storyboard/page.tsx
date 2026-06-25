@@ -66,10 +66,21 @@ export default function StoryboardPage() {
     if (!product) return;
     setGenerating(i);
     try {
+      const slot = slots[i];
+      const imgPath = product.media_urls[slot.imageIndex];
+      const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const publicImgUrl = imgPath.startsWith("/")
+        ? `${base}/api/v1/files/${imgPath.slice(1)}`
+        : imgPath;
+
       const jobRes = await api.post("/jobs/", { product_id: product.id, platform: "tiktok" });
       const jobId = jobRes.data.id;
       const r = await api.get(`/jobs/${jobId}/suggest-video-prompt`, {
-        params: { style: "luxury", concept: "" },
+        params: {
+          style: "luxury",
+          concept: slot.prompt, // ใช้ prompt ที่ user พิมพ์เป็น concept
+          image_url: publicImgUrl, // รูปของคลิปนั้นโดยเฉพาะ
+        },
       });
       updateSlot(i, { prompt: r.data.video_prompt || "" });
     } catch { /* keep empty */ }
