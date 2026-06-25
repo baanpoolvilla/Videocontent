@@ -267,23 +267,24 @@ class VideoService:
                             output_path,
                         ])
                     except Exception as e:
-                        # Original video has no audio stream — fall back to voiceover only
-                        logger.warning(f"[REMIX] amix failed (no source audio?) — falling back to replace. err={e}")
+                        # Original video has no audio stream — apply voice_vol only
+                        logger.warning(f"[REMIX] amix failed (no source audio?) — voice-only with vol={voice_vol}. err={e}")
                         await self._run_ffmpeg([
                             "ffmpeg", "-y",
                             "-i", video_path, "-i", audio_path,
-                            "-map", "0:v:0", "-map", "1:a:0",
+                            "-filter_complex", f"[1:a]volume={voice_vol:.3f}[aout]",
+                            "-map", "0:v:0", "-map", "[aout]",
                             "-c:v", "copy", "-c:a", "aac",
                             "-shortest", "-movflags", "+faststart",
                             output_path,
                         ])
                 else:
-                    # Replace mode: discard original audio, use voiceover only
+                    # Replace mode: apply voice_vol to voiceover
                     await self._run_ffmpeg([
                         "ffmpeg", "-y",
                         "-i", video_path, "-i", audio_path,
-                        "-map", "0:v:0",
-                        "-map", "1:a:0",
+                        "-filter_complex", f"[1:a]volume={voice_vol:.3f}[aout]",
+                        "-map", "0:v:0", "-map", "[aout]",
                         "-c:v", "copy", "-c:a", "aac",
                         "-shortest", "-movflags", "+faststart",
                         output_path,
