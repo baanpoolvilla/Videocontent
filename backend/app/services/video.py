@@ -228,9 +228,16 @@ class VideoService:
             )
             return {"url": url, "size_bytes": len(video_bytes)}
 
-    async def remix_audio(self, job_id: str, video_url: str, voiceover_url: str) -> dict:
-        """Take existing video file, replace/add audio track — no re-render."""
-        logger.info(f"[REMIX] start job={job_id} video={video_url[:60]} audio={voiceover_url[:60] if voiceover_url else 'NONE'}")
+    async def remix_audio(
+        self,
+        job_id: str,
+        video_url: str,
+        voiceover_url: str,
+        original_vol: float = 0.0,
+        voice_vol: float = 1.0,
+    ) -> dict:
+        """Take existing video file, replace/add/mix audio track — no re-render."""
+        logger.info(f"[REMIX] start job={job_id} orig_vol={original_vol} voice_vol={voice_vol} audio={voiceover_url[:60] if voiceover_url else 'NONE'}")
         with tempfile.TemporaryDirectory() as tmpdir:
             video_path = os.path.join(tmpdir, "source.mp4")
             await self._download_file(video_url, video_path)
@@ -241,15 +248,46 @@ class VideoService:
                 audio_path = os.path.join(tmpdir, "audio.mp3")
                 await self._download_file(voiceover_url, audio_path)
                 logger.info(f"[REMIX] audio downloaded size={os.path.getsize(audio_path)}")
-                await self._run_ffmpeg([
-                    "ffmpeg", "-y",
-                    "-i", video_path, "-i", audio_path,
-                    "-map", "0:v:0",
-                    "-map", "1:a:0",
-                    "-c:v", "copy", "-c:a", "aac",
-                    "-shortest", "-movflags", "+faststart",
-                    output_path,
-                ])
+
+                if original_vol > 0:
+                    # Mix mode: blend original video audio + voiceover
+                    mix_filter = (
+                        f"[0:a]volume={original_vol:.3f}[a0];"
+                        f"[1:a]volume={voice_vol:.3f}[a1];"
+                        f"[a0][a1]amix=inputs=2:duration=first:dropout_transition=3[aout]"
+                    )
+                    try:
+                        await self._run_ffmpeg([
+                            "ffmpeg", "-y",
+                            "-i", video_path, "-i", audio_path,
+                            "-filter_complex", mix_filter,
+                            "-map", "0:v:0", "-map", "[aout]",
+                            "-c:v", "copy", "-c:a", "aac",
+                            "-shortest", "-movflags", "+faststart",
+                            output_path,
+                        ])
+                    except Exception as e:
+                        # Original video has no audio stream — fall back to voiceover only
+                        logger.warning(f"[REMIX] amix failed (no source audio?) — falling back to replace. err={e}")
+                        await self._run_ffmpeg([
+                            "ffmpeg", "-y",
+                            "-i", video_path, "-i", audio_path,
+                            "-map", "0:v:0", "-map", "1:a:0",
+                            "-c:v", "copy", "-c:a", "aac",
+                            "-shortest", "-movflags", "+faststart",
+                            output_path,
+                        ])
+                else:
+                    # Replace mode: discard original audio, use voiceover only
+                    await self._run_ffmpeg([
+                        "ffmpeg", "-y",
+                        "-i", video_path, "-i", audio_path,
+                        "-map", "0:v:0",
+                        "-map", "1:a:0",
+                        "-c:v", "copy", "-c:a", "aac",
+                        "-shortest", "-movflags", "+faststart",
+                        output_path,
+                    ])
             else:
                 logger.warning(f"[REMIX] no voiceover_url — stripping audio from job={job_id}")
                 await self._run_ffmpeg([

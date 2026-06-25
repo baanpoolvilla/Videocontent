@@ -442,6 +442,8 @@ async def remix_audio(
     db: Annotated[AsyncSession, Depends(get_db)],
     voiceover_url: str = "",
     voice_style: str = "เป็นกันเอง (หญิง)",
+    original_vol: float = 0.0,
+    voice_vol: float = 1.0,
 ):
     """Mix new voiceover into the existing rendered video — no fal.ai, no re-render."""
     result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
@@ -469,11 +471,13 @@ async def remix_audio(
         video_url=video_url,
         voiceover_url=voiceover_url,
         voice_style=voice_style,
+        original_vol=original_vol,
+        voice_vol=voice_vol,
     )
     return {"status": "processing", "job_id": str(job_id), "source_video": video_url}
 
 
-async def _do_remix_audio(job_id: UUID, video_url: str, voiceover_url: str, voice_style: str):
+async def _do_remix_audio(job_id: UUID, video_url: str, voiceover_url: str, voice_style: str, original_vol: float = 0.0, voice_vol: float = 1.0):
     async with AsyncSessionLocal() as db:
         try:
             result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
@@ -496,6 +500,8 @@ async def _do_remix_audio(job_id: UUID, video_url: str, voiceover_url: str, voic
                 job_id=str(job_id),
                 video_url=video_url,
                 voiceover_url=voiceover_url,
+                original_vol=original_vol,
+                voice_vol=voice_vol,
             )
 
             render = RenderVersion(

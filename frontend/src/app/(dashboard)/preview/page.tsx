@@ -53,6 +53,9 @@ export default function PreviewPage() {
   const [swapAudioUrl, setSwapAudioUrl] = useState("");
   const [swapping, setSwapping]   = useState(false);
   const [swapDone, setSwapDone]   = useState(false);
+  const [originalVol, setOriginalVol] = useState(0);
+  const [voiceVol, setVoiceVol]       = useState(100);
+  const [showVolPanel, setShowVolPanel] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -121,7 +124,11 @@ export default function PreviewPage() {
     setSwapDone(false);
     try {
       await api.post(`/jobs/${selectedJob.id}/remix-audio`, null, {
-        params: { voiceover_url: swapAudioUrl.trim() },
+        params: {
+          voiceover_url: swapAudioUrl.trim(),
+          original_vol: (originalVol / 100).toFixed(3),
+          voice_vol: (voiceVol / 100).toFixed(3),
+        },
       });
       // poll until done
       for (let i = 0; i < 30; i++) {
@@ -234,28 +241,89 @@ export default function PreviewPage() {
         </button>
 
         {/* Swap audio */}
-        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          <input
-            value={swapAudioUrl}
-            onChange={e => { setSwapAudioUrl(e.target.value); setSwapDone(false); }}
-            placeholder="วาง Audio URL จาก Voice Generator..."
-            style={{
-              width: 260, padding: "6px 10px", borderRadius: 8, fontSize: 11,
-              background: "#1a1a22", border: `1px solid ${swapDone ? "rgba(0,255,212,.4)" : "var(--gb)"}`,
-              color: "var(--text)", outline: "none",
-            }}
-          />
-          <button onClick={handleSwapAudio} disabled={swapping || !swapAudioUrl.trim()} style={{
-            display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8,
-            background: swapDone ? "rgba(0,255,212,.15)" : "rgba(77,127,255,.15)",
-            border: `1px solid ${swapDone ? "rgba(0,255,212,.4)" : "rgba(77,127,255,.3)"}`,
-            color: swapDone ? "var(--teal)" : "var(--blue)", fontSize: 11, fontWeight: 700,
-            cursor: swapping || !swapAudioUrl.trim() ? "not-allowed" : "pointer",
-            opacity: !swapAudioUrl.trim() ? 0.4 : 1,
-          }}>
-            {swapping ? <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> : swapDone ? <Check size={11} /> : <Play size={11} />}
-            {swapDone ? "เสร็จ!" : "ใส่เสียง"}
-          </button>
+        <div style={{ position: "relative" }}>
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <input
+              value={swapAudioUrl}
+              onChange={e => { setSwapAudioUrl(e.target.value); setSwapDone(false); }}
+              placeholder="วาง Audio URL จาก Voice Generator..."
+              style={{
+                width: 220, padding: "6px 10px", borderRadius: 8, fontSize: 11,
+                background: "#1a1a22", border: `1px solid ${swapDone ? "rgba(0,255,212,.4)" : "var(--gb)"}`,
+                color: "var(--text)", outline: "none",
+              }}
+            />
+            {/* Volume toggle */}
+            <button
+              onClick={() => setShowVolPanel(v => !v)}
+              title="ปรับระดับเสียง"
+              style={{
+                padding: "6px 8px", borderRadius: 8, cursor: "pointer", fontSize: 13,
+                background: showVolPanel ? "rgba(255,176,46,.15)" : "var(--glass)",
+                border: `1px solid ${showVolPanel ? "rgba(255,176,46,.4)" : "var(--gb)"}`,
+                color: showVolPanel ? "#ffb02e" : "var(--dim)",
+              }}>🎚️</button>
+            <button onClick={handleSwapAudio} disabled={swapping || !swapAudioUrl.trim()} style={{
+              display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8,
+              background: swapDone ? "rgba(0,255,212,.15)" : "rgba(77,127,255,.15)",
+              border: `1px solid ${swapDone ? "rgba(0,255,212,.4)" : "rgba(77,127,255,.3)"}`,
+              color: swapDone ? "var(--teal)" : "var(--blue)", fontSize: 11, fontWeight: 700,
+              cursor: swapping || !swapAudioUrl.trim() ? "not-allowed" : "pointer",
+              opacity: !swapAudioUrl.trim() ? 0.4 : 1,
+            }}>
+              {swapping ? <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> : swapDone ? <Check size={11} /> : <Play size={11} />}
+              {swapDone ? "เสร็จ!" : "ใส่เสียง"}
+            </button>
+          </div>
+
+          {/* Volume panel */}
+          {showVolPanel && (
+            <div style={{
+              position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 50,
+              background: "#16161e", border: "1px solid var(--gb)", borderRadius: 12,
+              padding: "14px 16px", width: 240, boxShadow: "0 8px 32px rgba(0,0,0,.6)",
+            }}>
+              <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 800, color: "var(--dim)", letterSpacing: ".05em" }}>
+                MIX เสียง
+              </p>
+
+              {/* Original vol */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                  <span style={{ fontSize: 11, color: "var(--faint)" }}>🎬 เสียงเดิมในคลิป</span>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: originalVol > 0 ? "#ffb02e" : "var(--faint)", minWidth: 34, textAlign: "right" }}>
+                    {originalVol}%
+                  </span>
+                </div>
+                <input
+                  type="range" min={0} max={100} value={originalVol}
+                  onChange={e => setOriginalVol(+e.target.value)}
+                  style={{ width: "100%", accentColor: "#ffb02e", cursor: "pointer" }}
+                />
+              </div>
+
+              {/* Voice vol */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                  <span style={{ fontSize: 11, color: "var(--faint)" }}>🎙️ เสียงพากย์</span>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "var(--teal)", minWidth: 34, textAlign: "right" }}>
+                    {voiceVol}%
+                  </span>
+                </div>
+                <input
+                  type="range" min={0} max={100} value={voiceVol}
+                  onChange={e => setVoiceVol(+e.target.value)}
+                  style={{ width: "100%", accentColor: "var(--teal)", cursor: "pointer" }}
+                />
+              </div>
+
+              <p style={{ margin: "10px 0 0", fontSize: 10, color: "var(--faint)", lineHeight: 1.5 }}>
+                {originalVol === 0
+                  ? "โหมด: แทนเสียงทั้งหมด"
+                  : `โหมด: ผสมเสียง (${originalVol}% + ${voiceVol}%)`}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Copy style */}
