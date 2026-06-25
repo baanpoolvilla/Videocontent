@@ -348,73 +348,84 @@ export default function StoryboardPage() {
     setPhase("rendering");
     try {
       const jobId = await getOrCreateJob(product.id);
+      let enhancedSlots = slots;
 
       if (modelDef.isAI) {
-        // 1. Enhance ALL prompts — Gemini reads each image + user's concept → 140-155 word cinematic prompt
-        setRenderStep(`Gemini Vision อ่านรูป ${slots.length} คลิป และเขียน prompt ละเอียด...`);
-        const enhanced = await autoEnhanceAll(jobId, slots);
-        setSlots(enhanced);
+        // Step 1: Enhance prompts — Gemini reads each image + concept → 140-155 word cinematic prompt
+        setRenderStep(`Gemini Vision อ่านรูป ${slots.length} คลิป เขียน prompt ละเอียด...`);
+        enhancedSlots = await autoEnhanceAll(jobId, slots);
+        setSlots(enhancedSlots);
 
-        // 2. Voiceover — depends on audioMode
-        let voiceoverUrl = "";
-        if (audioMode === "upload" && uploadedAudioUrl) {
-          // User uploaded their own audio — skip ElevenLabs entirely
-          voiceoverUrl = uploadedAudioUrl;
-          setRenderStep("ใช้เสียงที่อัพโหลด...");
-        } else if (audioMode === "ai") {
-          // AI voice: generate script → ElevenLabs
+        // Step 2: Generate script now (needed for AI voice later)
+        if (audioMode === "ai") {
           setRenderStep("Gemini เขียน script เสียงพากย์...");
-          const scenesJson = JSON.stringify(enhanced.map((s, idx) => s.label.trim() || `Scene ${idx + 1}`));
+          const scenesJson = JSON.stringify(enhancedSlots.map((s, idx) => s.label.trim() || `Scene ${idx + 1}`));
           await api.post(`/jobs/${jobId}/generate-script`, null, {
             params: { tone_of_voice: "luxury cinematic", duration_sec: totalDuration, concept: videoType, scenes: scenesJson },
-          });
-          setRenderStep("สร้างเสียงพากย์ภาษาไทย...");
-          try {
-            const voRes = await api.post(`/jobs/${jobId}/voiceover`, null, {
-              params: { voice_style: aiVoice },
-            });
-            voiceoverUrl = (voRes.data as { voiceover_url?: string }).voiceover_url || "";
-          } catch { /* voiceover optional */ }
+          }).catch(() => {});
         }
-        // audioMode "none" → voiceoverUrl stays ""
-
-        // 3. Story render
-        setRenderStep(`${modelDef.label} render ${slots.length} คลิป... รอ ${slots.length * 1}–${slots.length * 4} นาที`);
-        await api.post(`/jobs/${jobId}/story-render`, {
-          clips: enhanced.map(s => ({
-            image_index: s.imageIndex,
-            prompt: s.prompt,
-            duration_sec: Math.min(s.duration, modelDef.durations[modelDef.durations.length - 1]),
-            label: s.label || "",
-          })),
-          ai_model: aiModel,
-          aspect_ratio: "9:16",
-          voiceover_url: voiceoverUrl,
-        });
-      } else {
-        setRenderStep("สร้างวิดีโอ Ken Burns...");
-        await api.post(`/jobs/${jobId}/story-render`, {
-          clips: slots.map(s => ({ image_index: s.imageIndex, prompt: "", duration_sec: s.duration })),
-          ai_model: "kenburs",
-          aspect_ratio: "9:16",
-          voiceover_url: "",
-        });
       }
 
-      // 5. Poll for completion
-      setRenderStep("รอ render เสร็จ...");
+      // Step 3: Render video WITHOUT audio — audio is mixed separately after
+      setRenderStep(modelDef.isAI
+        ? `${modelDef.label} render ${slots.length} คลิป... รอ ${slots.length * 1}–${slots.length * 4} นาที`
+        : "Ken Burns สร้างวิดีโอ..."
+      );
+      await api.post(`/jobs/${jobId}/story-render`, {
+        clips: enhancedSlots.map(s => ({
+          image_index: s.imageIndex,
+          prompt: modelDef.isAI ? s.prompt : "",
+          duration_sec: Math.min(s.duration, modelDef.durations[modelDef.durations.length - 1]),
+          label: s.label || "",
+        })),
+        ai_model: aiModel,
+        aspect_ratio: "9:16",
+        voiceover_url: "",
+      });
+
+      // Step 4: Poll until video done
+      setRenderStep("รอ render วิดีโอ...");
       for (let i = 0; i < 120; i++) {
         await new Promise(r => setTimeout(r, 5000));
         const j = await api.get(`/jobs/${jobId}`);
         if (j.data.status === "failed") throw new Error(j.data.error_message || "Render failed");
-        if (j.data.status === "completed") {
-          const renders = await api.get(`/jobs/${jobId}/renders`);
-          const done = (renders.data as { status: string; final_video_url?: string }[])
-            .find(r => r.status === "completed" && r.final_video_url);
-          if (done?.final_video_url) setVideoUrl(imgProxy(done.final_video_url));
-          break;
+        if (j.data.status === "completed") break;
+      }
+
+      // Step 5: Mix audio separately (video is done, now add sound)
+      if (audioMode === "ai") {
+        setRenderStep("Edge TTS สร้างเสียงพากย์ภาษาไทย...");
+        try {
+          await api.post(`/jobs/${jobId}/remix-audio`, null, {
+            params: { voice_style: aiVoice },
+          });
+          setRenderStep("ผสมเสียงเข้าวิดีโอ...");
+          for (let i = 0; i < 30; i++) {
+            await new Promise(r => setTimeout(r, 3000));
+            const j = await api.get(`/jobs/${jobId}`);
+            if (j.data.status === "failed") break;
+            if (j.data.status === "completed") break;
+          }
+        } catch { /* audio failed — still show silent video */ }
+      } else if (audioMode === "upload" && uploadedAudioUrl) {
+        setRenderStep("ผสมเสียงที่อัพโหลดเข้าวิดีโอ...");
+        await api.post(`/jobs/${jobId}/remix-audio`, null, {
+          params: { voiceover_url: uploadedAudioUrl },
+        });
+        for (let i = 0; i < 30; i++) {
+          await new Promise(r => setTimeout(r, 3000));
+          const j = await api.get(`/jobs/${jobId}`);
+          if (j.data.status === "failed") throw new Error(j.data.error_message || "Audio remix failed");
+          if (j.data.status === "completed") break;
         }
       }
+
+      // Step 6: Get latest completed render
+      const renders = await api.get(`/jobs/${jobId}/renders`);
+      const done = (renders.data as { status: string; final_video_url?: string }[])
+        .find(r => r.status === "completed" && r.final_video_url);
+      if (done?.final_video_url) setVideoUrl(imgProxy(done.final_video_url));
+
       setPhase("done");
     } catch (e: unknown) {
       setErrMsg(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
@@ -836,17 +847,22 @@ export default function StoryboardPage() {
             {modelDef.isAI && <><span>ทุก prompt ก่อน render:</span><b style={{ color: "#22D499" }}>Gemini อ่านรูป + concept ที่คุณเขียน → prompt 140-155 คำ</b></>}
             {modelDef.isAI && <><span>concept ของคุณ:</span><b style={{ color: "#f59e0b" }}>ถูกรักษาไว้เป็น scene หลัก — Gemini เพิ่ม cinematic detail รอบๆ</b></>}
             {modelDef.isAI && <><span>Prompt limit:</span><b style={{ color: "var(--dim)" }}>{modelDef.promptLimit?.toLocaleString()} ตัวอักษร · 1 รูป/คลิป</b></>}
-            {modelDef.isAI && <><span>เสียงพากย์:</span><b style={{ color: "var(--ok)" }}>Gemini script + ElevenLabs voice</b></>}
+            <span>เสียงพากย์:</span>
+            <b style={{ color: audioMode === "ai" ? "var(--ok)" : audioMode === "upload" ? "var(--teal)" : "var(--faint)" }}>
+              {audioMode === "ai" ? `Edge TTS ไทย (${aiVoice}) — ผสมหลัง render วิดีโอ`
+               : audioMode === "upload" ? "ไฟล์เสียงของคุณ — ผสมหลัง render วิดีโอ"
+               : "ไม่มีเสียง"}
+            </b>
             {modelDef.isAI && <><span>ราคาประมาณ:</span><b style={{ color: "#f87171" }}>${totalCost.toFixed(2)} (~{Math.round(totalCost * 35)} บาท)</b></>}
           </div>
 
           {/* AI hint */}
           {modelDef.isAI && (
             <div style={{ marginBottom: 12, padding: "10px 14px", background: `${modelDef.color}0a`, border: `1px solid ${modelDef.color}30`, borderRadius: 10, fontSize: 11.5, color: "var(--dim)", lineHeight: 1.8 }}>
-              <b style={{ color: modelDef.color }}>Flow อัตโนมัติเมื่อกด render ({modelDef.label}):</b>
-              {" "}Gemini Vision อ่านรูปแต่ละคลิป + concept ที่คุณพิมพ์ →
-              {" "}เขียน prompt 140-155 คำ (รักษา concept ไว้เป็น scene หลัก เพิ่ม camera/light/atmosphere) →
-              {" "}ส่งให้ {modelDef.label} สร้างวิดีโอทีละคลิป → ต่อเป็นวิดีโอเดียว + เสียงพากย์ AI
+              <b style={{ color: modelDef.color }}>Flow เมื่อกด render ({modelDef.label}):</b>
+              {" "}① Gemini Vision อ่านรูป + เขียน prompt 140-155 คำ →
+              {" "}② {modelDef.label} render {slots.length} คลิป (ไม่มีเสียง) →
+              {" "}③{audioMode === "ai" ? ` Edge TTS สร้างเสียงพากย์ไทย (${aiVoice}) → ผสมเข้าวิดีโอ` : audioMode === "upload" ? " ผสมเสียงที่อัพโหลดเข้าวิดีโอ" : " วิดีโอไม่มีเสียง"}
             </div>
           )}
 
