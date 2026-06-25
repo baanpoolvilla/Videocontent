@@ -2,7 +2,7 @@ import uuid
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.services.tts import TTSService, VOICE_MAP
+from app.services.tts import TTSService, EDGE_VOICE_MAP as VOICE_MAP
 
 router = APIRouter(prefix="/voice", tags=["voice"])
 tts_service = TTSService()
