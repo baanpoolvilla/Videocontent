@@ -333,7 +333,7 @@ export default function VoicePage() {
                 </button>
                 {/* ใส่ลงวิดีโอ */}
                 <button
-                  onClick={() => router.push(`/preview?audio_url=${encodeURIComponent(toAudioUrl(result.url))}`)}
+                  onClick={() => router.push(`/preview?audio_url=${encodeURIComponent(result.url)}`)}
                   style={{
                     width: "100%", padding: "10px 0", borderRadius: 9, cursor: "pointer",
                     background: "linear-gradient(135deg, rgba(0,255,212,.15), rgba(77,127,255,.15))",

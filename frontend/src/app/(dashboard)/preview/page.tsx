@@ -60,7 +60,11 @@ export default function PreviewPage() {
   const [swapAudioUrl, setSwapAudioUrl] = useState(() => {
     if (typeof window !== "undefined") {
       const p = new URLSearchParams(window.location.search);
-      return p.get("audio_url") ?? "";
+      const au = p.get("audio_url") ?? "";
+      // Strip API prefix — backend needs raw MinIO path starting with /
+      const apiPrefix = (process.env.NEXT_PUBLIC_API_URL ?? "") + "/api/v1/files/";
+      if (au.startsWith(apiPrefix)) return "/" + au.slice(apiPrefix.length);
+      return au;
     }
     return "";
   });
@@ -150,7 +154,7 @@ export default function PreviewPage() {
   };
 
   const pickAsset = (asset: AudioAsset) => {
-    setSwapAudioUrl(fileUrl(asset.url));
+    setSwapAudioUrl(asset.url);  // raw MinIO path — backend downloads directly
     setSwapDone(false);
     setShowPicker(false);
   };
