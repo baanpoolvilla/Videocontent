@@ -566,10 +566,10 @@ async def _do_story_render(job_id: UUID, image_urls: list[str], body: _StoryRequ
                     raw = img_path.strip("/")
                     public_url = f"{settings.API_BASE_URL}/api/v1/files/{raw}"
                     try:
-                        result = await wan_service.generate_clip(
+                        result = await wan_service.image_to_video(
                             image_url=public_url,
                             prompt=prompt[:2000],
-                            duration=slot.duration_sec,
+                            duration=str(slot.duration_sec),
                             aspect_ratio=aspect,
                             model=fal_model,
                         )
