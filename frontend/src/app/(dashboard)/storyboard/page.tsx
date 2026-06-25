@@ -201,6 +201,7 @@ export default function StoryboardPage() {
 
   // Audio mode
   const [audioMode, setAudioMode]       = useState<"ai" | "upload" | "none">("ai");
+  const [aiVoice, setAiVoice]           = useState("หญิง (ไทย)");
   const [uploadedAudioUrl, setUploadedAudioUrl] = useState("");
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState("");
@@ -367,10 +368,10 @@ export default function StoryboardPage() {
           await api.post(`/jobs/${jobId}/generate-script`, null, {
             params: { tone_of_voice: "luxury cinematic", duration_sec: totalDuration, concept: videoType, scenes: scenesJson },
           });
-          setRenderStep("ElevenLabs สร้างเสียงพากย์...");
+          setRenderStep("สร้างเสียงพากย์ภาษาไทย...");
           try {
             const voRes = await api.post(`/jobs/${jobId}/voiceover`, null, {
-              params: { voice_style: "เป็นกันเอง (หญิง)" },
+              params: { voice_style: aiVoice },
             });
             voiceoverUrl = (voRes.data as { voiceover_url?: string }).voiceover_url || "";
           } catch { /* voiceover optional */ }
@@ -852,11 +853,11 @@ export default function StoryboardPage() {
           {/* ── Audio mode selector ── */}
           <div style={{ marginBottom: 14, padding: "14px 16px", background: "var(--glass)", border: "1px solid var(--gb)", borderRadius: 12 }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10 }}>เสียงพากย์</div>
-            <div style={{ display: "flex", gap: 8, marginBottom: audioMode === "upload" ? 10 : 0 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
               {[
-                { id: "ai", label: "🤖 AI voice", desc: "Gemini เขียน script + ElevenLabs" },
-                { id: "upload", label: "🎙️ เสียงตัวเอง", desc: "อัพโหลด mp3/m4a/wav" },
-                { id: "none", label: "🔇 ไม่มีเสียง", desc: "" },
+                { id: "ai",     label: "🤖 AI สร้างให้",   desc: "Edge TTS ไทย ฟรี" },
+                { id: "upload", label: "🎙️ อัพโหลดเอง",   desc: "mp3 / m4a / wav" },
+                { id: "none",   label: "🔇 ไม่มีเสียง",    desc: "" },
               ].map(m => (
                 <button key={m.id} onClick={() => setAudioMode(m.id as "ai" | "upload" | "none")} style={{
                   flex: 1, padding: "10px 8px", borderRadius: 10, cursor: "pointer", textAlign: "center",
@@ -870,6 +871,32 @@ export default function StoryboardPage() {
                 </button>
               ))}
             </div>
+
+            {/* AI voice picker */}
+            {audioMode === "ai" && (
+              <div>
+                <div style={{ fontSize: 10, color: "var(--faint)", marginBottom: 6 }}>เลือกเสียง (Microsoft Edge TTS — ฟรี ภาษาไทย):</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {[
+                    { id: "หญิง (ไทย)",   label: "หญิง",   desc: "Premwadee · นุ่มนวล" },
+                    { id: "ชาย (ไทย)",    label: "ชาย",    desc: "Niwat · มืออาชีพ" },
+                    { id: "หญิง 2 (ไทย)", label: "หญิง 2", desc: "Achara · สดใส" },
+                  ].map(v => (
+                    <button key={v.id} onClick={() => setAiVoice(v.id)} style={{
+                      padding: "7px 12px", borderRadius: 8, cursor: "pointer",
+                      border: `1.5px solid ${aiVoice === v.id ? "var(--teal)" : "var(--gb)"}`,
+                      background: aiVoice === v.id ? "rgba(0,255,212,.1)" : "transparent",
+                      color: aiVoice === v.id ? "var(--teal)" : "var(--faint)",
+                      fontSize: 11, fontWeight: 700,
+                    }}>
+                      {v.label} <span style={{ fontWeight: 400, opacity: .7 }}>· {v.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Upload audio */}
             {audioMode === "upload" && (
               <div>
                 <label style={{
