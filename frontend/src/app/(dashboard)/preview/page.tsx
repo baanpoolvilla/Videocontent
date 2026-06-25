@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, fileUrl } from "@/lib/api";
 import {
   Download, Play, RefreshCw, Loader2, Send,
@@ -34,6 +34,7 @@ function fmtDate(iso: string) {
 
 export default function PreviewPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [jobs, setJobs]         = useState<Job[]>([]);
   const [products, setProducts] = useState<Record<string, Product>>({});
@@ -50,7 +51,13 @@ export default function PreviewPage() {
   const [chatInput, setChatInput] = useState("");
   const [copied, setCopied]       = useState(false);
   const [remixing, setRemixing]   = useState(false);
-  const [swapAudioUrl, setSwapAudioUrl] = useState("");
+  const [swapAudioUrl, setSwapAudioUrl] = useState(() => {
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search);
+      return p.get("audio_url") ?? "";
+    }
+    return "";
+  });
   const [swapping, setSwapping]   = useState(false);
   const [swapDone, setSwapDone]   = useState(false);
   const [originalVol, setOriginalVol] = useState(0);

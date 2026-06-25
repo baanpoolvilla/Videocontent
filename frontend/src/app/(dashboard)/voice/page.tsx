@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Mic2, Play, Download, Loader2, Volume2, Copy, Check } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Mic2, Play, Download, Loader2, Volume2, Copy, Check, Film } from "lucide-react";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const API = `${BASE}/api/v1`;
@@ -30,6 +31,7 @@ function authHeaders(): Record<string, string> {
 }
 
 export default function VoicePage() {
+  const router = useRouter();
   const [text, setText] = useState("");
   const [voice, setVoice] = useState(VOICE_STYLES[0].id);
   const [lang, setLang] = useState("th");
@@ -232,7 +234,7 @@ export default function VoicePage() {
                 display: "flex", justifyContent: "space-between", alignItems: "center",
                 padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,.04)",
               }}>
-                <span style={{ fontSize: 12, color: "#9ca3af" }}>ElevenLabs</span>
+                <span style={{ fontSize: 12, color: "#9ca3af" }}>Edge TTS (Microsoft)</span>
                 <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 5, background: "rgba(0,255,212,.1)", color: "#00FFD4" }}>
                   Primary
                 </span>
@@ -248,7 +250,7 @@ export default function VoicePage() {
               </div>
             </div>
             <p style={{ margin: "10px 0 0", fontSize: 11, color: "#4b5563", lineHeight: 1.6 }}>
-              หากไม่มี ELEVENLABS_API_KEY ระบบจะใช้ Google TTS แทนโดยอัตโนมัติ
+              เสียงไทย native — Premwadee / Niwat / Achara
             </p>
           </div>
 
@@ -294,32 +296,48 @@ export default function VoicePage() {
               </div>
 
               {/* Action buttons */}
-              <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-                <a
-                  href={toAudioUrl(result.url)}
-                  download="voiceover.mp3"
-                  style={{
-                    flex: 1, padding: "9px 0", borderRadius: 9, textDecoration: "none",
-                    background: "rgba(0,255,212,.12)", border: "1px solid rgba(0,255,212,.3)",
-                    color: "#00FFD4", fontSize: 12, fontWeight: 700,
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  }}
-                >
-                  <Download size={13} />
-                  ดาวน์โหลด MP3
-                </a>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
+                {/* Primary: ใส่ลงวิดีโอ */}
                 <button
-                  onClick={copyUrl}
+                  onClick={() => router.push(`/preview?audio_url=${encodeURIComponent(toAudioUrl(result.url))}`)}
                   style={{
-                    padding: "9px 14px", borderRadius: 9, cursor: "pointer",
-                    background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)",
-                    color: copied ? "#00FFD4" : "#9ca3af", fontSize: 12, fontWeight: 700,
-                    display: "flex", alignItems: "center", gap: 5,
+                    width: "100%", padding: "11px 0", borderRadius: 9, cursor: "pointer",
+                    background: "linear-gradient(135deg, rgba(0,255,212,.2), rgba(77,127,255,.2))",
+                    border: "1px solid rgba(0,255,212,.4)",
+                    color: "#00FFD4", fontSize: 13, fontWeight: 800,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
                   }}
                 >
-                  {copied ? <Check size={13} /> : <Copy size={13} />}
-                  {copied ? "Copied!" : "Copy URL"}
+                  <Film size={14} />
+                  ใส่ลงวิดีโอ →
                 </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <a
+                    href={toAudioUrl(result.url)}
+                    download="voiceover.mp3"
+                    style={{
+                      flex: 1, padding: "8px 0", borderRadius: 9, textDecoration: "none",
+                      background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)",
+                      color: "#9ca3af", fontSize: 12, fontWeight: 700,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    }}
+                  >
+                    <Download size={13} />
+                    ดาวน์โหลด
+                  </a>
+                  <button
+                    onClick={copyUrl}
+                    style={{
+                      padding: "8px 14px", borderRadius: 9, cursor: "pointer",
+                      background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)",
+                      color: copied ? "#00FFD4" : "#9ca3af", fontSize: 12, fontWeight: 700,
+                      display: "flex", alignItems: "center", gap: 5,
+                    }}
+                  >
+                    {copied ? <Check size={13} /> : <Copy size={13} />}
+                    {copied ? "Copied!" : "Copy URL"}
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
