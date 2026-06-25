@@ -630,7 +630,7 @@ export default function StoryboardPage() {
             Gemini เลือกรูป + เขียน concept ต่อ scene ให้อัตโนมัติ — คุณแก้ได้ก่อน render
           </div>
         </div>
-      ) : (
+      ) : product ? (
         <>
           {/* Product header */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, padding: "10px 14px", background: "rgba(0,255,212,.06)", border: "1px solid rgba(0,255,212,.2)", borderRadius: 12 }}>
