@@ -775,7 +775,8 @@ async def suggest_video_prompt(
                 style=style,
                 concept=concept,
             )
-    except Exception:
+    except Exception as _e:
+        logger.error(f"[SUGGEST] Gemini failed — falling back to generic prompt: {_e}")
         video_prompt = _STYLE_PROMPTS.get(style, _STYLE_PROMPTS["playful"])
 
     return {"video_prompt": video_prompt, "style": style, "concept": concept}

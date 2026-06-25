@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { Loader2, Sparkles, RefreshCw, ChevronUp, ChevronDown, CheckCircle2 } from "lucide-react";
+import { Loader2, Sparkles, ChevronUp, ChevronDown, CheckCircle2 } from "lucide-react";
 
 interface Product { id: string; name: string; media_urls: string[]; }
 type AIModel = "kenburs" | "hailuo2pro" | "kling3s";
@@ -19,22 +19,25 @@ function imgProxy(url: string) {
   return url.startsWith("/") ? `${base}/api/v1/files/${url.slice(1)}` : url;
 }
 
-const MODEL_OPTIONS: { id: AIModel; label: string; price: string; color: string }[] = [
-  { id: "kenburs",   label: "Ken Burns (ฟรี)",  price: "ฟรี",           color: "#22D499" },
-  { id: "hailuo2pro", label: "Hailuo 2.3 Pro",  price: "$0.49/คลิป",   color: "#A78BFA" },
-  { id: "kling3s",   label: "Kling v3",          price: "$1.89/คลิป",   color: "#00FFD4" },
+const MODEL_OPTIONS: { id: AIModel; label: string; price: string; color: string; maxDur: number }[] = [
+  { id: "kenburs",    label: "Ken Burns (ฟรี)", price: "ฟรี",         color: "#22D499", maxDur: 15 },
+  { id: "hailuo2pro", label: "Hailuo 2.3 Pro",  price: "$0.49/คลิป", color: "#A78BFA", maxDur: 10 },
+  { id: "kling3s",    label: "Kling v3",          price: "$1.89/คลิป", color: "#00FFD4", maxDur: 10 },
 ];
 
 export default function StoryboardPage() {
   const router = useRouter();
-  const [products, setProducts]   = useState<Product[]>([]);
-  const [product, setProduct]     = useState<Product | null>(null);
-  const [slots, setSlots]         = useState<ClipSlot[]>([]);
-  const [aiModel, setAiModel]     = useState<AIModel>("hailuo2pro");
-  const [phase, setPhase]         = useState<"setup" | "rendering" | "done" | "error">("setup");
-  const [errMsg, setErrMsg]       = useState("");
-  const [videoUrl, setVideoUrl]   = useState("");
+  const [products, setProducts]     = useState<Product[]>([]);
+  const [product, setProduct]       = useState<Product | null>(null);
+  const [slots, setSlots]           = useState<ClipSlot[]>([]);
+  const [aiModel, setAiModel]       = useState<AIModel>("hailuo2pro");
+  const [phase, setPhase]           = useState<"setup" | "rendering" | "done" | "error">("setup");
+  const [renderStep, setRenderStep] = useState("");
+  const [errMsg, setErrMsg]         = useState("");
+  const [videoUrl, setVideoUrl]     = useState("");
   const [generating, setGenerating] = useState<number | null>(null);
+  // ONE job per storyboard session — created lazily, reused for all calls
+  const [sessionJobId, setSessionJobId] = useState<string | null>(null);
 
   useEffect(() => {
     api.get("/products/").then(r => setProducts(r.data)).catch(() => {});
@@ -42,11 +45,21 @@ export default function StoryboardPage() {
 
   const selectProduct = (p: Product) => {
     setProduct(p);
+    setSessionJobId(null); // reset job when switching product
     setSlots(p.media_urls.slice(0, 6).map((_, i) => ({
       imageIndex: i,
       prompt: "",
       duration: 5,
     })));
+  };
+
+  // Create a job once per session and cache it
+  const getOrCreateJob = async (productId: string): Promise<string> => {
+    if (sessionJobId) return sessionJobId;
+    const res = await api.post("/jobs/", { product_id: productId, platform: "tiktok" });
+    const id: string = res.data.id;
+    setSessionJobId(id);
+    return id;
   };
 
   const updateSlot = (i: number, patch: Partial<ClipSlot>) =>
@@ -66,6 +79,8 @@ export default function StoryboardPage() {
     if (!product) return;
     setGenerating(i);
     try {
+      // Reuse one job per session — no orphan jobs
+      const jobId = await getOrCreateJob(product.id);
       const slot = slots[i];
       const imgPath = product.media_urls[slot.imageIndex];
       const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -73,49 +88,71 @@ export default function StoryboardPage() {
         ? `${base}/api/v1/files/${imgPath.slice(1)}`
         : imgPath;
 
-      const jobRes = await api.post("/jobs/", { product_id: product.id, platform: "tiktok" });
-      const jobId = jobRes.data.id;
       const r = await api.get(`/jobs/${jobId}/suggest-video-prompt`, {
         params: {
           style: "luxury",
-          concept: slot.prompt, // ใช้ prompt ที่ user พิมพ์เป็น concept
-          image_url: publicImgUrl, // รูปของคลิปนั้นโดยเฉพาะ
+          concept: slot.prompt,
+          image_url: publicImgUrl,
         },
       });
       updateSlot(i, { prompt: r.data.video_prompt || "" });
-    } catch { /* keep empty */ }
+    } catch { /* keep current prompt */ }
     setGenerating(null);
   };
 
+  const maxDur = MODEL_OPTIONS.find(m => m.id === aiModel)?.maxDur ?? 10;
   const totalCost = aiModel === "kenburs" ? 0 : slots.length * (aiModel === "hailuo2pro" ? 0.49 : 1.89);
   const totalDuration = slots.reduce((s, c) => s + c.duration, 0);
 
   const runRender = async () => {
     if (!product || slots.length === 0) return;
     setPhase("rendering");
+    setRenderStep("สร้าง script...");
     try {
-      const jobRes = await api.post("/jobs/", { product_id: product.id, platform: "tiktok" });
-      const jobId = jobRes.data.id;
+      // Reuse session job
+      const jobId = await getOrCreateJob(product.id);
+
+      // 1. Generate script for voiceover
+      setRenderStep("Gemini เขียน script...");
       await api.post(`/jobs/${jobId}/generate-script`, null, {
         params: { tone_of_voice: "luxury cinematic", duration_sec: totalDuration, concept: "" },
       });
+
+      // 2. Generate voiceover from script
+      setRenderStep("สร้างเสียงพากย์...");
+      let voiceoverUrl = "";
+      try {
+        const voRes = await api.post(`/jobs/${jobId}/voiceover`, null, {
+          params: { voice_style: "เป็นกันเอง (หญิง)" },
+        });
+        voiceoverUrl = (voRes.data as { voiceover_url?: string }).voiceover_url || "";
+      } catch {
+        // voiceover optional — continue without it
+      }
+
+      // 3. Story render with voiceover
+      setRenderStep(`AI สร้าง ${slots.length} คลิป — รอ ${slots.length * 1}–${slots.length * 3} นาที...`);
       await api.post(`/jobs/${jobId}/story-render`, {
         clips: slots.map(s => ({
           image_index: s.imageIndex,
           prompt: s.prompt,
-          duration_sec: s.duration,
+          duration_sec: Math.min(s.duration, maxDur), // cap at model max
         })),
         ai_model: aiModel,
         aspect_ratio: "9:16",
+        voiceover_url: voiceoverUrl,
       });
 
+      // 4. Poll for completion
+      setRenderStep("รอ render เสร็จ...");
       for (let i = 0; i < 120; i++) {
         await new Promise(r => setTimeout(r, 5000));
         const j = await api.get(`/jobs/${jobId}`);
         if (j.data.status === "failed") throw new Error(j.data.error_message || "Render failed");
         if (j.data.status === "completed") {
           const renders = await api.get(`/jobs/${jobId}/renders`);
-          const done = renders.data.find((r: { status: string; final_video_url?: string }) => r.status === "completed" && r.final_video_url);
+          const done = (renders.data as { status: string; final_video_url?: string }[])
+            .find(r => r.status === "completed" && r.final_video_url);
           if (done?.final_video_url) setVideoUrl(imgProxy(done.final_video_url));
           break;
         }
@@ -130,8 +167,8 @@ export default function StoryboardPage() {
   if (phase === "rendering") return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, background: "var(--bg)" }}>
       <Loader2 size={40} style={{ animation: "spin 1s linear infinite", color: "var(--teal)" }} />
-      <div style={{ fontSize: 18, fontWeight: 800 }}>กำลังสร้าง {slots.length} คลิป...</div>
-      <div style={{ fontSize: 13, color: "var(--faint)" }}>AI สร้างทีละคลิปแล้ว concat — รอ {slots.length * 1}–{slots.length * 3} นาที</div>
+      <div style={{ fontSize: 18, fontWeight: 800 }}>กำลังสร้างวิดีโอ...</div>
+      <div style={{ fontSize: 13, color: "var(--faint)", maxWidth: 340, textAlign: "center" }}>{renderStep}</div>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
@@ -143,7 +180,7 @@ export default function StoryboardPage() {
       {videoUrl && <video src={videoUrl} controls autoPlay loop playsInline style={{ width: "100%", maxWidth: 320, borderRadius: 16, border: "1px solid var(--gb)" }} />}
       <div style={{ display: "flex", gap: 10 }}>
         <button onClick={() => router.push("/preview")} style={{ padding: "12px 20px", borderRadius: 12, background: "linear-gradient(90deg,var(--teal),var(--blue))", border: "none", color: "#06060A", fontWeight: 800, cursor: "pointer" }}>ดูใน Preview →</button>
-        <button onClick={() => { setPhase("setup"); setVideoUrl(""); }} style={{ padding: "12px 16px", borderRadius: 12, background: "var(--glass)", border: "1px solid var(--gb)", color: "var(--faint)", cursor: "pointer" }}>สร้างใหม่</button>
+        <button onClick={() => { setPhase("setup"); setVideoUrl(""); setSessionJobId(null); }} style={{ padding: "12px 16px", borderRadius: 12, background: "var(--glass)", border: "1px solid var(--gb)", color: "var(--faint)", cursor: "pointer" }}>สร้างใหม่</button>
       </div>
     </div>
   );
@@ -189,7 +226,7 @@ export default function StoryboardPage() {
               <div style={{ fontSize: 13, fontWeight: 700 }}>{product.name}</div>
               <div style={{ fontSize: 11, color: "var(--faint)" }}>{slots.length} คลิป · รวม {totalDuration} วิ</div>
             </div>
-            <button onClick={() => { setProduct(null); setSlots([]); }} style={{ fontSize: 11, color: "var(--faint)", background: "none", border: "none", cursor: "pointer" }}>เปลี่ยน</button>
+            <button onClick={() => { setProduct(null); setSlots([]); setSessionJobId(null); }} style={{ fontSize: 11, color: "var(--faint)", background: "none", border: "none", cursor: "pointer" }}>เปลี่ยน</button>
           </div>
 
           {/* Clip slots */}
@@ -222,21 +259,24 @@ export default function StoryboardPage() {
                       />
                       <button onClick={() => suggestPrompt(i)} disabled={generating === i} style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "var(--blue)", background: "rgba(77,127,255,.08)", border: "1px solid rgba(77,127,255,.2)", borderRadius: 8, padding: "5px 10px", cursor: "pointer" }}>
                         {generating === i ? <Loader2 size={10} style={{ animation: "spin 1s linear infinite" }} /> : <Sparkles size={10} />}
-                        AI เขียน prompt ให้
+                        AI เขียน prompt ให้ (Gemini อ่านรูปจริง)
                       </button>
                     </div>
 
                     {/* Duration */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 70 }}>
                       <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".05em" }}>วิ/คลิป</div>
-                      {[5, 10, 15].map(d => (
-                        <button key={d} onClick={() => updateSlot(i, { duration: d })} style={{
+                      {[5, 10, ...(maxDur >= 15 ? [15] : [])].map(d => (
+                        <button key={d} onClick={() => updateSlot(i, { duration: Math.min(d, maxDur) })} style={{
                           padding: "6px 10px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
                           border: `1.5px solid ${slot.duration === d ? "var(--teal)" : "var(--gb)"}`,
                           background: slot.duration === d ? "rgba(0,255,212,.1)" : "transparent",
                           color: slot.duration === d ? "var(--teal)" : "var(--faint)",
                         }}>{d}s</button>
                       ))}
+                      {maxDur < 15 && (
+                        <div style={{ fontSize: 9, color: "var(--faint)", textAlign: "center", lineHeight: 1.3 }}>max {maxDur}s สำหรับ AI</div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -249,13 +289,18 @@ export default function StoryboardPage() {
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--dim)", marginBottom: 8 }}>AI Model</div>
             <div style={{ display: "flex", gap: 8 }}>
               {MODEL_OPTIONS.map(m => (
-                <button key={m.id} onClick={() => setAiModel(m.id)} style={{
+                <button key={m.id} onClick={() => {
+                  setAiModel(m.id);
+                  // cap existing slot durations to new model's max
+                  setSlots(prev => prev.map(s => ({ ...s, duration: Math.min(s.duration, m.maxDur) })));
+                }} style={{
                   flex: 1, padding: "10px 12px", borderRadius: 10, cursor: "pointer", textAlign: "center",
                   border: `1.5px solid ${aiModel === m.id ? m.color : "var(--gb)"}`,
                   background: aiModel === m.id ? m.color + "18" : "transparent", transition: "all .15s",
                 }}>
                   <div style={{ fontSize: 12, fontWeight: 800, color: aiModel === m.id ? m.color : "var(--dim)" }}>{m.label}</div>
                   <div style={{ fontSize: 11, color: "var(--faint)", marginTop: 2 }}>{m.price}</div>
+                  <div style={{ fontSize: 9, color: "var(--faint)", marginTop: 1 }}>max {m.maxDur}s/คลิป</div>
                 </button>
               ))}
             </div>
@@ -265,6 +310,7 @@ export default function StoryboardPage() {
           <div style={{ background: "rgba(0,0,0,.2)", border: "1px solid var(--gb)", borderRadius: 12, padding: "14px 16px", marginBottom: 14, fontSize: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px", color: "var(--faint)", lineHeight: 2 }}>
             <span>จำนวนคลิป:</span><b style={{ color: "var(--dim)" }}>{slots.length} คลิป</b>
             <span>รวม:</span><b style={{ color: "var(--dim)" }}>{totalDuration} วินาที</b>
+            <span>เสียงพากย์:</span><b style={{ color: "var(--ok)" }}>อัตโนมัติ (Gemini + ElevenLabs)</b>
             {aiModel !== "kenburs" && <><span>ราคาประมาณ:</span><b style={{ color: "#f87171" }}>${totalCost.toFixed(2)} (~{Math.round(totalCost * 35)} บาท)</b></>}
           </div>
 
