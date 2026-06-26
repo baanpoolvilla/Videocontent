@@ -481,32 +481,36 @@ export default function StoryboardPage() {
 
   /* ─── Main setup UI ─── */
   return (
-    <div style={{ height: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div style={{ height: "100vh", background: "radial-gradient(ellipse 80% 55% at 5% -5%, rgba(0,255,212,.07) 0%, transparent 50%), radial-gradient(ellipse 70% 45% at 95% 105%, rgba(77,127,255,.06) 0%, transparent 50%), var(--bg)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
       {/* Header */}
-      <div style={{ flexShrink: 0, padding: "18px 28px 0", display: "flex", alignItems: "flex-end", gap: 20 }}>
+      <div style={{ flexShrink: 0, padding: "14px 20px 0", display: "flex", alignItems: "center", gap: 16 }}>
         <div>
-          <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--faint)" }}>Story Mode</p>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "var(--text)", letterSpacing: "-.02em" }}>Storyboard Editor</h1>
+          <p style={{ margin: "0 0 2px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "rgba(0,255,212,.5)" }}>Story Mode</p>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: "var(--text)", letterSpacing: "-.02em" }}>Storyboard Editor</h1>
         </div>
-        <p style={{ margin: "0 0 2px", fontSize: 12, color: "var(--dim)", flex: 1, lineHeight: 1.5 }}>
-          แต่ละคลิปมี prompt ของตัวเอง · Gemini อ่านรูป + concept → เขียน prompt 140-155 คำ → AI Model ที่เลือก
+        <p style={{ margin: 0, fontSize: 11.5, color: "var(--faint)", lineHeight: 1.55, maxWidth: 520 }}>
+          แต่ละคลิปมี prompt ของตัวเอง · Gemini อ่านรูป + concept → เขียน prompt ละเอียด → ส่งไป AI Model
         </p>
       </div>
 
       {/* 2-column body */}
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: "14px 28px 20px" }}>
+      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 12, padding: "12px 20px 16px" }}>
 
         {/* LEFT sidebar: model + controls */}
         <div style={{
-          width: 278, flexShrink: 0, display: "flex", flexDirection: "column",
-          background: "#1a1a22", border: "1px solid var(--gb)", borderRadius: 16, overflow: "hidden",
+          width: 268, flexShrink: 0, display: "flex", flexDirection: "column",
+          background: "linear-gradient(160deg, #1e1e2c 0%, #17171e 100%)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 16, overflow: "hidden",
+          boxShadow: "0 0 40px rgba(0,255,212,.03), 0 16px 40px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.05)",
         }}>
-          <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
 
             {/* Model selector */}
             <div style={{ position: "relative", marginBottom: 0 }}>
-              <div style={{ fontSize: 9, fontWeight: 800, color: "var(--faint)", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".07em" }}>AI Model</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 8 }}>
+                <div style={{ width: 2, height: 10, borderRadius: 1, background: "var(--teal)", flexShrink: 0 }} />
+                <div style={{ fontSize: 9, fontWeight: 800, color: "var(--dim)", textTransform: "uppercase", letterSpacing: ".07em" }}>AI Model</div>
+              </div>
 
               <button onClick={() => setModelOpen(v => !v)} style={{
                 width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
@@ -664,17 +668,25 @@ export default function StoryboardPage() {
 
           {phase === "product_select" ? (
             <>
-              <p style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700, color: "var(--dim)" }}>เลือก Asset:</p>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 12 }}>
+              <p style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 700, color: "var(--dim)", textTransform: "uppercase", letterSpacing: ".05em" }}>เลือก Asset</p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
                 {products.map(p => (
                   <button key={p.id} onClick={() => selectProduct(p)} style={{
-                    padding: "0 0 12px 0", borderRadius: 14, cursor: "pointer", textAlign: "left",
-                    background: "var(--glass)", border: "1px solid var(--gb)", overflow: "hidden",
+                    padding: 0, borderRadius: 14, cursor: "pointer", textAlign: "left",
+                    background: "linear-gradient(160deg, #1e1e2c, #181820)",
+                    border: "1px solid rgba(255,255,255,.08)", overflow: "hidden",
+                    boxShadow: "0 4px 20px rgba(0,0,0,.4)",
                   }}>
-                    {p.media_urls?.[0] && <img src={imgProxy(p.media_urls[0])} alt="" style={{ width: "100%", height: 120, objectFit: "cover" }} />}
-                    <div style={{ padding: "10px 12px 0" }}>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{p.name}</div>
-                      <div style={{ fontSize: 10, color: "var(--faint)", marginTop: 2 }}>{p.media_urls?.length || 0} รูป</div>
+                    <div style={{ position: "relative" }}>
+                      {p.media_urls?.[0]
+                        ? <img src={imgProxy(p.media_urls[0])} alt="" style={{ width: "100%", height: 140, objectFit: "cover", display: "block" }} />
+                        : <div style={{ width: "100%", height: 140, background: "rgba(255,255,255,.04)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>📦</div>
+                      }
+                      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 60, background: "linear-gradient(transparent, rgba(0,0,0,.7))" }} />
+                    </div>
+                    <div style={{ padding: "10px 14px 12px" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{p.name}</div>
+                      <div style={{ fontSize: 10.5, color: "var(--faint)", marginTop: 3 }}>{p.media_urls?.length || 0} รูป</div>
                     </div>
                   </button>
                 ))}

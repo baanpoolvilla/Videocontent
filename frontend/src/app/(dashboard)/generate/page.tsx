@@ -484,32 +484,33 @@ export default function GeneratePage() {
   // ── HOME ──────────────────────────────────────────────────────────────────
   if (phase === "home") return (
     <div style={{
-      height: "100vh", background: "var(--bg)",
+      height: "100vh",
+      background: "radial-gradient(ellipse 80% 55% at 5% -5%, rgba(0,255,212,.07) 0%, transparent 50%), radial-gradient(ellipse 70% 45% at 95% 105%, rgba(77,127,255,.06) 0%, transparent 50%), var(--bg)",
       display: "flex", flexDirection: "column",
-      padding: "20px 28px", overflow: "hidden",
+      padding: "14px 20px 16px", overflow: "hidden",
     }}>
 
       {/* Header: title + mode tabs */}
-      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14, flexShrink: 0 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "var(--text)", letterSpacing: "-.02em" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 12, flexShrink: 0 }}>
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: "var(--text)", letterSpacing: "-.02em" }}>
           Create your{" "}
-          <span style={{ background: "linear-gradient(90deg,var(--teal),var(--blue))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          <span style={{ background: "linear-gradient(90deg,#00ffd4,#6ee7ff)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             story video
           </span>{" "}today
         </h1>
         <div style={{ flex: 1 }} />
-        <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,.04)", border: "1px solid var(--gb)", borderRadius: 11, padding: 2, flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.07)", borderRadius: 11, padding: 2, flexShrink: 0 }}>
           {MODE_TABS.map(t => (
             <button key={t.id} onMouseDown={() => setMode(t.id)} style={{
               display: "flex", alignItems: "center", gap: 5,
-              padding: "7px 14px", borderRadius: 9, cursor: t.id === "audio" ? "default" : "pointer",
-              background: mode === t.id ? "rgba(255,255,255,.11)" : "transparent",
-              border: `1px solid ${mode === t.id ? "rgba(255,255,255,.14)" : "transparent"}`,
+              padding: "6px 12px", borderRadius: 9, cursor: t.id === "audio" ? "default" : "pointer",
+              background: mode === t.id ? "rgba(255,255,255,.1)" : "transparent",
+              border: `1px solid ${mode === t.id ? "rgba(255,255,255,.12)" : "transparent"}`,
               color: mode === t.id ? "var(--text)" : "var(--faint)",
-              fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap",
+              fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
               opacity: t.id === "audio" ? 0.5 : 1, transition: "all .15s",
             }}>
-              <span style={{ fontSize: 13 }}>{t.icon}</span>
+              <span style={{ fontSize: 12 }}>{t.icon}</span>
               <span>{t.label}</span>
               {t.id === "audio" && <span style={{ fontSize: 8, background: "rgba(255,176,0,.12)", color: "#ffb000", padding: "1px 5px", borderRadius: 4, fontWeight: 800 }}>SOON</span>}
             </button>
@@ -520,13 +521,14 @@ export default function GeneratePage() {
       {/* Main card — 2 columns */}
       <div style={{
         flex: 1, minHeight: 0,
-        background: "#1a1a22", border: "1px solid var(--gb)", borderRadius: 20,
-        boxShadow: "0 8px 40px rgba(0,0,0,.4)",
+        background: "linear-gradient(150deg, #1e1e2c 0%, #19191f 60%, #17171e 100%)",
+        border: "1px solid rgba(255,255,255,.08)", borderRadius: 18,
+        boxShadow: "0 0 60px rgba(0,255,212,.04), 0 20px 60px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06)",
         display: "flex", overflow: "hidden",
       }}>
 
         {/* LEFT: prompt input */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "22px 24px" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "18px 20px", position: "relative", background: "linear-gradient(180deg, rgba(0,255,212,.02) 0%, transparent 22%)" }}>
 
           {/* Asset picker row */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap", flexShrink: 0 }}>
@@ -579,7 +581,7 @@ export default function GeneratePage() {
               )}
             </div>
             {product?.media_urls?.slice(0, 5).map((url, i) => (
-              <div key={i} style={{ width: 38, height: 38, borderRadius: 8, overflow: "hidden", border: "1px solid var(--gb)", flexShrink: 0 }}>
+              <div key={i} style={{ width: 36, height: 36, borderRadius: 7, overflow: "hidden", border: "1px solid rgba(255,255,255,.08)", flexShrink: 0 }}>
                 <img src={imgProxy(url)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               </div>
             ))}
@@ -595,30 +597,55 @@ export default function GeneratePage() {
             onChange={e => setPrompt(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
             placeholder={
-              mode === "script" ? "พิมพ์หัวข้อ/คอนเซ็ปต์ที่ต้องการ..."
+              mode === "script" ? "พิมพ์หัวข้อ หรือคอนเซ็ปต์ที่ต้องการ..."
               : mode === "ads"  ? "ทำ Ad โปรโมท pool villa พร้อม offer พิเศษ..."
               : "ทำเป็นรีวิวบ้านพลูวิลล่า แบบเชิญชวนมาพักผ่อน..."
             }
             style={{
-              flex: 1, minHeight: 100, width: "100%", background: "transparent", border: "none", outline: "none",
-              color: "var(--text)", fontSize: 16, lineHeight: 1.8, resize: "none",
+              flex: 1, minHeight: 80, width: "100%", background: "transparent", border: "none", outline: "none",
+              color: "var(--text)", fontSize: 17, lineHeight: 2, resize: "none",
               fontFamily: "inherit", boxSizing: "border-box",
             }}
           />
+
+          {/* Inspiration prompts — visible when textarea empty */}
+          {!prompt && (
+            <div style={{ position: "absolute", bottom: 18, left: 20, right: 20, pointerEvents: "none" }}>
+              <p style={{ margin: "0 0 7px", fontSize: 9.5, color: "rgba(255,255,255,.2)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em" }}>ไอเดีย</p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, pointerEvents: "all" }}>
+                {[
+                  "รีวิว pool villa แบบ luxury cinematic",
+                  "Showcase สระน้ำ + วิว skyline ยามเย็น",
+                  "Villa ริมทะเล บรรยากาศ tropical resort",
+                  "โปรโมทราคาพิเศษ + CTA ชัดเจน",
+                ].map(ex => (
+                  <button key={ex} onMouseDown={() => setPrompt(ex)} style={{
+                    padding: "5px 13px", borderRadius: 20,
+                    background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.09)",
+                    color: "rgba(255,255,255,.45)", fontSize: 11.5, cursor: "pointer",
+                    backdropFilter: "blur(8px)",
+                  }}>{ex}</button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Divider */}
-        <div style={{ width: 1, background: "rgba(255,255,255,.06)", flexShrink: 0 }} />
+        <div style={{ width: 1, background: "rgba(255,255,255,.05)", flexShrink: 0 }} />
 
         {/* RIGHT: options + send */}
-        <div style={{ width: 272, flexShrink: 0, display: "flex", flexDirection: "column", padding: "22px 18px", overflowY: "auto" }}>
+        <div style={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", padding: "18px 16px", overflowY: "auto", background: "rgba(0,0,0,.15)" }}>
 
           {mode === "assets" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 16 }}>
 
               {/* ความยาว */}
               <div>
-                <div style={{ fontSize: 9, color: "var(--faint)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 7 }}>ความยาว</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 7 }}>
+                  <div style={{ width: 2, height: 10, borderRadius: 1, background: "var(--teal)", flexShrink: 0 }} />
+                  <div style={{ fontSize: 9, color: "var(--dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em" }}>ความยาว</div>
+                </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   {([
                     { id: "short"  as const, label: "สั้น", sub: "~15s", clips: 1, dur: 15 },
@@ -639,7 +666,10 @@ export default function GeneratePage() {
 
               {/* โทน */}
               <div>
-                <div style={{ fontSize: 9, color: "var(--faint)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 7 }}>โทน</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 7 }}>
+                  <div style={{ width: 2, height: 10, borderRadius: 1, background: "#22D499", flexShrink: 0 }} />
+                  <div style={{ fontSize: 9, color: "var(--dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em" }}>โทน</div>
+                </div>
                 <select value={quickTone} onChange={e => setQuickTone(e.target.value)} style={{
                   width: "100%", background: "#1b1c2a", border: "1px solid rgba(34,212,153,.35)",
                   borderRadius: 8, padding: "8px 10px", color: "#22D499",
@@ -656,7 +686,10 @@ export default function GeneratePage() {
 
               {/* เสียง */}
               <div>
-                <div style={{ fontSize: 9, color: "var(--faint)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 7 }}>เสียง</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 7 }}>
+                  <div style={{ width: 2, height: 10, borderRadius: 1, background: "#4D7FFF", flexShrink: 0 }} />
+                  <div style={{ fontSize: 9, color: "var(--dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em" }}>เสียง</div>
+                </div>
                 {includeVoice ? (
                   <select value={quickVoice} onChange={e => setQuickVoice(e.target.value)} style={{
                     width: "100%", background: "#1b1c2a", border: "1px solid rgba(77,127,255,.35)",
@@ -674,7 +707,10 @@ export default function GeneratePage() {
 
               {/* หน้าจอ */}
               <div>
-                <div style={{ fontSize: 9, color: "var(--faint)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 7 }}>หน้าจอ</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 7 }}>
+                  <div style={{ width: 2, height: 10, borderRadius: 1, background: "#FBBF24", flexShrink: 0 }} />
+                  <div style={{ fontSize: 9, color: "var(--dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em" }}>หน้าจอ</div>
+                </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   {([
                     { ar: "9:16" as AspectRatio, label: "📱 9:16", sub: "TikTok" },
