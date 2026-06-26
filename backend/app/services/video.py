@@ -14,8 +14,9 @@ OUT_W, OUT_H = 1080, 1920
 PRE_W, PRE_H = int(OUT_W * 1.3), int(OUT_H * 1.3)   # 1404 x 2496
 
 # Crossfade settings for AI clips
-FADE_DUR = 0.5          # seconds — dissolve between clips
-FADE_TRANSITION = "dissolve"   # xfade transition type
+FADE_DUR = 1.0          # seconds — dissolve between clips
+FADE_TRANSITION = "fadeblack"  # xfade transition type (fadeblack = cinematic fade through black)
+FADE_ENDS = 0.4         # seconds — fade-in at start and fade-out at end
 
 # Scale+crop any image to PRE_W x PRE_H preserving aspect ratio, then Ken Burns
 _SCALE_CROP = (
@@ -134,6 +135,21 @@ class VideoService:
                 fade_dur = min(FADE_DUR, min(durations) * 0.15)
                 logger.info(f"[VIDEO] xfade {len(norm_paths)} clips fade={fade_dur:.2f}s transition={FADE_TRANSITION}")
                 await self._xfade_clips(norm_paths, durations, fade_dur, merged)
+
+            # 3b. Fade-in at start + fade-out at end (cinematic feel)
+            faded = os.path.join(tmpdir, "faded.mp4")
+            try:
+                total_dur = await self._get_duration(merged)
+                fade_out_start = max(0.0, total_dur - FADE_ENDS)
+                await self._run_ffmpeg([
+                    "ffmpeg", "-y", "-i", merged,
+                    "-vf", f"fade=t=in:st=0:d={FADE_ENDS},fade=t=out:st={fade_out_start:.3f}:d={FADE_ENDS}",
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                    "-pix_fmt", "yuv420p", "-an", faded,
+                ])
+                merged = faded
+            except Exception as e:
+                logger.warning(f"[VIDEO] fade-ends failed — skipping: {e}")
 
             # 4. Optional logo overlay
             logo_path = None
@@ -421,6 +437,20 @@ class VideoService:
             durations = [per_image] * len(clip_paths)
             fade_dur = min(FADE_DUR, per_image * 0.15)
             await self._xfade_clips(clip_paths, durations, fade_dur, merged)
+
+        # Fade-in + fade-out for Ken Burns too
+        faded_kb = os.path.join(tmpdir, "faded_kb.mp4")
+        try:
+            fade_out_start = max(0.0, duration_sec - FADE_ENDS)
+            await self._run_ffmpeg([
+                "ffmpeg", "-y", "-i", merged,
+                "-vf", f"fade=t=in:st=0:d={FADE_ENDS},fade=t=out:st={fade_out_start:.3f}:d={FADE_ENDS}",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                "-pix_fmt", "yuv420p", "-an", faded_kb,
+            ])
+            merged = faded_kb
+        except Exception as e:
+            logger.warning(f"[VIDEO] kb fade-ends failed — skipping: {e}")
 
         if audio_path and os.path.exists(audio_path):
             await self._run_ffmpeg([
