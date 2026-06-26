@@ -190,7 +190,7 @@ services:
       - ai_pipeline
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.api.rule=Host(`api.${DOMAIN}`)"
+      - "traefik.http.routers.api.rule=Host(`video-api.${DOMAIN}`)"
       - "traefik.http.routers.api.entrypoints=web"
       - "traefik.http.services.api.loadbalancer.server.port=8000"
 
