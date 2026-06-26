@@ -282,10 +282,18 @@ export default function GeneratePage() {
     });
     setPhase("story");
     setPrompt("");
-    setQIndex(0);
 
-    const q0 = questions[0];
-    await addAiTyping(q0.getAi?.(userPrompt) ?? "", 800);
+    const hasVisual = prompt.trim().length > 0 && mode === "assets";
+    if (hasVisual) {
+      // user typed a prompt → use it as visual concept, skip Q1
+      setAnswers({ visual: userPrompt });
+      setQIndex(1);
+      await addAiTyping(`โอเค! จะใช้ "${userPrompt}" เป็น concept หลัก — วิดีโอจะยาวแค่ไหน?`, 700);
+    } else {
+      setQIndex(0);
+      const q0 = questions[0];
+      await addAiTyping(q0.getAi?.(userPrompt) ?? "", 800);
+    }
   };
 
   // ── story answer ───────────────────────────────────────────────────────────
