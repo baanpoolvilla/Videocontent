@@ -193,6 +193,7 @@ export default function StoryboardPage() {
   const [generating, setGenerating]     = useState<number | null>(null);
   const [sessionJobId, setSessionJobId] = useState<string | null>(null);
   const [imgPickerOpen, setImgPickerOpen] = useState<number | null>(null);
+  const [modelOpen, setModelOpen]         = useState(false);
 
   // Guided questions state
   const [videoType, setVideoType]       = useState("รีวิวบ้าน");
@@ -487,50 +488,75 @@ export default function StoryboardPage() {
         แต่ละคลิปมี prompt ของตัวเอง · พิมพ์ concept (ไทยหรือ English ก็ได้) → Gemini อ่านรูป + concept → เขียน prompt 140-155 คำ → ส่งไป AI Model ที่เลือก
       </p>
 
-      {/* ── Model selector ── */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--dim)", marginBottom: 10, textTransform: "uppercase", letterSpacing: ".06em" }}>
-          เลือก AI Model
+      {/* ── Model selector — compact dropdown ── */}
+      <div style={{ marginBottom: 24, position: "relative" }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: "var(--dim)", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".06em" }}>
+          AI Model
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(148px,1fr))", gap: 8 }}>
-          {MODELS.map(m => {
-            const active = aiModel === m.id;
-            return (
-              <button key={m.id} onClick={() => {
-                setAiModel(m.id);
-                setSlots(prev => prev.map(s => ({
-                  ...s,
-                  duration: m.durations.includes(s.duration) ? s.duration : m.durations[0],
-                })));
-              }} style={{
-                padding: "14px 12px", borderRadius: 14, cursor: "pointer", textAlign: "left",
-                border: `2px solid ${active ? m.color : "var(--gb)"}`,
-                background: active ? `${m.color}12` : "var(--glass)",
-                transition: "all .15s", position: "relative",
-              }}>
-                <div style={{
-                  position: "absolute", top: 10, right: 10,
-                  fontSize: 8, fontWeight: 900, letterSpacing: ".06em",
-                  padding: "2px 6px", borderRadius: 4,
-                  background: active ? m.color : "rgba(255,255,255,.08)",
-                  color: active ? "#06060A" : "var(--faint)",
-                }}>{m.badge}</div>
 
-                <div style={{ fontSize: 13, fontWeight: 900, color: active ? m.color : "var(--text)", marginBottom: 2 }}>{m.label}</div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: active ? m.color + "cc" : "var(--faint)", marginBottom: 8 }}>{m.price}</div>
-                <div style={{ fontSize: 11, color: active ? "var(--text)" : "var(--dim)", fontWeight: 700, marginBottom: 3 }}>{m.outputLine1}</div>
-                <div style={{ fontSize: 10, color: "var(--faint)", lineHeight: 1.5, marginBottom: 8 }}>{m.outputLine2}</div>
+        {/* Trigger button */}
+        <button onClick={() => setModelOpen(v => !v)} style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
+          background: `${modelDef.color}10`, border: `1.5px solid ${modelDef.color}40`,
+          borderRadius: 12, cursor: "pointer", textAlign: "left", transition: "all .15s",
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+              <span style={{ fontSize: 14, fontWeight: 900, color: modelDef.color }}>{modelDef.label}</span>
+              <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: 5, background: `${modelDef.color}22`, color: modelDef.color }}>{modelDef.badge}</span>
+            </div>
+            <div style={{ fontSize: 11, color: "var(--faint)" }}>
+              {modelDef.price} · {modelDef.outputLine1}
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <Stars n={modelDef.stars} color={modelDef.color} />
+            {modelOpen ? <ChevronUp size={14} color="var(--faint)" /> : <ChevronDown size={14} color="var(--faint)" />}
+          </div>
+        </button>
 
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <Stars n={m.stars} color={m.color} />
-                  <div style={{ fontSize: 10, color: "var(--faint)" }}>
-                    {m.durations.join(" / ")} วิ
+        {/* Dropdown list */}
+        {modelOpen && (
+          <div style={{
+            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 200,
+            background: "#15151e", border: "1px solid var(--gb)", borderRadius: 12,
+            overflow: "hidden", boxShadow: "0 16px 48px rgba(0,0,0,.7)",
+          }}>
+            {MODELS.map(m => {
+              const active = aiModel === m.id;
+              return (
+                <button key={m.id} onClick={() => {
+                  setAiModel(m.id);
+                  setSlots(prev => prev.map(s => ({
+                    ...s,
+                    duration: m.durations.includes(s.duration) ? s.duration : m.durations[0],
+                  })));
+                  setModelOpen(false);
+                }} style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 14,
+                  padding: "11px 16px", cursor: "pointer", textAlign: "left",
+                  background: active ? `${m.color}10` : "transparent",
+                  borderBottom: "1px solid rgba(255,255,255,.04)",
+                  transition: "background .1s",
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: active ? m.color : "var(--text)" }}>{m.label}</span>
+                      <span style={{ fontSize: 8, padding: "1px 6px", borderRadius: 4, background: active ? `${m.color}25` : "rgba(255,255,255,.07)", color: active ? m.color : "var(--faint)", fontWeight: 800 }}>{m.badge}</span>
+                    </div>
+                    <div style={{ fontSize: 10.5, color: "var(--faint)" }}>{m.outputLine1}</div>
                   </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: active ? m.color : "var(--dim)", marginBottom: 3 }}>{m.price}</div>
+                    <Stars n={m.stars} color={m.color} />
+                  </div>
+                  {active && <div style={{ width: 7, height: 7, borderRadius: "50%", background: m.color, flexShrink: 0 }} />}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
 
         {/* Model constraints strip */}
         <div style={{ marginTop: 10, padding: "10px 14px", background: `${modelDef.color}0e`, border: `1px solid ${modelDef.color}30`, borderRadius: 10, fontSize: 11.5 }}>

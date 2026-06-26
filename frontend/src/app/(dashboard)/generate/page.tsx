@@ -484,9 +484,9 @@ export default function GeneratePage() {
   // ── HOME ──────────────────────────────────────────────────────────────────
   if (phase === "home") return (
     <div style={{
-      height: "100vh", background: "var(--bg)",
+      minHeight: "100vh", background: "var(--bg)",
       display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", padding: "0 24px", overflow: "hidden",
+      justifyContent: "center", padding: "32px 24px", overflowY: "auto",
     }}>
 
       <h1 style={{
@@ -589,92 +589,76 @@ export default function GeneratePage() {
           }}
         />
 
-        {/* Quick options — video preset, screen ratio, style */}
+        {/* Quick options — 2 clean rows */}
         {mode === "assets" && (
-          <div style={{ display: "flex", gap: 5, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ borderTop: "1px solid rgba(255,255,255,.06)", paddingTop: 10, marginBottom: 10, display: "flex", flexDirection: "column", gap: 6 }}>
 
-            {/* Video length preset — sets duration + clip count together */}
-            <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>วิดีโอ</span>
-            {([
-              { id: "short"  as const, label: "สั้น",  sub: "1 คลิป · ~15s",  clips: 1, dur: 15 },
-              { id: "medium" as const, label: "กลาง",  sub: "2 คลิป · ~30s",  clips: 2, dur: 30 },
-              { id: "long"   as const, label: "ยาว",   sub: "3 คลิป · ~60s",  clips: 3, dur: 60 },
-            ] as { id: "short"|"medium"|"long"; label: string; sub: string; clips: number; dur: number }[]).map(p => (
-              <button key={p.id} onMouseDown={() => {
-                setVideoPreset(p.id);
-                setClipCount(p.clips);
-                setQuickDuration(p.dur);
-              }} style={{
-                padding: "5px 11px", borderRadius: 7, cursor: "pointer", textAlign: "center",
-                background: videoPreset === p.id ? "rgba(0,255,212,.1)" : "rgba(255,255,255,.04)",
-                border: `1px solid ${videoPreset === p.id ? "rgba(0,255,212,.35)" : "var(--gb)"}`,
-              }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: videoPreset === p.id ? "var(--teal)" : "var(--dim)" }}>{p.label}</div>
-                <div style={{ fontSize: 9, color: "var(--faint)", marginTop: 1 }}>{p.sub}</div>
-              </button>
-            ))}
-
-            {/* Divider */}
-            <div style={{ width: 1, height: 28, background: "var(--gb)", margin: "0 3px" }} />
-
-            {/* Tone */}
-            <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>โทน</span>
-            {[
-              { tone: "หรู พรีเมียม ซีเนมาติก",    short: "🎬 Cinematic" },
-              { tone: "ผ่อนคลาย พักผ่อน ชวนมาเที่ยว", short: "🏖️ Vacation" },
-              { tone: "สนุก มีชีวิตชีวา เชิญชวน",   short: "🎉 Lively" },
-              { tone: "มืออาชีพ กระชับ ข้อมูลครบ",  short: "💼 Pro" },
-              { tone: "อบอุ่น เป็นกันเอง เชิญชวน",  short: "😊 Warm" },
-              { tone: "เล่าเรื่อง อารมณ์ ความรู้สึก", short: "📖 Story" },
-            ].map(t => (
-              <button key={t.tone} onMouseDown={() => setQuickTone(t.tone)} style={{
-                padding: "5px 11px", borderRadius: 7, cursor: "pointer", textAlign: "center",
-                background: quickTone === t.tone ? "rgba(34,212,153,.1)" : "rgba(255,255,255,.04)",
-                border: `1px solid ${quickTone === t.tone ? "rgba(34,212,153,.4)" : "var(--gb)"}`,
-              }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: quickTone === t.tone ? "#22D499" : "var(--dim)" }}>{t.short}</div>
-              </button>
-            ))}
-
-            {/* Divider */}
-            <div style={{ width: 1, height: 28, background: "var(--gb)", margin: "0 3px" }} />
-
-            {/* Voice */}
-            {includeVoice && <>
-              <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>เสียง</span>
-              {[
-                { v: "หญิง (ไทย)",   label: "👩 หญิง 1" },
-                { v: "หญิง 2 (ไทย)", label: "👩 หญิง 2" },
-                { v: "ชาย (ไทย)",    label: "👨 ชาย" },
-              ].map(o => (
-                <button key={o.v} onMouseDown={() => setQuickVoice(o.v)} style={{
-                  padding: "5px 11px", borderRadius: 7, cursor: "pointer", textAlign: "center",
-                  background: quickVoice === o.v ? "rgba(77,127,255,.12)" : "rgba(255,255,255,.04)",
-                  border: `1px solid ${quickVoice === o.v ? "rgba(77,127,255,.4)" : "var(--gb)"}`,
+            {/* Row 1: ความยาว + โทน */}
+            <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ fontSize: 9, color: "var(--faint)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", minWidth: 52, flexShrink: 0 }}>ความยาว</span>
+              {([
+                { id: "short" as const,  label: "สั้น", sub: "~15s", clips: 1, dur: 15 },
+                { id: "medium" as const, label: "กลาง", sub: "~30s", clips: 2, dur: 30 },
+                { id: "long" as const,   label: "ยาว",  sub: "~60s", clips: 3, dur: 60 },
+              ] as { id: "short"|"medium"|"long"; label: string; sub: string; clips: number; dur: number }[]).map(p => (
+                <button key={p.id} onMouseDown={() => { setVideoPreset(p.id); setClipCount(p.clips); setQuickDuration(p.dur); }} style={{
+                  padding: "4px 10px", borderRadius: 7, cursor: "pointer", textAlign: "center",
+                  background: videoPreset === p.id ? "rgba(0,255,212,.1)" : "rgba(255,255,255,.04)",
+                  border: `1px solid ${videoPreset === p.id ? "rgba(0,255,212,.35)" : "var(--gb)"}`,
                 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: quickVoice === o.v ? "#4D7FFF" : "var(--dim)" }}>{o.label}</div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: videoPreset === p.id ? "var(--teal)" : "var(--dim)" }}>{p.label}</div>
+                  <div style={{ fontSize: 9, color: "var(--faint)" }}>{p.sub}</div>
                 </button>
               ))}
-              <div style={{ width: 1, height: 28, background: "var(--gb)", margin: "0 3px" }} />
-            </>}
-
-            {/* Screen ratio */}
-            <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>หน้าจอ</span>
-            {([
-              { ar: "9:16" as AspectRatio, label: "📱 9:16", sub: "TikTok/IG" },
-              { ar: "1:1"  as AspectRatio, label: "⬜ 1:1",  sub: "Square" },
-              { ar: "16:9" as AspectRatio, label: "🖥 16:9", sub: "YouTube" },
-            ] as { ar: AspectRatio; label: string; sub: string }[]).map(o => (
-              <button key={o.ar} onMouseDown={() => setAspectRatio(o.ar)} style={{
-                padding: "5px 11px", borderRadius: 7, cursor: "pointer", textAlign: "center",
-                background: aspectRatio === o.ar ? "rgba(251,191,36,.1)" : "rgba(255,255,255,.04)",
-                border: `1px solid ${aspectRatio === o.ar ? "rgba(251,191,36,.4)" : "var(--gb)"}`,
+              <div style={{ width: 1, height: 24, background: "var(--gb)", margin: "0 2px", flexShrink: 0 }} />
+              <span style={{ fontSize: 9, color: "var(--faint)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", flexShrink: 0 }}>โทน</span>
+              <select value={quickTone} onChange={e => setQuickTone(e.target.value)} style={{
+                background: "#1b1c2a", border: "1px solid rgba(34,212,153,.35)",
+                borderRadius: 8, padding: "5px 8px", color: "#22D499",
+                fontSize: 11.5, fontWeight: 700, outline: "none", cursor: "pointer",
               }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: aspectRatio === o.ar ? "#FBBF24" : "var(--dim)" }}>{o.label}</div>
-                <div style={{ fontSize: 9, color: "var(--faint)", marginTop: 1 }}>{o.sub}</div>
-              </button>
-            ))}
+                <option value="หรู พรีเมียม ซีเนมาติก">🎬 Cinematic</option>
+                <option value="ผ่อนคลาย พักผ่อน ชวนมาเที่ยว">🏖️ Vacation</option>
+                <option value="สนุก มีชีวิตชีวา เชิญชวน">🎉 Lively</option>
+                <option value="มืออาชีพ กระชับ ข้อมูลครบ">💼 Pro</option>
+                <option value="อบอุ่น เป็นกันเอง เชิญชวน">😊 Warm</option>
+                <option value="เล่าเรื่อง อารมณ์ ความรู้สึก">📖 Story</option>
+              </select>
+            </div>
 
+            {/* Row 2: เสียง + หน้าจอ */}
+            <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ fontSize: 9, color: "var(--faint)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", minWidth: 52, flexShrink: 0 }}>เสียง</span>
+              {includeVoice ? (
+                <select value={quickVoice} onChange={e => setQuickVoice(e.target.value)} style={{
+                  background: "#1b1c2a", border: "1px solid rgba(77,127,255,.35)",
+                  borderRadius: 8, padding: "5px 8px", color: "#4D7FFF",
+                  fontSize: 11.5, fontWeight: 700, outline: "none", cursor: "pointer",
+                }}>
+                  <option value="หญิง (ไทย)">👩 หญิง 1</option>
+                  <option value="หญิง 2 (ไทย)">👩 หญิง 2</option>
+                  <option value="ชาย (ไทย)">👨 ชาย</option>
+                </select>
+              ) : (
+                <span style={{ fontSize: 11, color: "var(--faint)", fontStyle: "italic" }}>ปิดอยู่</span>
+              )}
+              <div style={{ width: 1, height: 24, background: "var(--gb)", margin: "0 2px", flexShrink: 0 }} />
+              <span style={{ fontSize: 9, color: "var(--faint)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", flexShrink: 0 }}>หน้าจอ</span>
+              {([
+                { ar: "9:16" as AspectRatio, label: "📱 9:16", sub: "TikTok" },
+                { ar: "1:1"  as AspectRatio, label: "⬜ 1:1",  sub: "Square" },
+                { ar: "16:9" as AspectRatio, label: "🖥 16:9", sub: "YouTube" },
+              ] as { ar: AspectRatio; label: string; sub: string }[]).map(o => (
+                <button key={o.ar} onMouseDown={() => setAspectRatio(o.ar)} style={{
+                  padding: "4px 10px", borderRadius: 7, cursor: "pointer", textAlign: "center",
+                  background: aspectRatio === o.ar ? "rgba(251,191,36,.1)" : "rgba(255,255,255,.04)",
+                  border: `1px solid ${aspectRatio === o.ar ? "rgba(251,191,36,.4)" : "var(--gb)"}`,
+                }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: aspectRatio === o.ar ? "#FBBF24" : "var(--dim)" }}>{o.label}</div>
+                  <div style={{ fontSize: 9, color: "var(--faint)" }}>{o.sub}</div>
+                </button>
+              ))}
+            </div>
 
           </div>
         )}
@@ -737,56 +721,50 @@ export default function GeneratePage() {
         </div>
       </div>
 
-      {/* Model cards — always visible */}
-      <div style={{ width: "100%", maxWidth: 700, marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>
-          เลือก AI Model
+      {/* Model selector — compact horizontal chips */}
+      <div style={{ width: "100%", maxWidth: 700, marginBottom: 14 }}>
+        <div style={{ fontSize: 9, fontWeight: 800, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 7 }}>
+          AI Model
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+        <div style={{ display: "flex", flexWrap: "nowrap", gap: 6, overflowX: "auto", paddingBottom: 2, scrollbarWidth: "none" }}>
           {MODEL_OPTIONS.map(m => {
             const active = aiModel === m.id;
             return (
               <button key={m.id} onMouseDown={() => setAiModel(m.id)} style={{
-                padding: "12px 14px", borderRadius: 12, cursor: "pointer", textAlign: "left",
+                flexShrink: 0, padding: "9px 13px", borderRadius: 10, cursor: "pointer", textAlign: "left",
+                minWidth: 118,
                 background: active ? `${m.color}14` : "rgba(255,255,255,.04)",
                 border: `1.5px solid ${active ? m.color : "var(--gb)"}`,
-                transition: "all .15s", position: "relative", overflow: "hidden",
+                transition: "all .15s",
               }}>
-                {/* badge */}
-                {m.badge && (
-                  <span style={{
-                    position: "absolute", top: 8, right: 8,
-                    fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: 5,
-                    background: active ? m.color + "33" : "rgba(255,255,255,.08)",
-                    color: active ? m.color : "var(--faint)",
-                  }}>{m.badge}</span>
-                )}
-                <div style={{ fontSize: 12, fontWeight: 800, color: active ? m.color : "var(--text)", marginBottom: 3 }}>
-                  {active ? "✓ " : ""}{m.label}
+                <div style={{ fontSize: 11.5, fontWeight: 900, color: active ? m.color : "var(--dim)", marginBottom: 4 }}>
+                  {active && <span style={{ marginRight: 3 }}>✓</span>}{m.label}
                 </div>
-                <div style={{ fontSize: 10.5, color: "var(--faint)", marginBottom: 6, lineHeight: 1.4 }}>{m.desc}</div>
-                <div style={{ fontSize: 11, color: "var(--faint)", marginBottom: 2 }}>{m.priceClip}</div>
-                <div style={{ fontSize: 13, fontWeight: 900, color: active ? m.color : "var(--dim)" }}>{m.price3clips}</div>
-                <div style={{ fontSize: 9.5, color: "var(--faint)" }}>3 คลิป (30 วิ)</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                  <span style={{ fontSize: 10, color: active ? m.color + "cc" : "var(--faint)", fontWeight: 700 }}>{m.price3clips}</span>
+                  {m.badge && <span style={{ fontSize: 8, fontWeight: 800, color: active ? m.color : "var(--faint)" }}>{m.badge}</span>}
+                </div>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Mode tabs */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginBottom: 20 }}>
+      {/* Mode tabs — pill group */}
+      <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,.04)", border: "1px solid var(--gb)", borderRadius: 13, padding: 3, marginBottom: 20 }}>
         {MODE_TABS.map(t => (
           <button key={t.id} onMouseDown={() => setMode(t.id)} style={{
-            display: "flex", alignItems: "center", gap: 7,
-            padding: "9px 18px", borderRadius: 10, cursor: "pointer",
-            background: mode === t.id ? "rgba(255,255,255,.1)" : "rgba(255,255,255,.04)",
-            border: `1px solid ${mode === t.id ? "rgba(255,255,255,.2)" : "var(--gb)"}`,
+            flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+            padding: "8px 10px", borderRadius: 10, cursor: t.id === "audio" ? "default" : "pointer",
+            background: mode === t.id ? "rgba(255,255,255,.11)" : "transparent",
+            border: `1px solid ${mode === t.id ? "rgba(255,255,255,.14)" : "transparent"}`,
             color: mode === t.id ? "var(--text)" : "var(--faint)",
-            fontSize: 13, fontWeight: 600, transition: "all .15s",
+            fontSize: 11.5, fontWeight: 600, transition: "all .15s", whiteSpace: "nowrap",
+            opacity: t.id === "audio" ? 0.5 : 1,
           }}>
-            <span>{t.icon}</span>{t.label}
-            {t.id === "audio" && <span style={{ fontSize: 9, background: "rgba(255,180,0,.15)", color: "#ffb400", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>SOON</span>}
+            <span style={{ fontSize: 13 }}>{t.icon}</span>
+            <span>{t.label}</span>
+            {t.id === "audio" && <span style={{ fontSize: 8, background: "rgba(255,176,0,.12)", color: "#ffb000", padding: "1px 5px", borderRadius: 4, fontWeight: 800 }}>SOON</span>}
           </button>
         ))}
       </div>
