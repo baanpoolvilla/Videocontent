@@ -692,17 +692,59 @@ export default function GeneratePage() {
             🔠 Caption {captions ? "ON" : "OFF"}
           </button>
 
-          {/* AI model badge (compact, opens full picker below card) */}
-          <button
-            onMouseDown={() => setShowModelMenu(v => !v)}
-            style={{
-              display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
-              borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
-              background: "rgba(255,255,255,.06)", border: "1px solid var(--gb)", color: "var(--dim)",
-            }}>
-            ✨ {MODEL_OPTIONS.find(m => m.id === aiModel)?.label}
-            {showModelMenu ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-          </button>
+          {/* AI model dropdown */}
+          <div ref={modelRef} style={{ position: "relative" }}>
+            <button
+              onMouseDown={() => setShowModelMenu(v => !v)}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "6px 12px",
+                borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
+                background: showModelMenu ? "rgba(255,255,255,.1)" : "rgba(255,255,255,.05)",
+                border: `1px solid ${showModelMenu ? "rgba(255,255,255,.2)" : "var(--gb)"}`,
+                color: MODEL_OPTIONS.find(m => m.id === aiModel)?.color || "var(--dim)",
+              }}>
+              ✨ {MODEL_OPTIONS.find(m => m.id === aiModel)?.label}
+              <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 400 }}>
+                {MODEL_OPTIONS.find(m => m.id === aiModel)?.priceClip}
+              </span>
+              {showModelMenu ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+            </button>
+
+            {showModelMenu && (
+              <div style={{
+                position: "absolute", bottom: "calc(100% + 8px)", left: 0, zIndex: 200,
+                background: "#16161f", border: "1px solid rgba(255,255,255,.12)", borderRadius: 12,
+                overflow: "hidden", minWidth: 300,
+                boxShadow: "0 -12px 40px rgba(0,0,0,.7)",
+              }}>
+                {MODEL_OPTIONS.map(m => {
+                  const active = aiModel === m.id;
+                  return (
+                    <button key={m.id} onMouseDown={() => { setAiModel(m.id); setShowModelMenu(false); }} style={{
+                      width: "100%", display: "flex", alignItems: "center", gap: 10,
+                      padding: "10px 14px", cursor: "pointer", textAlign: "left",
+                      background: active ? `${m.color}12` : "transparent",
+                      borderBottom: "1px solid rgba(255,255,255,.04)",
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2 }}>
+                          <span style={{ fontSize: 12.5, fontWeight: 800, color: active ? m.color : "var(--text)" }}>
+                            {active && "✓ "}{m.label}
+                          </span>
+                          {m.badge && <span style={{ fontSize: 8, fontWeight: 800, padding: "1px 6px", borderRadius: 4, background: active ? `${m.color}22` : "rgba(255,255,255,.07)", color: active ? m.color : "var(--faint)" }}>{m.badge}</span>}
+                        </div>
+                        <div style={{ fontSize: 10.5, color: "var(--faint)" }}>{m.desc}</div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: active ? m.color : "var(--dim)" }}>{m.priceClip}</div>
+                        <div style={{ fontSize: 9.5, color: "var(--faint)" }}>{m.price3clips}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           <div style={{ flex: 1 }} />
 
@@ -718,35 +760,6 @@ export default function GeneratePage() {
             }}>
             <ArrowUp size={18} color={(prompt.trim() || product) ? "#000" : "#555"} strokeWidth={2.5} />
           </button>
-        </div>
-      </div>
-
-      {/* Model selector — compact horizontal chips */}
-      <div style={{ width: "100%", maxWidth: 700, marginBottom: 14 }}>
-        <div style={{ fontSize: 9, fontWeight: 800, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 7 }}>
-          AI Model
-        </div>
-        <div style={{ display: "flex", flexWrap: "nowrap", gap: 6, overflowX: "auto", paddingBottom: 2, scrollbarWidth: "none" }}>
-          {MODEL_OPTIONS.map(m => {
-            const active = aiModel === m.id;
-            return (
-              <button key={m.id} onMouseDown={() => setAiModel(m.id)} style={{
-                flexShrink: 0, padding: "9px 13px", borderRadius: 10, cursor: "pointer", textAlign: "left",
-                minWidth: 118,
-                background: active ? `${m.color}14` : "rgba(255,255,255,.04)",
-                border: `1.5px solid ${active ? m.color : "var(--gb)"}`,
-                transition: "all .15s",
-              }}>
-                <div style={{ fontSize: 11.5, fontWeight: 900, color: active ? m.color : "var(--dim)", marginBottom: 4 }}>
-                  {active && <span style={{ marginRight: 3 }}>✓</span>}{m.label}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                  <span style={{ fontSize: 10, color: active ? m.color + "cc" : "var(--faint)", fontWeight: 700 }}>{m.price3clips}</span>
-                  {m.badge && <span style={{ fontSize: 8, fontWeight: 800, color: active ? m.color : "var(--faint)" }}>{m.badge}</span>}
-                </div>
-              </button>
-            );
-          })}
         </div>
       </div>
 
