@@ -282,7 +282,7 @@ export default function GeneratePage() {
       const autoAnswers = {
         visual: userPrompt,
         duration: `${quickDuration} วิ`,
-        style: quickStyle,
+        style: "✨ Luxury หรูหรา",
         platform: "TikTok",
       };
       setAnswers(autoAnswers);
@@ -635,25 +635,6 @@ export default function GeneratePage() {
               </button>
             ))}
 
-            {/* Divider */}
-            <div style={{ width: 1, height: 28, background: "var(--gb)", margin: "0 3px" }} />
-
-            {/* Style */}
-            <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>สไตล์</span>
-            {[
-              { id: "✨ Luxury หรูหรา", short: "Luxury" },
-              { id: "🎉 Party สนุก",    short: "Party" },
-              { id: "🎨 Playful สีสัน", short: "Playful" },
-              { id: "⬜ Minimal เรียบ", short: "Minimal" },
-            ].map(s => (
-              <button key={s.id} onMouseDown={() => setQuickStyle(s.id)} style={{
-                padding: "5px 11px", borderRadius: 7, cursor: "pointer", textAlign: "center",
-                background: quickStyle === s.id ? "rgba(167,139,250,.12)" : "rgba(255,255,255,.04)",
-                border: `1px solid ${quickStyle === s.id ? "rgba(167,139,250,.35)" : "var(--gb)"}`,
-              }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: quickStyle === s.id ? "#A78BFA" : "var(--dim)" }}>{s.short}</div>
-              </button>
-            ))}
 
           </div>
         )}
