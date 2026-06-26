@@ -188,7 +188,6 @@ export default function GeneratePage() {
   const [clipCount, setClipCount]     = useState(0); // 0 = auto (match image count, max 3)
   const [quickDuration, setQuickDuration] = useState(30);
   const [quickStyle, setQuickStyle]       = useState("✨ Luxury หรูหรา");
-  const [showAspectMenu, setShowAspectMenu] = useState(false);
   const [showModelMenu, setShowModelMenu]   = useState(false);
 
   // story
@@ -222,7 +221,6 @@ export default function GeneratePage() {
   const bottomRef   = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pickerRef   = useRef<HTMLDivElement>(null);
-  const aspectRef   = useRef<HTMLDivElement>(null);
   const modelRef    = useRef<HTMLDivElement>(null);
 
   const questions = mode === "script" ? QUESTIONS_SCRIPT : mode === "ads" ? QUESTIONS_ADS : QUESTIONS_ASSETS;
@@ -249,7 +247,6 @@ export default function GeneratePage() {
   useEffect(() => {
     const h = (e: MouseEvent) => {
       if (!pickerRef.current?.contains(e.target as Node)) setShowPicker(false);
-      if (!aspectRef.current?.contains(e.target as Node)) setShowAspectMenu(false);
       if (!modelRef.current?.contains(e.target as Node)) setShowModelMenu(false);
     };
     document.addEventListener("mousedown", h);
@@ -514,7 +511,7 @@ export default function GeneratePage() {
           {/* Product picker */}
           <div ref={pickerRef} style={{ position: "relative" }}>
             <button
-              onMouseDown={e => { e.stopPropagation(); setShowPicker(v => !v); setShowAspectMenu(false); setShowModelMenu(false); }}
+              onMouseDown={e => { e.stopPropagation(); setShowPicker(v => !v); setShowModelMenu(false); }}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 background: product ? "rgba(0,255,212,.1)" : "rgba(255,255,255,.06)",
@@ -591,20 +588,44 @@ export default function GeneratePage() {
           }}
         />
 
-        {/* Quick options — only show in assets mode */}
+        {/* Quick options — duration, style, aspect ratio */}
         {mode === "assets" && (
-          <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "var(--faint)", fontWeight: 600, marginRight: 2 }}>ความยาว:</span>
+          <div style={{ display: "flex", gap: 5, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+            {/* Duration */}
+            <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>ความยาว</span>
             {[15, 30, 60, 90].map(d => (
               <button key={d} onMouseDown={() => setQuickDuration(d)} style={{
-                padding: "4px 10px", borderRadius: 6, cursor: "pointer",
+                padding: "4px 9px", borderRadius: 6, cursor: "pointer",
                 fontSize: 11, fontWeight: 700,
                 background: quickDuration === d ? "rgba(0,255,212,.12)" : "rgba(255,255,255,.04)",
                 border: `1px solid ${quickDuration === d ? "rgba(0,255,212,.35)" : "var(--gb)"}`,
                 color: quickDuration === d ? "var(--teal)" : "var(--faint)",
               }}>{d}s</button>
             ))}
-            <span style={{ fontSize: 11, color: "var(--faint)", fontWeight: 600, marginLeft: 4, marginRight: 2 }}>สไตล์:</span>
+            {/* Divider */}
+            <div style={{ width: 1, height: 16, background: "var(--gb)", margin: "0 2px" }} />
+            {/* Screen ratio */}
+            <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>หน้าจอ</span>
+            {([
+              { ar: "9:16" as AspectRatio, label: "📱 9:16", sub: "TikTok/IG" },
+              { ar: "1:1"  as AspectRatio, label: "⬜ 1:1",  sub: "Square" },
+              { ar: "16:9" as AspectRatio, label: "🖥 16:9", sub: "YouTube" },
+            ] as { ar: AspectRatio; label: string; sub: string }[]).map(o => (
+              <button key={o.ar} onMouseDown={() => setAspectRatio(o.ar)} style={{
+                padding: "4px 9px", borderRadius: 6, cursor: "pointer",
+                fontSize: 11, fontWeight: 700,
+                background: aspectRatio === o.ar ? "rgba(251,191,36,.1)" : "rgba(255,255,255,.04)",
+                border: `1px solid ${aspectRatio === o.ar ? "rgba(251,191,36,.4)" : "var(--gb)"}`,
+                color: aspectRatio === o.ar ? "#FBBF24" : "var(--faint)",
+              }}>
+                {o.label}
+                <span style={{ fontSize: 9, marginLeft: 3, opacity: .7 }}>{o.sub}</span>
+              </button>
+            ))}
+            {/* Divider */}
+            <div style={{ width: 1, height: 16, background: "var(--gb)", margin: "0 2px" }} />
+            {/* Style */}
+            <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>สไตล์</span>
             {[
               { id: "✨ Luxury หรูหรา", short: "Luxury" },
               { id: "🎉 Party สนุก",    short: "Party" },
@@ -612,7 +633,7 @@ export default function GeneratePage() {
               { id: "⬜ Minimal เรียบ", short: "Minimal" },
             ].map(s => (
               <button key={s.id} onMouseDown={() => setQuickStyle(s.id)} style={{
-                padding: "4px 10px", borderRadius: 6, cursor: "pointer",
+                padding: "4px 9px", borderRadius: 6, cursor: "pointer",
                 fontSize: 11, fontWeight: 700,
                 background: quickStyle === s.id ? "rgba(167,139,250,.12)" : "rgba(255,255,255,.04)",
                 border: `1px solid ${quickStyle === s.id ? "rgba(167,139,250,.35)" : "var(--gb)"}`,
@@ -650,40 +671,6 @@ export default function GeneratePage() {
             }}>
             🔠 Caption {captions ? "ON" : "OFF"}
           </button>
-
-          {/* Aspect ratio */}
-          <div ref={aspectRef} style={{ position: "relative" }}>
-            <button
-              onMouseDown={e => { e.stopPropagation(); setShowAspectMenu(v => !v); setShowModelMenu(false); setShowPicker(false); }}
-              style={{
-                display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
-                borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
-                background: "rgba(255,255,255,.06)", border: "1px solid var(--gb)", color: "var(--dim)",
-              }}>
-              📐 {aspectRatio} {showAspectMenu ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-            </button>
-            {showAspectMenu && (
-              <div style={{
-                position: "absolute", bottom: "calc(100% + 6px)", left: 0, zIndex: 99,
-                background: "#1e1e2a", border: "1px solid var(--gb)",
-                borderRadius: 10, overflow: "hidden", minWidth: 110,
-                boxShadow: "0 6px 24px rgba(0,0,0,.7)",
-              }}>
-                {ASPECT_OPTIONS.map(ar => (
-                  <div key={ar}
-                    onMouseDown={() => { setAspectRatio(ar); setShowAspectMenu(false); }}
-                    style={{
-                      padding: "10px 16px", cursor: "pointer", fontSize: 12, fontWeight: 700,
-                      background: aspectRatio === ar ? "rgba(0,255,212,.1)" : "transparent",
-                      color: aspectRatio === ar ? "var(--teal)" : "var(--text)",
-                      borderBottom: "1px solid var(--gb)",
-                    }}>
-                    {ar === "9:16" ? "📱 9:16 (TikTok/IG)" : ar === "1:1" ? "⬜ 1:1 (Square)" : "🖥 16:9 (YouTube)"}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* AI model badge (compact, opens full picker below card) */}
           <button
