@@ -18,7 +18,8 @@ DATABASE_URL    = os.getenv("DATABASE_URL", "")
 GEMINI_API_KEY  = os.getenv("GEMINI_API_KEY", "")
 MINIO_ENDPOINT  = os.getenv("MINIO_ENDPOINT", "")
 FAL_KEY         = os.getenv("FAL_KEY", "")
-API_INTERNAL    = os.getenv("API_INTERNAL_URL", "http://backend:8000")
+# When running INSIDE the container, use localhost — can't self-reach via service name
+API_INTERNAL    = "http://localhost:8000"
 
 results = []
 
@@ -133,8 +134,16 @@ Return JSON only:
         loop = asyncio.get_event_loop()
         cfg = genai.types.GenerationConfig(temperature=0.9, max_output_tokens=1024)
         resp = await loop.run_in_executor(None, lambda: gmodel.generate_content(prompt, generation_config=cfg))
-        raw = resp.text.strip()
+        raw = resp.text.strip() if resp.text else ""
+        if not raw:
+            # Show finish_reason to diagnose why Gemini returned empty
+            reason = getattr(resp.candidates[0], "finish_reason", "unknown") if resp.candidates else "no candidates"
+            fail("gemini script", f"Empty response — finish_reason={reason}")
+            return
         s, e = raw.find("{"), raw.rfind("}") + 1
+        if s == -1:
+            fail("gemini script", f"No JSON in response: {raw[:100]}")
+            return
         parsed = json.loads(raw[s:e])
         hook = _to_str(parsed.get("hook", ""))
         body = _to_str(parsed.get("body", ""))
