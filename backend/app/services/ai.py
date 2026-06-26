@@ -60,7 +60,11 @@ class AIService:
         slot_index: int = 0,
         total_slots: int = 1,
     ) -> str:
-        """Use Gemini Vision to look at the actual product image and write a cinematic prompt."""
+        """
+        If user supplied a concept → translate it to English + add cinematic language (no image needed).
+        If no concept → use Gemini Vision on the product image to write a cinematic prompt.
+        """
+        # ── Load image for visual context ────────────────────────────────────
         img = await self._load_image(image_url)
         if img is None:
             return await self.suggest_video_prompt("", product_name, style, concept)
@@ -159,46 +163,36 @@ class AIService:
         else:
             story_block = ""
 
-        # Concept is the anchor — everything builds around what the user wants
         if concept.strip():
-            concept_block = (
-                "\nUSER CONCEPT — NON-NEGOTIABLE ANCHOR:\n"
-                f'"{concept.strip()}"\n'
-                "Make this the CENTRAL ACTION of the video. "
-                "Camera, lighting, and atmosphere all SERVE this concept. Never replace or ignore it.\n"
-            )
-        else:
-            concept_block = ""
-
-        # Build the concept directive — user concept is the #1 priority
-        if concept.strip():
-            concept_directive = (
-                f"USER INTENT (TOP PRIORITY — follow this exactly):\n"
+            prompt_text = (
+                f"You are a cinematographer writing an AI video prompt.\n\n"
+                f"STEP 1 — Read the uploaded image to understand: setting, colors, architecture, mood.\n"
+                f"STEP 2 — Write a video prompt that EXACTLY follows this user concept:\n"
                 f'"{concept.strip()}"\n\n'
-                f"Your job: translate this intent into a precise video prompt.\n"
-                f"Use the uploaded image ONLY to add specific visual details "
-                f"(colors, architecture, materials) that make the concept more vivid.\n"
-                f"NEVER replace or override the user intent with random image elements.\n"
+                f"The image gives you VISUAL DETAILS (what things look like).\n"
+                f"The user concept gives you the ACTION / INTENT (what should happen in the video).\n"
+                f"Combine both: use the concept as the main action, use image details to make it vivid.\n\n"
+                f"PRODUCT: {product_name} · STYLE: {style_feel}\n"
+                f"{story_block}"
+                f"OUTPUT RULES:\n"
+                f"1. English ONLY — zero Thai characters.\n"
+                f"2. 50-70 words MAX.\n"
+                f"3. Start with camera movement.\n"
+                f"4. Raw text only — no labels, no markdown."
             )
         else:
-            concept_directive = (
-                f"No specific user concept — describe the most cinematic moment visible in the image.\n"
+            prompt_text = (
+                f"You are a cinematographer writing an AI video prompt.\n"
+                f"Study the uploaded image carefully. Write ONE cinematic prompt for this scene.\n\n"
+                f"PRODUCT: {product_name} · STYLE: {style_feel}\n"
+                f"TARGET MODEL: {model_guide}\n"
+                f"{story_block}"
+                f"OUTPUT RULES:\n"
+                f"1. English ONLY — zero Thai characters.\n"
+                f"2. 50-70 words MAX.\n"
+                f"3. Start with camera movement.\n"
+                f"4. Raw text only — no labels, no markdown."
             )
-
-        prompt_text = (
-            f"You are a cinematographer turning a user's creative intent into an AI video prompt.\n\n"
-            f"{concept_directive}"
-            f"PRODUCT: {product_name}\n"
-            f"STYLE FEEL: {style_feel}\n"
-            f"TARGET MODEL: {model_guide}\n"
-            f"{story_block}\n"
-            f"OUTPUT RULES:\n"
-            f"1. English ONLY — zero Thai characters.\n"
-            f"2. 50-70 words MAX — concise and focused.\n"
-            f"3. Start with camera movement (e.g. 'Slow dolly push-in...', 'Ultra-slow overhead pan...').\n"
-            f"4. Include: camera move · subject · motion in scene · lighting · atmosphere.\n"
-            f"5. Raw prompt text only — no labels, no markdown, no explanations."
-        )
 
         import asyncio as _asyncio
         config = genai.types.GenerationConfig(temperature=0.82, max_output_tokens=8192)
