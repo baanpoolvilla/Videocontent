@@ -132,14 +132,19 @@ Concept: infinity pool, golden hour, luxury vibe
 Return JSON only:
 {{"hook":"Thai hook","body":"Thai body","cta":"Thai CTA","full_script":"Thai script"}}"""
         loop = asyncio.get_event_loop()
-        cfg = genai.types.GenerationConfig(temperature=0.9, max_output_tokens=1024)
+        cfg = genai.types.GenerationConfig(temperature=0.9, max_output_tokens=4096)
         resp = await loop.run_in_executor(None, lambda: gmodel.generate_content(prompt, generation_config=cfg))
         raw = resp.text.strip() if resp.text else ""
         if not raw:
-            # Show finish_reason to diagnose why Gemini returned empty
             reason = getattr(resp.candidates[0], "finish_reason", "unknown") if resp.candidates else "no candidates"
             fail("gemini script", f"Empty response — finish_reason={reason}")
             return
+        # Strip markdown fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
         s, e = raw.find("{"), raw.rfind("}") + 1
         if s == -1 or e <= s:
             fail("gemini script", f"No valid JSON brackets — raw='{raw[:150]}'")
