@@ -35,3 +35,6 @@ Thumbs.db
 *.pem
 *.key
 *.crt
+
+# Dev test scripts (contain hardcoded credentials)
+test_*.py
