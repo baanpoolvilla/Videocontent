@@ -141,8 +141,8 @@ Return JSON only:
             fail("gemini script", f"Empty response — finish_reason={reason}")
             return
         s, e = raw.find("{"), raw.rfind("}") + 1
-        if s == -1:
-            fail("gemini script", f"No JSON in response: {raw[:100]}")
+        if s == -1 or e <= s:
+            fail("gemini script", f"No valid JSON brackets — raw='{raw[:150]}'")
             return
         parsed = json.loads(raw[s:e])
         hook = _to_str(parsed.get("hook", ""))
