@@ -382,7 +382,7 @@ export default function GeneratePage() {
         const suggestRes = await api.get(`/jobs/${jobId}/suggest-video-prompt`, {
           params: {
             style: styleId,
-            concept: answers.visual || "",
+            concept: ans.visual || "",
             image_url: imgUrl,
             ai_model: aiModel,
           },
