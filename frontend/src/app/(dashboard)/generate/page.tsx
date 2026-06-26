@@ -186,7 +186,9 @@ export default function GeneratePage() {
   const [captions, setCaptions]       = useState(false);
   const [includeVoice, setIncludeVoice] = useState(true);
   const [clipCount, setClipCount]     = useState(1);
-  const [quickDuration, setQuickDuration] = useState(30);
+  // combined preset: sets both duration + clip count together
+  const [videoPreset, setVideoPreset] = useState<"short"|"medium"|"long">("short");
+  const [quickDuration, setQuickDuration] = useState(15);
   const [quickStyle, setQuickStyle]       = useState("✨ Luxury หรูหรา");
   const [showModelMenu, setShowModelMenu]   = useState(false);
 
@@ -588,22 +590,34 @@ export default function GeneratePage() {
           }}
         />
 
-        {/* Quick options — duration, style, aspect ratio */}
+        {/* Quick options — video preset, screen ratio, style */}
         {mode === "assets" && (
           <div style={{ display: "flex", gap: 5, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
-            {/* Duration */}
-            <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>ความยาว</span>
-            {[15, 30, 60, 90].map(d => (
-              <button key={d} onMouseDown={() => setQuickDuration(d)} style={{
-                padding: "4px 9px", borderRadius: 6, cursor: "pointer",
-                fontSize: 11, fontWeight: 700,
-                background: quickDuration === d ? "rgba(0,255,212,.12)" : "rgba(255,255,255,.04)",
-                border: `1px solid ${quickDuration === d ? "rgba(0,255,212,.35)" : "var(--gb)"}`,
-                color: quickDuration === d ? "var(--teal)" : "var(--faint)",
-              }}>{d}s</button>
+
+            {/* Video length preset — sets duration + clip count together */}
+            <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>วิดีโอ</span>
+            {([
+              { id: "short"  as const, label: "สั้น",  sub: "1 คลิป · ~15s",  clips: 1, dur: 15 },
+              { id: "medium" as const, label: "กลาง",  sub: "2 คลิป · ~30s",  clips: 2, dur: 30 },
+              { id: "long"   as const, label: "ยาว",   sub: "3 คลิป · ~60s",  clips: 3, dur: 60 },
+            ] as { id: "short"|"medium"|"long"; label: string; sub: string; clips: number; dur: number }[]).map(p => (
+              <button key={p.id} onMouseDown={() => {
+                setVideoPreset(p.id);
+                setClipCount(p.clips);
+                setQuickDuration(p.dur);
+              }} style={{
+                padding: "5px 11px", borderRadius: 7, cursor: "pointer", textAlign: "center",
+                background: videoPreset === p.id ? "rgba(0,255,212,.1)" : "rgba(255,255,255,.04)",
+                border: `1px solid ${videoPreset === p.id ? "rgba(0,255,212,.35)" : "var(--gb)"}`,
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: videoPreset === p.id ? "var(--teal)" : "var(--dim)" }}>{p.label}</div>
+                <div style={{ fontSize: 9, color: "var(--faint)", marginTop: 1 }}>{p.sub}</div>
+              </button>
             ))}
+
             {/* Divider */}
-            <div style={{ width: 1, height: 16, background: "var(--gb)", margin: "0 2px" }} />
+            <div style={{ width: 1, height: 28, background: "var(--gb)", margin: "0 3px" }} />
+
             {/* Screen ratio */}
             <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>หน้าจอ</span>
             {([
@@ -612,31 +626,18 @@ export default function GeneratePage() {
               { ar: "16:9" as AspectRatio, label: "🖥 16:9", sub: "YouTube" },
             ] as { ar: AspectRatio; label: string; sub: string }[]).map(o => (
               <button key={o.ar} onMouseDown={() => setAspectRatio(o.ar)} style={{
-                padding: "4px 9px", borderRadius: 6, cursor: "pointer",
-                fontSize: 11, fontWeight: 700,
+                padding: "5px 11px", borderRadius: 7, cursor: "pointer", textAlign: "center",
                 background: aspectRatio === o.ar ? "rgba(251,191,36,.1)" : "rgba(255,255,255,.04)",
                 border: `1px solid ${aspectRatio === o.ar ? "rgba(251,191,36,.4)" : "var(--gb)"}`,
-                color: aspectRatio === o.ar ? "#FBBF24" : "var(--faint)",
               }}>
-                {o.label}
-                <span style={{ fontSize: 9, marginLeft: 3, opacity: .7 }}>{o.sub}</span>
+                <div style={{ fontSize: 11, fontWeight: 800, color: aspectRatio === o.ar ? "#FBBF24" : "var(--dim)" }}>{o.label}</div>
+                <div style={{ fontSize: 9, color: "var(--faint)", marginTop: 1 }}>{o.sub}</div>
               </button>
             ))}
+
             {/* Divider */}
-            <div style={{ width: 1, height: 16, background: "var(--gb)", margin: "0 2px" }} />
-            {/* Clip count */}
-            <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>คลิป</span>
-            {[1, 2, 3].map(n => (
-              <button key={n} onMouseDown={() => setClipCount(n)} style={{
-                padding: "4px 9px", borderRadius: 6, cursor: "pointer",
-                fontSize: 11, fontWeight: 700,
-                background: clipCount === n ? "rgba(251,113,133,.12)" : "rgba(255,255,255,.04)",
-                border: `1px solid ${clipCount === n ? "rgba(251,113,133,.4)" : "var(--gb)"}`,
-                color: clipCount === n ? "#FB7185" : "var(--faint)",
-              }}>{n}</button>
-            ))}
-            {/* Divider */}
-            <div style={{ width: 1, height: 16, background: "var(--gb)", margin: "0 2px" }} />
+            <div style={{ width: 1, height: 28, background: "var(--gb)", margin: "0 3px" }} />
+
             {/* Style */}
             <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>สไตล์</span>
             {[
@@ -646,13 +647,14 @@ export default function GeneratePage() {
               { id: "⬜ Minimal เรียบ", short: "Minimal" },
             ].map(s => (
               <button key={s.id} onMouseDown={() => setQuickStyle(s.id)} style={{
-                padding: "4px 9px", borderRadius: 6, cursor: "pointer",
-                fontSize: 11, fontWeight: 700,
+                padding: "5px 11px", borderRadius: 7, cursor: "pointer", textAlign: "center",
                 background: quickStyle === s.id ? "rgba(167,139,250,.12)" : "rgba(255,255,255,.04)",
                 border: `1px solid ${quickStyle === s.id ? "rgba(167,139,250,.35)" : "var(--gb)"}`,
-                color: quickStyle === s.id ? "#A78BFA" : "var(--faint)",
-              }}>{s.short}</button>
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: quickStyle === s.id ? "#A78BFA" : "var(--dim)" }}>{s.short}</div>
+              </button>
             ))}
+
           </div>
         )}
 
