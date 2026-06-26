@@ -176,7 +176,7 @@ class AIService:
                 f"{story_block}"
                 f"OUTPUT RULES:\n"
                 f"1. English ONLY — zero Thai characters.\n"
-                f"2. 50-70 words MAX.\n"
+                f"2. 100-150 words — detailed enough for the video model to render accurately.\n"
                 f"3. Start with camera movement.\n"
                 f"4. Raw text only — no labels, no markdown."
             )
@@ -189,7 +189,7 @@ class AIService:
                 f"{story_block}"
                 f"OUTPUT RULES:\n"
                 f"1. English ONLY — zero Thai characters.\n"
-                f"2. 50-70 words MAX.\n"
+                f"2. 100-150 words — detailed enough for the video model to render accurately.\n"
                 f"3. Start with camera movement.\n"
                 f"4. Raw text only — no labels, no markdown."
             )
@@ -204,7 +204,7 @@ class AIService:
         clean = _clean_prompt(raw)
         words = clean.split()
         logger.info(f"[AI] vision prompt slot={slot_index}/{total_slots} ({len(words)} words): {' '.join(words[:10])}...")
-        return " ".join(words[:70])
+        return " ".join(words[:150])
 
     async def analyze_product(self, product_name: str, description: str, brand_context: str = "") -> dict:
         prompt = f"""วิเคราะห์สินค้าต่อไปนี้เพื่อสร้างวิดีโอสั้น:
