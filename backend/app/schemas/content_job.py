@@ -56,5 +56,6 @@ class RenderVersionOut(BaseModel):
     thumbnail_url: str | None
     status: str
     cost_usd: float | None
+    created_at: datetime
 
     model_config = {"from_attributes": True}
