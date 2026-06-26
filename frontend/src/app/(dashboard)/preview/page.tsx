@@ -450,7 +450,7 @@ export default function PreviewPage() {
             const jobRenders = renders
               .filter(r => r.content_job_id === selected?.content_job_id)
               .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-            if (jobRenders.length <= 1) return null;
+            if (jobRenders.length === 0) return null;
             return (
               <div style={{ display: "flex", gap: 6, padding: "12px 0 0", flexShrink: 0 }}>
                 {jobRenders.map(rv => {
