@@ -73,6 +73,10 @@ export default function PreviewPage() {
   const [originalVol, setOriginalVol] = useState(0);
   const [voiceVol, setVoiceVol]       = useState(100);
   const [showVolPanel, setShowVolPanel] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [audioOffset, setAudioOffset] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
   const [showPicker, setShowPicker] = useState(false);
   const [audioAssets, setAudioAssets] = useState<AudioAsset[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(false);
@@ -81,6 +85,8 @@ export default function PreviewPage() {
   const uploadRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
 
   useEffect(() => {
     Promise.all([api.get("/jobs/?limit=50"), api.get("/products/")])
@@ -154,9 +160,20 @@ export default function PreviewPage() {
   };
 
   const pickAsset = (asset: AudioAsset) => {
-    setSwapAudioUrl(asset.url);  // raw MinIO path — backend downloads directly
+    setSwapAudioUrl(asset.url);
     setSwapDone(false);
     setShowPicker(false);
+    setAudioOffset(0);
+    const a = new Audio(fileUrl(asset.url));
+    a.onloadedmetadata = () => setAudioDuration(a.duration);
+  };
+
+  const updateOffset = (e: React.MouseEvent) => {
+    const rect = timelineRef.current?.getBoundingClientRect();
+    if (!rect || !videoDuration) return;
+    const ratio = (e.clientX - rect.left) / rect.width;
+    const max = Math.max(0, videoDuration - (audioDuration || 2));
+    setAudioOffset(Math.max(0, Math.min(ratio * videoDuration, max)));
   };
 
   const togglePreview = (asset: AudioAsset) => {
@@ -205,6 +222,7 @@ export default function PreviewPage() {
           voiceover_url: swapAudioUrl.trim(),
           original_vol: (originalVol / 100).toFixed(3),
           voice_vol: (voiceVol / 100).toFixed(3),
+          audio_offset: audioOffset.toFixed(2),
         },
       });
       // poll until done
@@ -341,6 +359,16 @@ export default function PreviewPage() {
                 border: `1px solid ${showVolPanel ? "rgba(255,176,46,.4)" : "var(--gb)"}`,
                 color: showVolPanel ? "#ffb02e" : "var(--dim)",
               }}>🎚️</button>
+            {/* Timeline toggle */}
+            <button
+              onClick={() => setShowTimeline(v => !v)}
+              title="ตำแหน่งเสียง"
+              style={{
+                padding: "6px 8px", borderRadius: 8, cursor: "pointer", fontSize: 13,
+                background: showTimeline ? "rgba(0,255,212,.15)" : "var(--glass)",
+                border: `1px solid ${showTimeline ? "rgba(0,255,212,.4)" : "var(--gb)"}`,
+                color: showTimeline ? "var(--teal)" : "var(--dim)",
+              }}>⏱️</button>
             <button onClick={handleSwapAudio} disabled={swapping || !swapAudioUrl.trim()} style={{
               display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8,
               background: swapDone ? "rgba(0,255,212,.15)" : "rgba(77,127,255,.15)",
@@ -399,6 +427,64 @@ export default function PreviewPage() {
                 {originalVol === 0
                   ? "โหมด: แทนเสียงทั้งหมด"
                   : `โหมด: ผสมเสียง (${originalVol}% + ${voiceVol}%)`}
+              </p>
+            </div>
+          )}
+
+          {/* Timeline panel */}
+          {showTimeline && (
+            <div style={{
+              position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 50,
+              background: "#16161e", border: "1px solid var(--gb)", borderRadius: 12,
+              padding: "14px 16px", width: 360, boxShadow: "0 8px 32px rgba(0,0,0,.6)",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <p style={{ margin: 0, fontSize: 11, fontWeight: 800, color: "var(--dim)", letterSpacing: ".05em" }}>
+                  ⏱️ ตำแหน่งเสียง
+                </p>
+                <span style={{ fontSize: 11, color: "var(--teal)", fontWeight: 700 }}>
+                  เริ่มที่ {audioOffset.toFixed(1)}s
+                </span>
+              </div>
+
+              <div
+                ref={timelineRef}
+                style={{
+                  position: "relative", height: 44, background: "rgba(255,255,255,.04)",
+                  borderRadius: 8, cursor: "crosshair", userSelect: "none", overflow: "hidden",
+                }}
+                onMouseDown={(e) => { isDragging.current = true; updateOffset(e); }}
+                onMouseMove={(e) => { if (isDragging.current) updateOffset(e); }}
+                onMouseUp={() => { isDragging.current = false; }}
+                onMouseLeave={() => { isDragging.current = false; }}
+              >
+                {/* time ticks */}
+                {videoDuration > 0 && Array.from({ length: Math.floor(videoDuration / 5) + 1 }).map((_, i) => (
+                  <div key={i} style={{
+                    position: "absolute", left: `${(i * 5 / videoDuration) * 100}%`,
+                    top: 0, bottom: 0, width: 1, background: "rgba(255,255,255,.08)",
+                  }}>
+                    <span style={{ position: "absolute", top: 2, left: 3, fontSize: 8, color: "var(--faint)" }}>{i * 5}s</span>
+                  </div>
+                ))}
+                {/* audio clip */}
+                {videoDuration > 0 && (
+                  <div style={{
+                    position: "absolute",
+                    left: `${(audioOffset / videoDuration) * 100}%`,
+                    width: audioDuration > 0 ? `${Math.min((audioDuration / videoDuration) * 100, 100)}%` : "15%",
+                    top: 8, height: 28,
+                    background: "rgba(0,255,212,.3)", border: "1px solid var(--teal)",
+                    borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "grab", pointerEvents: "none",
+                  }}>
+                    <span style={{ fontSize: 10, color: "var(--teal)", fontWeight: 700 }}>🎙️</span>
+                  </div>
+                )}
+              </div>
+
+              <p style={{ margin: "8px 0 0", fontSize: 10, color: "var(--faint)" }}>
+                คลิกหรือลากเพื่อตั้งตำแหน่งเสียงในวิดีโอ
               </p>
             </div>
           )}
@@ -470,6 +556,7 @@ export default function PreviewPage() {
                   controls
                   autoPlay
                   loop
+                  onLoadedMetadata={() => setVideoDuration(videoRef.current?.duration || 0)}
                   style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                 />
                 {/* Caption overlay */}

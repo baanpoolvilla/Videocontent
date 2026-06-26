@@ -235,9 +235,12 @@ class VideoService:
         voiceover_url: str,
         original_vol: float = 0.0,
         voice_vol: float = 1.0,
+        audio_offset: float = 0.0,
     ) -> dict:
         """Take existing video file, replace/add/mix audio track — no re-render."""
-        logger.info(f"[REMIX] start job={job_id} orig_vol={original_vol} voice_vol={voice_vol} audio={voiceover_url[:60] if voiceover_url else 'NONE'}")
+        logger.info(f"[REMIX] start job={job_id} orig_vol={original_vol} voice_vol={voice_vol} offset={audio_offset} audio={voiceover_url[:60] if voiceover_url else 'NONE'}")
+        delay_ms = int(audio_offset * 1000)
+        delay_filter = f"adelay={delay_ms}|{delay_ms}," if delay_ms > 0 else ""
         with tempfile.TemporaryDirectory() as tmpdir:
             video_path = os.path.join(tmpdir, "source.mp4")
             await self._download_file(video_url, video_path)
@@ -253,7 +256,7 @@ class VideoService:
                     # Mix mode: blend original video audio + voiceover
                     mix_filter = (
                         f"[0:a]volume={original_vol:.3f}[a0];"
-                        f"[1:a]volume={voice_vol:.3f}[a1];"
+                        f"[1:a]{delay_filter}volume={voice_vol:.3f}[a1];"
                         f"[a0][a1]amix=inputs=2:duration=first:dropout_transition=3[aout]"
                     )
                     try:
@@ -272,7 +275,7 @@ class VideoService:
                         await self._run_ffmpeg([
                             "ffmpeg", "-y",
                             "-i", video_path, "-i", audio_path,
-                            "-filter_complex", f"[1:a]volume={voice_vol:.3f}[aout]",
+                            "-filter_complex", f"[1:a]{delay_filter}volume={voice_vol:.3f}[aout]",
                             "-map", "0:v:0", "-map", "[aout]",
                             "-c:v", "copy", "-c:a", "aac",
                             "-shortest", "-movflags", "+faststart",
@@ -283,7 +286,7 @@ class VideoService:
                     await self._run_ffmpeg([
                         "ffmpeg", "-y",
                         "-i", video_path, "-i", audio_path,
-                        "-filter_complex", f"[1:a]volume={voice_vol:.3f}[aout]",
+                        "-filter_complex", f"[1:a]{delay_filter}volume={voice_vol:.3f}[aout]",
                         "-map", "0:v:0", "-map", "[aout]",
                         "-c:v", "copy", "-c:a", "aac",
                         "-shortest", "-movflags", "+faststart",
