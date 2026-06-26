@@ -73,8 +73,6 @@ export default function PreviewPage() {
   const [originalVol, setOriginalVol] = useState(0);
   const [voiceVol, setVoiceVol]       = useState(100);
   const [showVolPanel, setShowVolPanel] = useState(false);
-  const [showTimeline, setShowTimeline] = useState(false);
-  const [audioOffset, setAudioOffset] = useState(0);
   const [showPicker, setShowPicker] = useState(false);
   const [audioAssets, setAudioAssets] = useState<AudioAsset[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(false);
@@ -82,7 +80,6 @@ export default function PreviewPage() {
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     Promise.all([api.get("/jobs/?limit=50"), api.get("/products/")])
@@ -208,7 +205,6 @@ export default function PreviewPage() {
           voiceover_url: swapAudioUrl.trim(),
           original_vol: (originalVol / 100).toFixed(3),
           voice_vol: (voiceVol / 100).toFixed(3),
-          audio_offset: audioOffset.toFixed(2),
         },
       });
       // poll until done
@@ -345,16 +341,6 @@ export default function PreviewPage() {
                 border: `1px solid ${showVolPanel ? "rgba(255,176,46,.4)" : "var(--gb)"}`,
                 color: showVolPanel ? "#ffb02e" : "var(--dim)",
               }}>🎚️</button>
-            {/* Timeline toggle */}
-            <button
-              onClick={() => setShowTimeline(v => !v)}
-              title="ตำแหน่งเสียง"
-              style={{
-                padding: "6px 8px", borderRadius: 8, cursor: "pointer", fontSize: 13,
-                background: showTimeline ? "rgba(0,255,212,.15)" : "var(--glass)",
-                border: `1px solid ${showTimeline ? "rgba(0,255,212,.4)" : "var(--gb)"}`,
-                color: showTimeline ? "var(--teal)" : "var(--dim)",
-              }}>⏱️</button>
             <button onClick={handleSwapAudio} disabled={swapping || !swapAudioUrl.trim()} style={{
               display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8,
               background: swapDone ? "rgba(0,255,212,.15)" : "rgba(77,127,255,.15)",
@@ -417,51 +403,6 @@ export default function PreviewPage() {
             </div>
           )}
 
-          {/* Timeline panel */}
-          {showTimeline && (
-            <div style={{
-              position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 50,
-              background: "#16161e", border: "1px solid var(--gb)", borderRadius: 12,
-              padding: "14px 16px", width: 240, boxShadow: "0 8px 32px rgba(0,0,0,.6)",
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <p style={{ margin: 0, fontSize: 11, fontWeight: 800, color: "var(--dim)", letterSpacing: ".05em" }}>
-                  ตำแหน่งเริ่มต้นเสียง
-                </p>
-                {audioOffset > 0 && (
-                  <button onClick={() => setAudioOffset(0)} style={{
-                    background: "none", border: "none", color: "var(--faint)",
-                    cursor: "pointer", fontSize: 10, fontWeight: 700, padding: 0,
-                  }}>รีเซ็ต</button>
-                )}
-              </div>
-
-              <div style={{
-                background: "rgba(0,255,212,.06)", border: "1px solid rgba(0,255,212,.15)",
-                borderRadius: 8, padding: "10px 12px", marginBottom: 10, textAlign: "center",
-              }}>
-                <span style={{ fontSize: 26, fontWeight: 900, color: audioOffset > 0 ? "var(--teal)" : "var(--faint)" }}>
-                  {audioOffset.toFixed(1)}s
-                </span>
-              </div>
-
-              <button
-                onClick={() => setAudioOffset(videoRef.current?.currentTime ?? 0)}
-                style={{
-                  width: "100%", padding: "10px", borderRadius: 9, cursor: "pointer",
-                  background: "rgba(0,255,212,.1)", border: "1px solid rgba(0,255,212,.3)",
-                  color: "var(--teal)", fontSize: 12, fontWeight: 700,
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                }}
-              >
-                📍 ตั้งตำแหน่งที่นี่
-              </button>
-
-              <p style={{ margin: "8px 0 0", fontSize: 10, color: "var(--faint)", lineHeight: 1.6, textAlign: "center" }}>
-                เล่นวิดีโอไปยังตำแหน่งที่ต้องการ<br />แล้วกดปุ่มด้านบน
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Copy style */}
@@ -525,7 +466,6 @@ export default function PreviewPage() {
                 aspectRatio: "9/16",
               }}>
                 <video
-                  ref={videoRef}
                   src={videoUrl}
                   controls
                   autoPlay
