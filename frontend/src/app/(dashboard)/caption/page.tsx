@@ -317,9 +317,20 @@ export default function CaptionPage() {
   const script     = jobScripts[0] || null;
   const [hashtagText, setHashtagText] = useState(() => POOL_VILLA_TAGS.join(" "));
   const hashtags = hashtagText.split(/\s+/).filter(t => t.length > 0);
-  const caption    = script ? buildCaption(script, hashtags) : "";
+  const [captionText, setCaptionText] = useState("");
+  const [editScript, setEditScript] = useState({ hook: "", body: "", cta: "" });
   const jobsWithScripts = jobs.filter(j => scripts[j.id]?.length > 0);
   const hasScripts = jobsWithScripts.length > 0;
+
+  useEffect(() => {
+    if (script) {
+      const es = { hook: script.hook || "", body: script.body || "", cta: script.cta || "" };
+      setEditScript(es);
+      const lines = [es.hook, es.cta].filter(Boolean);
+      setCaptionText(`${lines.join("\n\n")}\n\n${hashtagText}`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [script?.id]);
 
   return (
     <div className="page-enter" style={{ padding: "32px 40px" }}>
@@ -406,14 +417,29 @@ export default function CaptionPage() {
                 <div style={{ background: "var(--glass)", border: "1px solid var(--gb)", borderRadius: 14, padding: 18 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                     <h2 style={{ margin: 0, fontSize: 13.5, fontWeight: 700 }}>Caption สำเร็จรูป</h2>
-                    <CopyBtn text={caption} label="คัดลอกทั้งหมด" />
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => {
+                        const lines = [editScript.hook, editScript.cta].filter(Boolean);
+                        setCaptionText(`${lines.join("\n\n")}\n\n${hashtags.join(" ")}`);
+                      }} style={{
+                        padding: "6px 12px", borderRadius: 8, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
+                        border: "1px solid var(--gb)", background: "var(--glass)", color: "var(--faint)",
+                      }}>รีเซ็ต</button>
+                      <CopyBtn text={captionText} label="คัดลอกทั้งหมด" />
+                    </div>
                   </div>
-                  <pre style={{
-                    margin: 0, fontFamily: "inherit", fontSize: 13.5, lineHeight: 1.8,
-                    color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word",
-                    background: "var(--bg)", border: "1px solid var(--gb)", borderRadius: 10, padding: "14px 16px",
-                  }}>{caption}</pre>
-                  <p style={{ margin: "8px 0 0", fontSize: 11, color: "var(--faint)" }}>{caption.length} ตัวอักษร</p>
+                  <textarea
+                    value={captionText}
+                    onChange={e => setCaptionText(e.target.value)}
+                    rows={6}
+                    style={{
+                      width: "100%", boxSizing: "border-box",
+                      background: "var(--bg)", border: "1px solid var(--gb)", borderRadius: 10,
+                      padding: "14px 16px", color: "var(--text)", fontSize: 13.5, lineHeight: 1.8,
+                      resize: "vertical", outline: "none", fontFamily: "inherit",
+                    }}
+                  />
+                  <p style={{ margin: "6px 0 0", fontSize: 11, color: "var(--faint)" }}>{captionText.length} ตัวอักษร · แก้ไขได้โดยตรง</p>
                 </div>
 
                 {/* Script breakdown */}
@@ -422,14 +448,22 @@ export default function CaptionPage() {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr", gap: 8 }}>
                     {(["hook", "body", "cta"] as const).map(field => (
                       <div key={field} style={{ background: "var(--bg)", border: "1px solid var(--gb)", borderRadius: 10, padding: "12px 14px" }}>
-                        <p style={{ margin: "0 0 5px", fontSize: 9.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em",
+                        <p style={{ margin: "0 0 6px", fontSize: 9.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em",
                           color: field === "hook" ? "var(--teal)" : field === "cta" ? "var(--purple)" : "var(--faint)" }}>
                           {field === "hook" ? "🎣 Hook" : field === "body" ? "📝 Body" : "🎯 CTA"}
                         </p>
-                        <p style={{ margin: "0 0 8px", fontSize: 12, color: "var(--dim)", lineHeight: 1.6 }}>
-                          {script[field] || <span style={{ color: "var(--faint)", fontStyle: "italic" }}>ว่างเปล่า</span>}
-                        </p>
-                        <CopyBtn text={script[field] || ""} />
+                        <textarea
+                          value={editScript[field]}
+                          onChange={e => setEditScript(prev => ({ ...prev, [field]: e.target.value }))}
+                          rows={4}
+                          style={{
+                            width: "100%", boxSizing: "border-box", marginBottom: 8,
+                            background: "rgba(255,255,255,.03)", border: "1px solid var(--gb)", borderRadius: 8,
+                            padding: "10px 12px", color: "var(--dim)", fontSize: 12, lineHeight: 1.6,
+                            resize: "vertical", outline: "none", fontFamily: "inherit",
+                          }}
+                        />
+                        <CopyBtn text={editScript[field]} />
                       </div>
                     ))}
                   </div>
@@ -465,7 +499,7 @@ export default function CaptionPage() {
                 </div>
 
                 {/* Schedule panel */}
-                <SchedulePanel jobId={selectedJob} caption={caption} hashtags={hashtags} />
+                <SchedulePanel jobId={selectedJob} caption={captionText} hashtags={hashtags} />
               </>
             )}
           </div>
