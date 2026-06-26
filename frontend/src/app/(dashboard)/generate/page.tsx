@@ -484,26 +484,45 @@ export default function GeneratePage() {
   // ── HOME ──────────────────────────────────────────────────────────────────
   if (phase === "home") return (
     <div style={{
-      minHeight: "100vh", background: "var(--bg)",
-      display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", padding: "32px 24px", overflowY: "auto",
+      height: "100vh", background: "var(--bg)",
+      display: "flex", flexDirection: "column",
+      padding: "20px 28px", overflow: "hidden",
     }}>
 
-      <h1 style={{
-        margin: "0 0 28px", fontSize: 34, fontWeight: 900, textAlign: "center", lineHeight: 1.2,
-        color: "var(--text)", letterSpacing: "-.03em",
-      }}>
-        Create your{" "}
-        <span style={{ background: "linear-gradient(90deg,var(--teal),var(--blue))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-          story video
-        </span>{" "}today
-      </h1>
+      {/* Header: title + mode tabs */}
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14, flexShrink: 0 }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "var(--text)", letterSpacing: "-.02em" }}>
+          Create your{" "}
+          <span style={{ background: "linear-gradient(90deg,var(--teal),var(--blue))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            story video
+          </span>{" "}today
+        </h1>
+        <div style={{ flex: 1 }} />
+        <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,.04)", border: "1px solid var(--gb)", borderRadius: 11, padding: 2, flexShrink: 0 }}>
+          {MODE_TABS.map(t => (
+            <button key={t.id} onMouseDown={() => setMode(t.id)} style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "7px 14px", borderRadius: 9, cursor: t.id === "audio" ? "default" : "pointer",
+              background: mode === t.id ? "rgba(255,255,255,.11)" : "transparent",
+              border: `1px solid ${mode === t.id ? "rgba(255,255,255,.14)" : "transparent"}`,
+              color: mode === t.id ? "var(--text)" : "var(--faint)",
+              fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap",
+              opacity: t.id === "audio" ? 0.5 : 1, transition: "all .15s",
+            }}>
+              <span style={{ fontSize: 13 }}>{t.icon}</span>
+              <span>{t.label}</span>
+              {t.id === "audio" && <span style={{ fontSize: 8, background: "rgba(255,176,0,.12)", color: "#ffb000", padding: "1px 5px", borderRadius: 4, fontWeight: 800 }}>SOON</span>}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {/* Main card */}
+      {/* Main card — fills remaining height */}
       <div style={{
-        width: "100%", maxWidth: 700,
+        flex: 1, minHeight: 0,
         background: "#1a1a22", border: "1px solid var(--gb)", borderRadius: 20,
-        padding: "20px 20px 14px", boxShadow: "0 8px 40px rgba(0,0,0,.4)", marginBottom: 16,
+        padding: "20px 20px 14px", boxShadow: "0 8px 40px rgba(0,0,0,.4)",
+        display: "flex", flexDirection: "column",
       }}>
 
         {/* Asset picker row */}
@@ -581,9 +600,8 @@ export default function GeneratePage() {
             : mode === "ads"  ? "ทำ Ad โปรโมท pool villa พร้อม offer พิเศษ..."
             : "ทำเป็นรีวิวบ้านพลูวิลล่า แบบเชิญชวนมาพักผ่อน..."
           }
-          rows={3}
           style={{
-            width: "100%", background: "transparent", border: "none", outline: "none",
+            flex: 1, minHeight: 80, width: "100%", background: "transparent", border: "none", outline: "none",
             color: "var(--text)", fontSize: 15, lineHeight: 1.7, resize: "none",
             fontFamily: "inherit", marginBottom: 14, boxSizing: "border-box",
           }}
@@ -763,28 +781,6 @@ export default function GeneratePage() {
         </div>
       </div>
 
-      {/* Mode tabs — pill group */}
-      <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,.04)", border: "1px solid var(--gb)", borderRadius: 13, padding: 3, marginBottom: 20 }}>
-        {MODE_TABS.map(t => (
-          <button key={t.id} onMouseDown={() => setMode(t.id)} style={{
-            flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-            padding: "8px 10px", borderRadius: 10, cursor: t.id === "audio" ? "default" : "pointer",
-            background: mode === t.id ? "rgba(255,255,255,.11)" : "transparent",
-            border: `1px solid ${mode === t.id ? "rgba(255,255,255,.14)" : "transparent"}`,
-            color: mode === t.id ? "var(--text)" : "var(--faint)",
-            fontSize: 11.5, fontWeight: 600, transition: "all .15s", whiteSpace: "nowrap",
-            opacity: t.id === "audio" ? 0.5 : 1,
-          }}>
-            <span style={{ fontSize: 13 }}>{t.icon}</span>
-            <span>{t.label}</span>
-            {t.id === "audio" && <span style={{ fontSize: 8, background: "rgba(255,176,0,.12)", color: "#ffb000", padding: "1px 5px", borderRadius: 4, fontWeight: 800 }}>SOON</span>}
-          </button>
-        ))}
-      </div>
-
-      <p style={{ margin: 0, fontSize: 13, color: "var(--faint)" }}>
-        ✨ Get inspired. Then make it yours.
-      </p>
     </div>
   );
 
