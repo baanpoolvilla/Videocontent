@@ -76,6 +76,19 @@ class AIService:
             "playful": "fun, inviting, vacation-ready — Booking.com hero shot",
         }.get(style, "premium cinematic luxury resort")
 
+        # Per-model word targets — 90% of each model's char limit (~5 chars/word)
+        model_word_limit = {
+            "kling3s":       430,   # 2500 chars × 90% ÷ 5
+            "kling3s_pro":   430,
+            "hailuo2pro":    350,   # 2000 chars × 90% ÷ 5
+            "seedance2":     350,
+            "seedance2_pro": 350,
+            "wan21":         350,
+            "kenburs":       150,
+        }
+        word_limit = model_word_limit.get(ai_model, 350)
+        word_range = f"{max(word_limit - 50, 100)}-{word_limit}"
+
         # Step 3 for adding a new model: add an entry here describing what makes it tick
         model_guide = {
             "hailuo2pro": (
@@ -176,7 +189,7 @@ class AIService:
                 f"{story_block}"
                 f"OUTPUT RULES:\n"
                 f"1. English ONLY — zero Thai characters.\n"
-                f"2. 100-150 words — detailed enough for the video model to render accurately.\n"
+                f"2. {word_range} words — fill every word with specific visual detail for {ai_model}.\n"
                 f"3. Start with camera movement.\n"
                 f"4. Raw text only — no labels, no markdown."
             )
@@ -189,7 +202,7 @@ class AIService:
                 f"{story_block}"
                 f"OUTPUT RULES:\n"
                 f"1. English ONLY — zero Thai characters.\n"
-                f"2. 100-150 words — detailed enough for the video model to render accurately.\n"
+                f"2. {word_range} words — fill every word with specific visual detail for {ai_model}.\n"
                 f"3. Start with camera movement.\n"
                 f"4. Raw text only — no labels, no markdown."
             )
@@ -203,8 +216,8 @@ class AIService:
         raw = response.text.strip()
         clean = _clean_prompt(raw)
         words = clean.split()
-        logger.info(f"[AI] vision prompt slot={slot_index}/{total_slots} ({len(words)} words): {' '.join(words[:10])}...")
-        return " ".join(words[:150])
+        logger.info(f"[AI] vision prompt slot={slot_index}/{total_slots} model={ai_model} ({len(words)} words): {' '.join(words[:10])}...")
+        return " ".join(words[:word_limit])
 
     async def analyze_product(self, product_name: str, description: str, brand_context: str = "") -> dict:
         prompt = f"""วิเคราะห์สินค้าต่อไปนี้เพื่อสร้างวิดีโอสั้น:

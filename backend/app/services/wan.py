@@ -30,6 +30,16 @@ MODEL_MIN_DURATION: dict[str, int] = {
     "fal-ai/minimax/hailuo-2.3/pro/image-to-video": 6,  # Hailuo requires >= 6s
 }
 
+# Max prompt characters per model — 90% of documented limit to stay safe
+MODEL_PROMPT_CHARS: dict[str, int] = {
+    "fal-ai/kling-video/v3/standard/image-to-video":  2400,  # Kling 2500 chars
+    "fal-ai/kling-video/v3/pro/image-to-video":       2400,
+    "fal-ai/minimax/hailuo-2.3/pro/image-to-video":   1900,  # Hailuo ~2000 chars
+    "fal-ai/bytedance/seedance-v1/i2v/turbo":          1900,  # Seedance ~2000 chars
+    "fal-ai/bytedance/seedance-v1/i2v/standard":       1900,
+    "fal-ai/wan/v2.1/image-to-video":                  1900,  # Wan — no hard limit, cap at 1900
+}
+
 DEFAULT_I2V = MODELS["kling3s"]
 DEFAULT_T2V = MODELS["kling3s"]
 
@@ -50,9 +60,10 @@ class WanService:
         # Enforce per-model minimum duration (e.g. Hailuo requires >= 6s)
         min_dur = MODEL_MIN_DURATION.get(model, 5)
         dur_int = max(dur_int, min_dur)
+        char_limit = MODEL_PROMPT_CHARS.get(model, 1900)
         payload = {
             "image_url": image_url,
-            "prompt": prompt[:2000],
+            "prompt": prompt[:char_limit],
             "duration": dur_int,
             "aspect_ratio": aspect_ratio,
         }
