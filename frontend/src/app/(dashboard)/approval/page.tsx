@@ -7,7 +7,14 @@ import { CheckCircle2, XCircle, Loader2, Film, Download, Eye, RefreshCw, ThumbsU
 interface Product { id: string; name: string; media_urls: string[]; }
 interface RenderVersion {
   id: string; content_job_id: string; version_label: string | null;
-  final_video_url: string | null; status: string;
+  final_video_url: string | null; status: string; created_at: string;
+}
+
+function renderVersionLabel(renders: RenderVersion[], rv: RenderVersion): string {
+  const sorted = [...renders].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  const idx = sorted.findIndex(r => r.id === rv.id);
+  if (idx <= 0) return "ต้นฉบับ";
+  return `อัพเดท ${idx}`;
 }
 interface Job {
   id: string; product_id: string; status: string; review_status: string;
@@ -25,13 +32,27 @@ export default function ApprovalPage() {
   const [preview, setPreview]   = useState<{ job: Job; renders: RenderVersion[] } | null>(null);
   const [loadingRenders, setLoadingRenders] = useState(false);
   const [acting, setActing] = useState<string | null>(null);
+  const [rendersByJob, setRendersByJob] = useState<Record<string, RenderVersion[]>>({});
 
   const load = async () => {
     const [j, p] = await Promise.all([api.get("/jobs/?limit=50"), api.get("/products/")]);
-    setJobs(j.data);
+    const jobList: Job[] = j.data;
+    setJobs(jobList);
     const m: Record<string, Product> = {};
     for (const x of p.data) m[x.id] = x;
     setProducts(m);
+
+    const pendingJobs = jobList.filter(job => job.review_status === "review_needed");
+    const map: Record<string, RenderVersion[]> = {};
+    await Promise.all(
+      pendingJobs.map(async job => {
+        try {
+          const r = await api.get(`/jobs/${job.id}/renders`);
+          map[job.id] = r.data;
+        } catch { /* skip */ }
+      })
+    );
+    setRendersByJob(map);
   };
 
   useEffect(() => { load().finally(() => setLoading(false)); }, []);
@@ -114,8 +135,13 @@ export default function ApprovalPage() {
                       <Film size={32} strokeWidth={1} style={{ opacity: .2 }} />
                     </div>
                   )}
-                  <div style={{ position: "absolute", top: 8, right: 8 }}>
+                  <div style={{ position: "absolute", top: 8, right: 8, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
                     <span style={{ fontSize: 10, fontWeight: 800, color: "#b86000", background: "rgba(255,176,46,.9)", padding: "3px 8px", borderRadius: 6 }}>รอตรวจ</span>
+                    {(rendersByJob[job.id]?.length ?? 0) > 1 && (
+                      <span style={{ fontSize: 10, fontWeight: 800, color: "var(--teal)", background: "rgba(0,255,212,.85)", padding: "3px 8px", borderRadius: 6, color: "#06060a" }}>
+                        {rendersByJob[job.id].length - 1} อัพเดท
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -223,19 +249,34 @@ export default function ApprovalPage() {
                 <Film size={32} strokeWidth={1} style={{ margin: "0 auto 10px", display: "block", opacity: .3 }} />
                 <p style={{ color: "var(--faint)", fontSize: 13, margin: 0 }}>ยังไม่มีวิดีโอ render สำหรับ job นี้</p>
               </div>
-            ) : preview.renders.map(rv => (
-              <div key={rv.id} style={{ marginBottom: 16 }}>
-                <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 700, color: "var(--teal)" }}>{rv.version_label || "v1"}</p>
-                {rv.final_video_url && (
-                  <>
-                    <video src={fileUrl(rv.final_video_url)} controls style={{ width: "100%", borderRadius: 10, background: "#000", maxHeight: 340 }} />
-                    <a href={fileUrl(rv.final_video_url)} download style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 12, color: "var(--teal)", textDecoration: "none", fontWeight: 600 }}>
-                      <Download size={13} /> ดาวน์โหลด
-                    </a>
-                  </>
-                )}
-              </div>
-            ))}
+            ) : (() => {
+              const sorted = [...preview.renders].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+              return sorted.map(rv => {
+                const label = renderVersionLabel(sorted, rv);
+                const isUpdate = label !== "ต้นฉบับ";
+                return (
+                  <div key={rv.id} style={{ marginBottom: 20 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6,
+                        background: isUpdate ? "rgba(0,255,212,.15)" : "rgba(255,255,255,.08)",
+                        color: isUpdate ? "var(--teal)" : "var(--dim)",
+                        border: `1px solid ${isUpdate ? "rgba(0,255,212,.3)" : "var(--gb)"}`,
+                      }}>{label}</span>
+                      {isUpdate && <span style={{ fontSize: 10, color: "var(--faint)" }}>ใส่เสียงใหม่</span>}
+                    </div>
+                    {rv.final_video_url && (
+                      <>
+                        <video src={fileUrl(rv.final_video_url)} controls style={{ width: "100%", borderRadius: 10, background: "#000", maxHeight: 340 }} />
+                        <a href={fileUrl(rv.final_video_url)} download style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 12, color: "var(--teal)", textDecoration: "none", fontWeight: 600 }}>
+                          <Download size={13} /> ดาวน์โหลด
+                        </a>
+                      </>
+                    )}
+                  </div>
+                );
+              });
+            })()}
 
             {preview.job.review_status === "review_needed" && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>

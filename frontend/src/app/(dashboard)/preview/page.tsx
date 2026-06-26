@@ -34,6 +34,15 @@ const VIDEO_STYLES: Record<string, { emoji: string; label: string; color: string
   minimal: { emoji: "⬜", label: "Minimal Clean",       color: "rgba(77,127,255,.15)",  border: "rgba(77,127,255,.4)"  },
 };
 
+function renderLabel(rv: RenderVersion, allRenders: RenderVersion[]): string {
+  const siblings = allRenders
+    .filter(r => r.content_job_id === rv.content_job_id)
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  const idx = siblings.findIndex(r => r.id === rv.id);
+  if (idx <= 0) return "ต้นฉบับ";
+  return `อัพเดท ${idx}`;
+}
+
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleString("th-TH", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
@@ -439,16 +448,20 @@ export default function PreviewPage() {
           {/* Version tabs */}
           {renders.length > 1 && (
             <div style={{ display: "flex", gap: 6, padding: "12px 0 0", flexShrink: 0 }}>
-              {renders.slice(0, 5).map((rv, i) => (
-                <button key={rv.id} onClick={() => selectRender(rv)} style={{
-                  padding: "4px 12px", borderRadius: 7, fontSize: 11, fontWeight: 800, cursor: "pointer",
-                  border: `1px solid ${selected?.id === rv.id ? "rgba(0,255,212,.5)" : "var(--gb)"}`,
-                  background: selected?.id === rv.id ? "rgba(0,255,212,.15)" : "rgba(255,255,255,.04)",
-                  color: selected?.id === rv.id ? "var(--teal)" : "var(--faint)",
-                }}>
-                  {rv.version_label || `Ver. ${String.fromCharCode(65 + i)}`}
-                </button>
-              ))}
+              {renders.slice(0, 5).map((rv) => {
+                const label = renderLabel(rv, renders);
+                const isUpdate = label !== "ต้นฉบับ";
+                return (
+                  <button key={rv.id} onClick={() => selectRender(rv)} style={{
+                    padding: "4px 12px", borderRadius: 7, fontSize: 11, fontWeight: 800, cursor: "pointer",
+                    border: `1px solid ${selected?.id === rv.id ? (isUpdate ? "rgba(0,255,212,.5)" : "rgba(255,176,46,.5)") : "var(--gb)"}`,
+                    background: selected?.id === rv.id ? (isUpdate ? "rgba(0,255,212,.15)" : "rgba(255,176,46,.12)") : "rgba(255,255,255,.04)",
+                    color: selected?.id === rv.id ? (isUpdate ? "var(--teal)" : "#ffb02e") : "var(--faint)",
+                  }}>
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           )}
 
