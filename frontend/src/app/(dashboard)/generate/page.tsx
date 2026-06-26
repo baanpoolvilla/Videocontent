@@ -531,7 +531,7 @@ export default function GeneratePage() {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "18px 20px", position: "relative", background: "linear-gradient(180deg, rgba(0,255,212,.02) 0%, transparent 22%)" }}>
 
           {/* Asset picker row */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexShrink: 0 }}>
             <div ref={pickerRef} style={{ position: "relative" }}>
               <button
                 onMouseDown={e => { e.stopPropagation(); setShowPicker(v => !v); setShowModelMenu(false); }}
@@ -580,15 +580,16 @@ export default function GeneratePage() {
                 </div>
               )}
             </div>
-            {product?.media_urls?.slice(0, 5).map((url, i) => (
-              <div key={i} style={{ width: 36, height: 36, borderRadius: 7, overflow: "hidden", border: "1px solid rgba(255,255,255,.08)", flexShrink: 0 }}>
-                <img src={imgProxy(url)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              </div>
-            ))}
-            {product && (product.media_urls?.length ?? 0) > 5 && (
-              <span style={{ fontSize: 11, color: "var(--faint)" }}>+{(product.media_urls?.length ?? 0) - 5}</span>
-            )}
           </div>
+          {product && (product.media_urls?.length ?? 0) > 0 && (
+            <div style={{ display: "flex", gap: 7, overflowX: "auto", marginBottom: 12, flexShrink: 0, scrollbarWidth: "none" as const, paddingBottom: 2 }}>
+              {product.media_urls.map((url, i) => (
+                <div key={i} style={{ width: 56, height: 90, borderRadius: 9, overflow: "hidden", border: "1px solid rgba(255,255,255,.1)", flexShrink: 0, boxShadow: "0 2px 8px rgba(0,0,0,.5)" }}>
+                  <img src={imgProxy(url)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Textarea */}
           <textarea
