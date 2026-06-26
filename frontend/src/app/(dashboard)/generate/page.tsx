@@ -185,7 +185,7 @@ export default function GeneratePage() {
   const [aiModel, setAiModel]         = useState<AIModel>("hailuo2pro");
   const [captions, setCaptions]       = useState(false);
   const [includeVoice, setIncludeVoice] = useState(true);
-  const [clipCount, setClipCount]     = useState(0); // 0 = auto (match image count, max 3)
+  const [clipCount, setClipCount]     = useState(1);
   const [quickDuration, setQuickDuration] = useState(30);
   const [quickStyle, setQuickStyle]       = useState("✨ Luxury หรูหรา");
   const [showModelMenu, setShowModelMenu]   = useState(false);
@@ -624,6 +624,19 @@ export default function GeneratePage() {
             ))}
             {/* Divider */}
             <div style={{ width: 1, height: 16, background: "var(--gb)", margin: "0 2px" }} />
+            {/* Clip count */}
+            <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>คลิป</span>
+            {[1, 2, 3].map(n => (
+              <button key={n} onMouseDown={() => setClipCount(n)} style={{
+                padding: "4px 9px", borderRadius: 6, cursor: "pointer",
+                fontSize: 11, fontWeight: 700,
+                background: clipCount === n ? "rgba(251,113,133,.12)" : "rgba(255,255,255,.04)",
+                border: `1px solid ${clipCount === n ? "rgba(251,113,133,.4)" : "var(--gb)"}`,
+                color: clipCount === n ? "#FB7185" : "var(--faint)",
+              }}>{n}</button>
+            ))}
+            {/* Divider */}
+            <div style={{ width: 1, height: 16, background: "var(--gb)", margin: "0 2px" }} />
             {/* Style */}
             <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>สไตล์</span>
             {[
@@ -1027,32 +1040,6 @@ export default function GeneratePage() {
             </div>
           </div>
 
-          {/* Clip count selector */}
-          {aiModel !== "kenburs" && (
-            <div style={{ marginTop: 16 }}>
-              <div style={{ fontSize: 12, color: "var(--dim)", fontWeight: 700, marginBottom: 8 }}>
-                จำนวนคลิป (= จำนวนรูปที่ใช้)
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                {[
-                  { val: 0, label: "Auto", desc: `ตามรูปที่มี (max ${Math.min(product?.media_urls?.length ?? 3, 3)})` },
-                  { val: 1, label: "1 คลิป", desc: `~$${(MODEL_OPTIONS.find(m => m.id === aiModel)?.priceClip ?? "").replace(" / คลิป", "")}` },
-                  { val: 2, label: "2 คลิป", desc: "รูปที่ 1–2" },
-                  { val: 3, label: "3 คลิป", desc: "รูปที่ 1–3" },
-                ].filter(o => o.val === 0 || o.val <= (product?.media_urls?.length ?? 3)).map(o => (
-                  <button key={o.val} onClick={() => setClipCount(o.val)} style={{
-                    flex: 1, padding: "8px 10px", borderRadius: 10, cursor: "pointer", textAlign: "center",
-                    border: `1.5px solid ${clipCount === o.val ? "var(--teal)" : "var(--gb)"}`,
-                    background: clipCount === o.val ? "rgba(0,255,212,.1)" : "rgba(255,255,255,.03)",
-                    transition: "all .15s",
-                  }}>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: clipCount === o.val ? "var(--teal)" : "var(--dim)" }}>{o.label}</div>
-                    <div style={{ fontSize: 10, color: "var(--faint)", marginTop: 2 }}>{o.desc}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Info chips */}
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
