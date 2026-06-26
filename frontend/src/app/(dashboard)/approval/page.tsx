@@ -138,7 +138,7 @@ export default function ApprovalPage() {
                   <div style={{ position: "absolute", top: 8, right: 8, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
                     <span style={{ fontSize: 10, fontWeight: 800, color: "#b86000", background: "rgba(255,176,46,.9)", padding: "3px 8px", borderRadius: 6 }}>รอตรวจ</span>
                     {(rendersByJob[job.id]?.length ?? 0) > 1 && (
-                      <span style={{ fontSize: 10, fontWeight: 800, color: "var(--teal)", background: "rgba(0,255,212,.85)", padding: "3px 8px", borderRadius: 6, color: "#06060a" }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, background: "rgba(0,255,212,.85)", padding: "3px 8px", borderRadius: 6, color: "#06060a" }}>
                         {rendersByJob[job.id].length - 1} อัพเดท
                       </span>
                     )}
