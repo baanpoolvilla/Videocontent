@@ -190,6 +190,8 @@ export default function GeneratePage() {
   const [videoPreset, setVideoPreset] = useState<"short"|"medium"|"long">("short");
   const [quickDuration, setQuickDuration] = useState(15);
   const [quickStyle, setQuickStyle]       = useState("✨ Luxury หรูหรา");
+  const [quickTone, setQuickTone]         = useState("หรู พรีเมียม ซีเนมาติก");
+  const [quickVoice, setQuickVoice]       = useState("หญิง (ไทย)");
   const [showModelMenu, setShowModelMenu]   = useState(false);
 
   // story
@@ -363,10 +365,7 @@ export default function GeneratePage() {
           params: { tone_of_voice: "ตามที่กำหนด", duration_sec: durSec, concept: ans.script_text || "" },
         });
       } else {
-        const tone = styleId === "luxury" ? "หรู พรีเมียม ซีเนมาติก"
-                   : styleId === "party"  ? "สนุก ปาร์ตี้ พลังงานสูง"
-                   : styleId === "minimal" ? "สะอาด ตรงประเด็น"
-                   : "playful สีสัน ลูกเล่น";
+        const tone = quickTone || (styleId === "luxury" ? "หรู พรีเมียม ซีเนมาติก" : "playful สีสัน ลูกเล่น");
         const visualConcept = mode === "ads"
           ? `Ad promotion: ${ans.offer || ""}`
           : (ans.visual || "");
@@ -378,7 +377,7 @@ export default function GeneratePage() {
 
       let voiceoverUrl = "";
       if (includeVoice) {
-        const voiceStyle = VOICE_FOR_STYLE[styleId] ?? "เป็นกันเอง (หญิง)";
+        const voiceStyle = quickVoice || VOICE_FOR_STYLE[styleId] || "หญิง (ไทย)";
         const voiceRes = await api.post(`/jobs/${jobId}/voiceover`, null, {
           params: { voice_style: voiceStyle },
         });
@@ -617,6 +616,47 @@ export default function GeneratePage() {
 
             {/* Divider */}
             <div style={{ width: 1, height: 28, background: "var(--gb)", margin: "0 3px" }} />
+
+            {/* Tone */}
+            <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>โทน</span>
+            {[
+              { tone: "หรู พรีเมียม ซีเนมาติก",    short: "🎬 Cinematic" },
+              { tone: "ผ่อนคลาย พักผ่อน ชวนมาเที่ยว", short: "🏖️ Vacation" },
+              { tone: "สนุก มีชีวิตชีวา เชิญชวน",   short: "🎉 Lively" },
+              { tone: "มืออาชีพ กระชับ ข้อมูลครบ",  short: "💼 Pro" },
+              { tone: "อบอุ่น เป็นกันเอง เชิญชวน",  short: "😊 Warm" },
+              { tone: "เล่าเรื่อง อารมณ์ ความรู้สึก", short: "📖 Story" },
+            ].map(t => (
+              <button key={t.tone} onMouseDown={() => setQuickTone(t.tone)} style={{
+                padding: "5px 11px", borderRadius: 7, cursor: "pointer", textAlign: "center",
+                background: quickTone === t.tone ? "rgba(34,212,153,.1)" : "rgba(255,255,255,.04)",
+                border: `1px solid ${quickTone === t.tone ? "rgba(34,212,153,.4)" : "var(--gb)"}`,
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: quickTone === t.tone ? "#22D499" : "var(--dim)" }}>{t.short}</div>
+              </button>
+            ))}
+
+            {/* Divider */}
+            <div style={{ width: 1, height: 28, background: "var(--gb)", margin: "0 3px" }} />
+
+            {/* Voice */}
+            {includeVoice && <>
+              <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>เสียง</span>
+              {[
+                { v: "หญิง (ไทย)",   label: "👩 หญิง 1" },
+                { v: "หญิง 2 (ไทย)", label: "👩 หญิง 2" },
+                { v: "ชาย (ไทย)",    label: "👨 ชาย" },
+              ].map(o => (
+                <button key={o.v} onMouseDown={() => setQuickVoice(o.v)} style={{
+                  padding: "5px 11px", borderRadius: 7, cursor: "pointer", textAlign: "center",
+                  background: quickVoice === o.v ? "rgba(77,127,255,.12)" : "rgba(255,255,255,.04)",
+                  border: `1px solid ${quickVoice === o.v ? "rgba(77,127,255,.4)" : "var(--gb)"}`,
+                }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: quickVoice === o.v ? "#4D7FFF" : "var(--dim)" }}>{o.label}</div>
+                </button>
+              ))}
+              <div style={{ width: 1, height: 28, background: "var(--gb)", margin: "0 3px" }} />
+            </>}
 
             {/* Screen ratio */}
             <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 700, marginRight: 1, textTransform: "uppercase", letterSpacing: ".04em" }}>หน้าจอ</span>
