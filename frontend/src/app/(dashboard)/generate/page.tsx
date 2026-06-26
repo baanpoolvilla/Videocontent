@@ -1013,8 +1013,8 @@ export default function GeneratePage() {
                 lineHeight: 1.8, boxSizing: "border-box",
               }}
             />
-            <div style={{ position: "absolute", bottom: 10, right: 12, fontSize: 10, color: wordCount > 70 ? "#f87171" : "var(--faint)", fontWeight: 700 }}>
-              {wordCount}/70 words
+            <div style={{ position: "absolute", bottom: 10, right: 12, fontSize: 10, color: wordCount > 150 ? "#f87171" : "var(--faint)", fontWeight: 700 }}>
+              {wordCount}/150 words
             </div>
           </div>
 
@@ -1110,7 +1110,7 @@ export default function GeneratePage() {
                         {falBalance < estimatedUsd && " ⚠️ ไม่พอ!"}
                       </span>
                     : balanceLoaded
-                      ? <span style={{ color: "var(--faint)" }}>ดึงยอดไม่ได้ — เช็ค FAL_KEY</span>
+                      ? <span style={{ color: "var(--faint)" }}>ดูยอดที่ <a href="https://fal.ai/dashboard/billing" target="_blank" rel="noopener" style={{ color: "var(--teal)", textDecoration: "none" }}>fal.ai dashboard</a></span>
                       : <span style={{ color: "var(--faint)" }}>กำลังดึง...</span>
                   }
                 </div>
