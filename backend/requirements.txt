@@ -18,5 +18,5 @@ prometheus-client==0.21.1
 python-telegram-bot==21.9
 aiofiles==24.1.0
 gTTS==2.5.3
-edge-tts==7.0.2
+edge-tts==7.2.8
 Pillow==11.0.0
