@@ -1,0 +1,19 @@
+http:
+  routers:
+    api:
+      rule: "Host(`video-api.poolvillapattayaparty.com`)"
+      service: backend-svc
+      entryPoints:
+        - web
+
+    traefik-dashboard:
+      rule: "Host(`traefik.poolvillapattayaparty.com`)"
+      service: api@internal
+      entryPoints:
+        - web
+
+  services:
+    backend-svc:
+      loadBalancer:
+        servers:
+          - url: "http://backend:8000"
