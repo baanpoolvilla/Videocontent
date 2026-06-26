@@ -75,8 +75,6 @@ export default function PreviewPage() {
   const [showVolPanel, setShowVolPanel] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [audioOffset, setAudioOffset] = useState(0);
-  const [videoDuration, setVideoDuration] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(0);
   const [showPicker, setShowPicker] = useState(false);
   const [audioAssets, setAudioAssets] = useState<AudioAsset[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(false);
@@ -85,8 +83,6 @@ export default function PreviewPage() {
   const uploadRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const timelineRef = useRef<HTMLDivElement>(null);
-  const isDragging = useRef(false);
 
   useEffect(() => {
     Promise.all([api.get("/jobs/?limit=50"), api.get("/products/")])
@@ -164,16 +160,6 @@ export default function PreviewPage() {
     setSwapDone(false);
     setShowPicker(false);
     setAudioOffset(0);
-    const a = new Audio(fileUrl(asset.url));
-    a.onloadedmetadata = () => setAudioDuration(a.duration);
-  };
-
-  const updateOffset = (e: React.MouseEvent) => {
-    const rect = timelineRef.current?.getBoundingClientRect();
-    if (!rect || !videoDuration) return;
-    const ratio = (e.clientX - rect.left) / rect.width;
-    const max = Math.max(0, videoDuration - (audioDuration || 2));
-    setAudioOffset(Math.max(0, Math.min(ratio * videoDuration, max)));
   };
 
   const togglePreview = (asset: AudioAsset) => {
@@ -436,55 +422,43 @@ export default function PreviewPage() {
             <div style={{
               position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 50,
               background: "#16161e", border: "1px solid var(--gb)", borderRadius: 12,
-              padding: "14px 16px", width: 360, boxShadow: "0 8px 32px rgba(0,0,0,.6)",
+              padding: "14px 16px", width: 240, boxShadow: "0 8px 32px rgba(0,0,0,.6)",
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <p style={{ margin: 0, fontSize: 11, fontWeight: 800, color: "var(--dim)", letterSpacing: ".05em" }}>
-                  ⏱️ ตำแหน่งเสียง
+                  ตำแหน่งเริ่มต้นเสียง
                 </p>
-                <span style={{ fontSize: 11, color: "var(--teal)", fontWeight: 700 }}>
-                  เริ่มที่ {audioOffset.toFixed(1)}s
-                </span>
-              </div>
-
-              <div
-                ref={timelineRef}
-                style={{
-                  position: "relative", height: 44, background: "rgba(255,255,255,.04)",
-                  borderRadius: 8, cursor: "crosshair", userSelect: "none", overflow: "hidden",
-                }}
-                onMouseDown={(e) => { isDragging.current = true; updateOffset(e); }}
-                onMouseMove={(e) => { if (isDragging.current) updateOffset(e); }}
-                onMouseUp={() => { isDragging.current = false; }}
-                onMouseLeave={() => { isDragging.current = false; }}
-              >
-                {/* time ticks */}
-                {videoDuration > 0 && Array.from({ length: Math.floor(videoDuration / 5) + 1 }).map((_, i) => (
-                  <div key={i} style={{
-                    position: "absolute", left: `${(i * 5 / videoDuration) * 100}%`,
-                    top: 0, bottom: 0, width: 1, background: "rgba(255,255,255,.08)",
-                  }}>
-                    <span style={{ position: "absolute", top: 2, left: 3, fontSize: 8, color: "var(--faint)" }}>{i * 5}s</span>
-                  </div>
-                ))}
-                {/* audio clip */}
-                {videoDuration > 0 && (
-                  <div style={{
-                    position: "absolute",
-                    left: `${(audioOffset / videoDuration) * 100}%`,
-                    width: audioDuration > 0 ? `${Math.min((audioDuration / videoDuration) * 100, 100)}%` : "15%",
-                    top: 8, height: 28,
-                    background: "rgba(0,255,212,.3)", border: "1px solid var(--teal)",
-                    borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center",
-                    cursor: "grab", pointerEvents: "none",
-                  }}>
-                    <span style={{ fontSize: 10, color: "var(--teal)", fontWeight: 700 }}>🎙️</span>
-                  </div>
+                {audioOffset > 0 && (
+                  <button onClick={() => setAudioOffset(0)} style={{
+                    background: "none", border: "none", color: "var(--faint)",
+                    cursor: "pointer", fontSize: 10, fontWeight: 700, padding: 0,
+                  }}>รีเซ็ต</button>
                 )}
               </div>
 
-              <p style={{ margin: "8px 0 0", fontSize: 10, color: "var(--faint)" }}>
-                คลิกหรือลากเพื่อตั้งตำแหน่งเสียงในวิดีโอ
+              <div style={{
+                background: "rgba(0,255,212,.06)", border: "1px solid rgba(0,255,212,.15)",
+                borderRadius: 8, padding: "10px 12px", marginBottom: 10, textAlign: "center",
+              }}>
+                <span style={{ fontSize: 26, fontWeight: 900, color: audioOffset > 0 ? "var(--teal)" : "var(--faint)" }}>
+                  {audioOffset.toFixed(1)}s
+                </span>
+              </div>
+
+              <button
+                onClick={() => setAudioOffset(videoRef.current?.currentTime ?? 0)}
+                style={{
+                  width: "100%", padding: "10px", borderRadius: 9, cursor: "pointer",
+                  background: "rgba(0,255,212,.1)", border: "1px solid rgba(0,255,212,.3)",
+                  color: "var(--teal)", fontSize: 12, fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}
+              >
+                📍 ตั้งตำแหน่งที่นี่
+              </button>
+
+              <p style={{ margin: "8px 0 0", fontSize: 10, color: "var(--faint)", lineHeight: 1.6, textAlign: "center" }}>
+                เล่นวิดีโอไปยังตำแหน่งที่ต้องการ<br />แล้วกดปุ่มด้านบน
               </p>
             </div>
           )}
@@ -556,7 +530,6 @@ export default function PreviewPage() {
                   controls
                   autoPlay
                   loop
-                  onLoadedMetadata={() => setVideoDuration(videoRef.current?.duration || 0)}
                   style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                 />
                 {/* Caption overlay */}
