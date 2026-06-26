@@ -445,25 +445,31 @@ export default function PreviewPage() {
           alignItems: "center", background: "#0a0a0e", overflow: "hidden", position: "relative",
         }}>
 
-          {/* Version tabs */}
-          {renders.length > 1 && (
-            <div style={{ display: "flex", gap: 6, padding: "12px 0 0", flexShrink: 0 }}>
-              {renders.slice(0, 5).map((rv) => {
-                const label = renderLabel(rv, renders);
-                const isUpdate = label !== "ต้นฉบับ";
-                return (
-                  <button key={rv.id} onClick={() => selectRender(rv)} style={{
-                    padding: "4px 12px", borderRadius: 7, fontSize: 11, fontWeight: 800, cursor: "pointer",
-                    border: `1px solid ${selected?.id === rv.id ? (isUpdate ? "rgba(0,255,212,.5)" : "rgba(255,176,46,.5)") : "var(--gb)"}`,
-                    background: selected?.id === rv.id ? (isUpdate ? "rgba(0,255,212,.15)" : "rgba(255,176,46,.12)") : "rgba(255,255,255,.04)",
-                    color: selected?.id === rv.id ? (isUpdate ? "var(--teal)" : "#ffb02e") : "var(--faint)",
-                  }}>
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          {/* Version tabs — renders of current job only */}
+          {(() => {
+            const jobRenders = renders
+              .filter(r => r.content_job_id === selected?.content_job_id)
+              .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+            if (jobRenders.length <= 1) return null;
+            return (
+              <div style={{ display: "flex", gap: 6, padding: "12px 0 0", flexShrink: 0 }}>
+                {jobRenders.map(rv => {
+                  const label = renderLabel(rv, renders);
+                  const isUpdate = label !== "ต้นฉบับ";
+                  return (
+                    <button key={rv.id} onClick={() => selectRender(rv)} style={{
+                      padding: "4px 12px", borderRadius: 7, fontSize: 11, fontWeight: 800, cursor: "pointer",
+                      border: `1px solid ${selected?.id === rv.id ? (isUpdate ? "rgba(0,255,212,.5)" : "rgba(255,176,46,.5)") : "var(--gb)"}`,
+                      background: selected?.id === rv.id ? (isUpdate ? "rgba(0,255,212,.15)" : "rgba(255,176,46,.12)") : "rgba(255,255,255,.04)",
+                      color: selected?.id === rv.id ? (isUpdate ? "var(--teal)" : "#ffb02e") : "var(--faint)",
+                    }}>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {/* Main video */}
           <div style={{
