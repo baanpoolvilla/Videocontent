@@ -46,7 +46,7 @@ async def generate_voice(req: VoiceGenerateRequest):
         lang=req.lang,
     )
 
-    provider = "elevenlabs" if "voice_id" in result else "gtts"
+    provider = result.get("model_id", "edge-tts")
     return VoiceGenerateResponse(
         url=result["url"],
         characters_used=result.get("characters_used", len(req.text)),

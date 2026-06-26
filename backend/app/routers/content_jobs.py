@@ -460,7 +460,7 @@ async def remix_audio(
     rr = await db.execute(
         select(RenderVersion)
         .where(RenderVersion.content_job_id == job_id, RenderVersion.status == "completed")
-        .order_by(RenderVersion.id.desc())
+        .order_by(RenderVersion.created_at.desc())
     )
     latest_render = rr.scalars().first()
     if not latest_render or not latest_render.final_video_url:
