@@ -156,7 +156,6 @@ export default function PreviewPage() {
     setSwapAudioUrl(asset.url);
     setSwapDone(false);
     setShowPicker(false);
-    setAudioOffset(0);
   };
 
   const togglePreview = (asset: AudioAsset) => {
