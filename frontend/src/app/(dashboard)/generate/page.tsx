@@ -517,223 +517,227 @@ export default function GeneratePage() {
         </div>
       </div>
 
-      {/* Main card — fills remaining height */}
+      {/* Main card — 2 columns */}
       <div style={{
         flex: 1, minHeight: 0,
         background: "#1a1a22", border: "1px solid var(--gb)", borderRadius: 20,
-        padding: "20px 20px 14px", boxShadow: "0 8px 40px rgba(0,0,0,.4)",
-        display: "flex", flexDirection: "column",
+        boxShadow: "0 8px 40px rgba(0,0,0,.4)",
+        display: "flex", overflow: "hidden",
       }}>
 
-        {/* Asset picker row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+        {/* LEFT: prompt input */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "22px 24px" }}>
 
-          {/* Product picker */}
-          <div ref={pickerRef} style={{ position: "relative" }}>
-            <button
-              onMouseDown={e => { e.stopPropagation(); setShowPicker(v => !v); setShowModelMenu(false); }}
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                background: product ? "rgba(0,255,212,.1)" : "rgba(255,255,255,.06)",
-                border: `1px solid ${product ? "rgba(0,255,212,.3)" : "var(--gb)"}`,
-                borderRadius: 10, padding: "6px 12px", cursor: "pointer",
-                fontSize: 12, fontWeight: 700,
-                color: product ? "var(--teal)" : "var(--dim)",
-              }}>
-              <Plus size={13} />
-              {product ? product.name : "เลือก Assets"}
-              <ChevronDown size={11} />
-            </button>
-            {showPicker && (
-              <div style={{
-                position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 99,
-                background: "#1e1e2a", border: "1px solid var(--gb)",
-                borderRadius: 12, overflow: "hidden", minWidth: 240, maxHeight: 220, overflowY: "auto",
-                boxShadow: "0 8px 32px rgba(0,0,0,.7)",
-              }}>
-                {products.length === 0 ? (
-                  <div style={{ padding: "14px 16px" }}>
-                    <div style={{ fontSize: 12, color: "var(--faint)", marginBottom: 8 }}>ยังไม่มีสินค้า</div>
-                    <a href="/products" style={{
-                      display: "inline-block", fontSize: 12, fontWeight: 700,
-                      color: "var(--teal)", textDecoration: "none",
-                      background: "rgba(0,255,212,.1)", border: "1px solid rgba(0,255,212,.2)",
-                      borderRadius: 8, padding: "6px 12px",
-                    }}>+ อัปโหลดสินค้าก่อน →</a>
-                  </div>
-                ) : products.map(p => (
-                  <div key={p.id}
-                    onMouseDown={() => { setProduct(p); setShowPicker(false); }}
-                    style={{
-                      padding: "10px 16px", cursor: "pointer", fontSize: 13,
-                      background: product?.id === p.id ? "rgba(0,255,212,.08)" : "transparent",
-                      color: product?.id === p.id ? "var(--teal)" : "var(--text)",
-                      borderBottom: "1px solid var(--gb)",
-                    }}>
-                    📦 {p.name}
-                    <span style={{ fontSize: 10, color: "var(--faint)", marginLeft: 6 }}>{p.media_urls?.length || 0} รูป</span>
-                  </div>
-                ))}
+          {/* Asset picker row */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap", flexShrink: 0 }}>
+            <div ref={pickerRef} style={{ position: "relative" }}>
+              <button
+                onMouseDown={e => { e.stopPropagation(); setShowPicker(v => !v); setShowModelMenu(false); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: product ? "rgba(0,255,212,.1)" : "rgba(255,255,255,.06)",
+                  border: `1px solid ${product ? "rgba(0,255,212,.3)" : "var(--gb)"}`,
+                  borderRadius: 10, padding: "6px 12px", cursor: "pointer",
+                  fontSize: 12, fontWeight: 700,
+                  color: product ? "var(--teal)" : "var(--dim)",
+                }}>
+                <Plus size={13} />
+                {product ? product.name : "เลือก Assets"}
+                <ChevronDown size={11} />
+              </button>
+              {showPicker && (
+                <div style={{
+                  position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 99,
+                  background: "#1e1e2a", border: "1px solid var(--gb)",
+                  borderRadius: 12, overflow: "hidden", minWidth: 240, maxHeight: 220, overflowY: "auto",
+                  boxShadow: "0 8px 32px rgba(0,0,0,.7)",
+                }}>
+                  {products.length === 0 ? (
+                    <div style={{ padding: "14px 16px" }}>
+                      <div style={{ fontSize: 12, color: "var(--faint)", marginBottom: 8 }}>ยังไม่มีสินค้า</div>
+                      <a href="/products" style={{
+                        display: "inline-block", fontSize: 12, fontWeight: 700,
+                        color: "var(--teal)", textDecoration: "none",
+                        background: "rgba(0,255,212,.1)", border: "1px solid rgba(0,255,212,.2)",
+                        borderRadius: 8, padding: "6px 12px",
+                      }}>+ อัปโหลดสินค้าก่อน →</a>
+                    </div>
+                  ) : products.map(p => (
+                    <div key={p.id}
+                      onMouseDown={() => { setProduct(p); setShowPicker(false); }}
+                      style={{
+                        padding: "10px 16px", cursor: "pointer", fontSize: 13,
+                        background: product?.id === p.id ? "rgba(0,255,212,.08)" : "transparent",
+                        color: product?.id === p.id ? "var(--teal)" : "var(--text)",
+                        borderBottom: "1px solid var(--gb)",
+                      }}>
+                      📦 {p.name}
+                      <span style={{ fontSize: 10, color: "var(--faint)", marginLeft: 6 }}>{p.media_urls?.length || 0} รูป</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {product?.media_urls?.slice(0, 5).map((url, i) => (
+              <div key={i} style={{ width: 38, height: 38, borderRadius: 8, overflow: "hidden", border: "1px solid var(--gb)", flexShrink: 0 }}>
+                <img src={imgProxy(url)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               </div>
+            ))}
+            {product && (product.media_urls?.length ?? 0) > 5 && (
+              <span style={{ fontSize: 11, color: "var(--faint)" }}>+{(product.media_urls?.length ?? 0) - 5}</span>
             )}
           </div>
 
-          {/* Image thumbnails */}
-          {product?.media_urls?.slice(0, 4).map((url, i) => (
-            <div key={i} style={{ width: 38, height: 38, borderRadius: 8, overflow: "hidden", border: "1px solid var(--gb)", flexShrink: 0 }}>
-              <img src={imgProxy(url)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            </div>
-          ))}
-          {product && product.media_urls?.length > 4 && (
-            <span style={{ fontSize: 11, color: "var(--faint)" }}>+{product.media_urls.length - 4} more</span>
-          )}
+          {/* Textarea */}
+          <textarea
+            ref={textareaRef}
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            placeholder={
+              mode === "script" ? "พิมพ์หัวข้อ/คอนเซ็ปต์ที่ต้องการ..."
+              : mode === "ads"  ? "ทำ Ad โปรโมท pool villa พร้อม offer พิเศษ..."
+              : "ทำเป็นรีวิวบ้านพลูวิลล่า แบบเชิญชวนมาพักผ่อน..."
+            }
+            style={{
+              flex: 1, minHeight: 100, width: "100%", background: "transparent", border: "none", outline: "none",
+              color: "var(--text)", fontSize: 16, lineHeight: 1.8, resize: "none",
+              fontFamily: "inherit", boxSizing: "border-box",
+            }}
+          />
         </div>
 
-        {/* Text input */}
-        <textarea
-          ref={textareaRef}
-          value={prompt}
-          onChange={e => setPrompt(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-          placeholder={
-            mode === "script" ? "พิมพ์หัวข้อ/คอนเซ็ปต์ที่ต้องการ..."
-            : mode === "ads"  ? "ทำ Ad โปรโมท pool villa พร้อม offer พิเศษ..."
-            : "ทำเป็นรีวิวบ้านพลูวิลล่า แบบเชิญชวนมาพักผ่อน..."
-          }
-          style={{
-            flex: 1, minHeight: 80, width: "100%", background: "transparent", border: "none", outline: "none",
-            color: "var(--text)", fontSize: 15, lineHeight: 1.7, resize: "none",
-            fontFamily: "inherit", marginBottom: 14, boxSizing: "border-box",
-          }}
-        />
+        {/* Divider */}
+        <div style={{ width: 1, background: "rgba(255,255,255,.06)", flexShrink: 0 }} />
 
-        {/* Quick options — 2 clean rows */}
-        {mode === "assets" && (
-          <div style={{ borderTop: "1px solid rgba(255,255,255,.06)", paddingTop: 10, marginBottom: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+        {/* RIGHT: options + send */}
+        <div style={{ width: 272, flexShrink: 0, display: "flex", flexDirection: "column", padding: "22px 18px", overflowY: "auto" }}>
 
-            {/* Row 1: ความยาว + โทน */}
-            <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
-              <span style={{ fontSize: 9, color: "var(--faint)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", minWidth: 52, flexShrink: 0 }}>ความยาว</span>
-              {([
-                { id: "short" as const,  label: "สั้น", sub: "~15s", clips: 1, dur: 15 },
-                { id: "medium" as const, label: "กลาง", sub: "~30s", clips: 2, dur: 30 },
-                { id: "long" as const,   label: "ยาว",  sub: "~60s", clips: 3, dur: 60 },
-              ] as { id: "short"|"medium"|"long"; label: string; sub: string; clips: number; dur: number }[]).map(p => (
-                <button key={p.id} onMouseDown={() => { setVideoPreset(p.id); setClipCount(p.clips); setQuickDuration(p.dur); }} style={{
-                  padding: "4px 10px", borderRadius: 7, cursor: "pointer", textAlign: "center",
-                  background: videoPreset === p.id ? "rgba(0,255,212,.1)" : "rgba(255,255,255,.04)",
-                  border: `1px solid ${videoPreset === p.id ? "rgba(0,255,212,.35)" : "var(--gb)"}`,
+          {mode === "assets" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 16 }}>
+
+              {/* ความยาว */}
+              <div>
+                <div style={{ fontSize: 9, color: "var(--faint)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 7 }}>ความยาว</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {([
+                    { id: "short"  as const, label: "สั้น", sub: "~15s", clips: 1, dur: 15 },
+                    { id: "medium" as const, label: "กลาง", sub: "~30s", clips: 2, dur: 30 },
+                    { id: "long"   as const, label: "ยาว",  sub: "~60s", clips: 3, dur: 60 },
+                  ] as { id: "short"|"medium"|"long"; label: string; sub: string; clips: number; dur: number }[]).map(p => (
+                    <button key={p.id} onMouseDown={() => { setVideoPreset(p.id); setClipCount(p.clips); setQuickDuration(p.dur); }} style={{
+                      flex: 1, padding: "7px 6px", borderRadius: 8, cursor: "pointer", textAlign: "center",
+                      background: videoPreset === p.id ? "rgba(0,255,212,.1)" : "rgba(255,255,255,.04)",
+                      border: `1px solid ${videoPreset === p.id ? "rgba(0,255,212,.35)" : "var(--gb)"}`,
+                    }}>
+                      <div style={{ fontSize: 11.5, fontWeight: 800, color: videoPreset === p.id ? "var(--teal)" : "var(--dim)" }}>{p.label}</div>
+                      <div style={{ fontSize: 9, color: "var(--faint)" }}>{p.sub}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* โทน */}
+              <div>
+                <div style={{ fontSize: 9, color: "var(--faint)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 7 }}>โทน</div>
+                <select value={quickTone} onChange={e => setQuickTone(e.target.value)} style={{
+                  width: "100%", background: "#1b1c2a", border: "1px solid rgba(34,212,153,.35)",
+                  borderRadius: 8, padding: "8px 10px", color: "#22D499",
+                  fontSize: 12, fontWeight: 700, outline: "none", cursor: "pointer",
                 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: videoPreset === p.id ? "var(--teal)" : "var(--dim)" }}>{p.label}</div>
-                  <div style={{ fontSize: 9, color: "var(--faint)" }}>{p.sub}</div>
-                </button>
-              ))}
-              <div style={{ width: 1, height: 24, background: "var(--gb)", margin: "0 2px", flexShrink: 0 }} />
-              <span style={{ fontSize: 9, color: "var(--faint)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", flexShrink: 0 }}>โทน</span>
-              <select value={quickTone} onChange={e => setQuickTone(e.target.value)} style={{
-                background: "#1b1c2a", border: "1px solid rgba(34,212,153,.35)",
-                borderRadius: 8, padding: "5px 8px", color: "#22D499",
-                fontSize: 11.5, fontWeight: 700, outline: "none", cursor: "pointer",
-              }}>
-                <option value="หรู พรีเมียม ซีเนมาติก">🎬 Cinematic</option>
-                <option value="ผ่อนคลาย พักผ่อน ชวนมาเที่ยว">🏖️ Vacation</option>
-                <option value="สนุก มีชีวิตชีวา เชิญชวน">🎉 Lively</option>
-                <option value="มืออาชีพ กระชับ ข้อมูลครบ">💼 Pro</option>
-                <option value="อบอุ่น เป็นกันเอง เชิญชวน">😊 Warm</option>
-                <option value="เล่าเรื่อง อารมณ์ ความรู้สึก">📖 Story</option>
-              </select>
-            </div>
-
-            {/* Row 2: เสียง + หน้าจอ */}
-            <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
-              <span style={{ fontSize: 9, color: "var(--faint)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", minWidth: 52, flexShrink: 0 }}>เสียง</span>
-              {includeVoice ? (
-                <select value={quickVoice} onChange={e => setQuickVoice(e.target.value)} style={{
-                  background: "#1b1c2a", border: "1px solid rgba(77,127,255,.35)",
-                  borderRadius: 8, padding: "5px 8px", color: "#4D7FFF",
-                  fontSize: 11.5, fontWeight: 700, outline: "none", cursor: "pointer",
-                }}>
-                  <option value="หญิง (ไทย)">👩 หญิง 1</option>
-                  <option value="หญิง 2 (ไทย)">👩 หญิง 2</option>
-                  <option value="ชาย (ไทย)">👨 ชาย</option>
+                  <option value="หรู พรีเมียม ซีเนมาติก">🎬 Cinematic</option>
+                  <option value="ผ่อนคลาย พักผ่อน ชวนมาเที่ยว">🏖️ Vacation</option>
+                  <option value="สนุก มีชีวิตชีวา เชิญชวน">🎉 Lively</option>
+                  <option value="มืออาชีพ กระชับ ข้อมูลครบ">💼 Pro</option>
+                  <option value="อบอุ่น เป็นกันเอง เชิญชวน">😊 Warm</option>
+                  <option value="เล่าเรื่อง อารมณ์ ความรู้สึก">📖 Story</option>
                 </select>
-              ) : (
-                <span style={{ fontSize: 11, color: "var(--faint)", fontStyle: "italic" }}>ปิดอยู่</span>
-              )}
-              <div style={{ width: 1, height: 24, background: "var(--gb)", margin: "0 2px", flexShrink: 0 }} />
-              <span style={{ fontSize: 9, color: "var(--faint)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", flexShrink: 0 }}>หน้าจอ</span>
-              {([
-                { ar: "9:16" as AspectRatio, label: "📱 9:16", sub: "TikTok" },
-                { ar: "1:1"  as AspectRatio, label: "⬜ 1:1",  sub: "Square" },
-                { ar: "16:9" as AspectRatio, label: "🖥 16:9", sub: "YouTube" },
-              ] as { ar: AspectRatio; label: string; sub: string }[]).map(o => (
-                <button key={o.ar} onMouseDown={() => setAspectRatio(o.ar)} style={{
-                  padding: "4px 10px", borderRadius: 7, cursor: "pointer", textAlign: "center",
-                  background: aspectRatio === o.ar ? "rgba(251,191,36,.1)" : "rgba(255,255,255,.04)",
-                  border: `1px solid ${aspectRatio === o.ar ? "rgba(251,191,36,.4)" : "var(--gb)"}`,
-                }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: aspectRatio === o.ar ? "#FBBF24" : "var(--dim)" }}>{o.label}</div>
-                  <div style={{ fontSize: 9, color: "var(--faint)" }}>{o.sub}</div>
-                </button>
-              ))}
+              </div>
+
+              {/* เสียง */}
+              <div>
+                <div style={{ fontSize: 9, color: "var(--faint)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 7 }}>เสียง</div>
+                {includeVoice ? (
+                  <select value={quickVoice} onChange={e => setQuickVoice(e.target.value)} style={{
+                    width: "100%", background: "#1b1c2a", border: "1px solid rgba(77,127,255,.35)",
+                    borderRadius: 8, padding: "8px 10px", color: "#4D7FFF",
+                    fontSize: 12, fontWeight: 700, outline: "none", cursor: "pointer",
+                  }}>
+                    <option value="หญิง (ไทย)">👩 หญิง 1</option>
+                    <option value="หญิง 2 (ไทย)">👩 หญิง 2</option>
+                    <option value="ชาย (ไทย)">👨 ชาย</option>
+                  </select>
+                ) : (
+                  <div style={{ fontSize: 12, color: "var(--faint)", fontStyle: "italic" }}>ปิดอยู่</div>
+                )}
+              </div>
+
+              {/* หน้าจอ */}
+              <div>
+                <div style={{ fontSize: 9, color: "var(--faint)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 7 }}>หน้าจอ</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {([
+                    { ar: "9:16" as AspectRatio, label: "📱 9:16", sub: "TikTok" },
+                    { ar: "1:1"  as AspectRatio, label: "⬜ 1:1",  sub: "Square" },
+                    { ar: "16:9" as AspectRatio, label: "🖥 16:9", sub: "YouTube" },
+                  ] as { ar: AspectRatio; label: string; sub: string }[]).map(o => (
+                    <button key={o.ar} onMouseDown={() => setAspectRatio(o.ar)} style={{
+                      flex: 1, padding: "7px 6px", borderRadius: 8, cursor: "pointer", textAlign: "center",
+                      background: aspectRatio === o.ar ? "rgba(251,191,36,.1)" : "rgba(255,255,255,.04)",
+                      border: `1px solid ${aspectRatio === o.ar ? "rgba(251,191,36,.4)" : "var(--gb)"}`,
+                    }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: aspectRatio === o.ar ? "#FBBF24" : "var(--dim)" }}>{o.label}</div>
+                      <div style={{ fontSize: 9, color: "var(--faint)" }}>{o.sub}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
             </div>
+          )}
 
-          </div>
-        )}
+          <div style={{ flex: 1 }} />
 
-        {/* Badges + send row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-
-          {/* Voice toggle */}
-          <button
-            onMouseDown={() => setIncludeVoice(v => !v)}
-            style={{
-              display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
-              borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
-              background: includeVoice ? "rgba(77,127,255,.12)" : "rgba(255,255,255,.06)",
+          {/* Toggles */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <button onMouseDown={() => setIncludeVoice(v => !v)} style={{
+              flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "7px 8px",
+              borderRadius: 8, cursor: "pointer", fontSize: 11.5, fontWeight: 600,
+              background: includeVoice ? "rgba(77,127,255,.12)" : "rgba(255,255,255,.05)",
               border: `1px solid ${includeVoice ? "rgba(77,127,255,.4)" : "var(--gb)"}`,
               color: includeVoice ? "#4D7FFF" : "var(--dim)",
             }}>
-            🎙 เสียง {includeVoice ? "ON" : "OFF"}
-          </button>
-
-          {/* Caption toggle */}
-          <button
-            onMouseDown={() => setCaptions(v => !v)}
-            style={{
-              display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
-              borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
-              background: captions ? "rgba(0,255,212,.12)" : "rgba(255,255,255,.06)",
+              🎙 {includeVoice ? "ON" : "OFF"}
+            </button>
+            <button onMouseDown={() => setCaptions(v => !v)} style={{
+              flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "7px 8px",
+              borderRadius: 8, cursor: "pointer", fontSize: 11.5, fontWeight: 600,
+              background: captions ? "rgba(0,255,212,.12)" : "rgba(255,255,255,.05)",
               border: `1px solid ${captions ? "rgba(0,255,212,.4)" : "var(--gb)"}`,
               color: captions ? "var(--teal)" : "var(--dim)",
             }}>
-            🔠 Caption {captions ? "ON" : "OFF"}
-          </button>
+              🔠 {captions ? "ON" : "OFF"}
+            </button>
+          </div>
 
-          {/* AI model dropdown */}
-          <div ref={modelRef} style={{ position: "relative" }}>
-            <button
-              onMouseDown={() => setShowModelMenu(v => !v)}
-              style={{
-                display: "flex", alignItems: "center", gap: 6, padding: "6px 12px",
-                borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
-                background: showModelMenu ? "rgba(255,255,255,.1)" : "rgba(255,255,255,.05)",
-                border: `1px solid ${showModelMenu ? "rgba(255,255,255,.2)" : "var(--gb)"}`,
-                color: MODEL_OPTIONS.find(m => m.id === aiModel)?.color || "var(--dim)",
-              }}>
-              ✨ {MODEL_OPTIONS.find(m => m.id === aiModel)?.label}
-              <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 400 }}>
-                {MODEL_OPTIONS.find(m => m.id === aiModel)?.priceClip}
-              </span>
+          {/* Model dropdown */}
+          <div ref={modelRef} style={{ position: "relative", marginBottom: 10 }}>
+            <button onMouseDown={() => setShowModelMenu(v => !v)} style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "9px 12px",
+              borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
+              background: showModelMenu ? "rgba(255,255,255,.1)" : "rgba(255,255,255,.05)",
+              border: `1px solid ${showModelMenu ? "rgba(255,255,255,.2)" : "var(--gb)"}`,
+              color: MODEL_OPTIONS.find(m => m.id === aiModel)?.color || "var(--dim)",
+            }}>
+              <span style={{ flex: 1, textAlign: "left" }}>✨ {MODEL_OPTIONS.find(m => m.id === aiModel)?.label}</span>
+              <span style={{ fontSize: 10, color: "var(--faint)", fontWeight: 400 }}>{MODEL_OPTIONS.find(m => m.id === aiModel)?.priceClip}</span>
               {showModelMenu ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
             </button>
-
             {showModelMenu && (
               <div style={{
-                position: "absolute", bottom: "calc(100% + 8px)", left: 0, zIndex: 200,
+                position: "absolute", bottom: "calc(100% + 8px)", left: 0, right: 0, zIndex: 200,
                 background: "#16161f", border: "1px solid rgba(255,255,255,.12)", borderRadius: 12,
-                overflow: "hidden", minWidth: 300,
-                boxShadow: "0 -12px 40px rgba(0,0,0,.7)",
+                overflow: "hidden", boxShadow: "0 -12px 40px rgba(0,0,0,.7)",
               }}>
                 {MODEL_OPTIONS.map(m => {
                   const active = aiModel === m.id;
@@ -764,20 +768,23 @@ export default function GeneratePage() {
             )}
           </div>
 
-          <div style={{ flex: 1 }} />
-
+          {/* Send */}
           <button
             onMouseDown={handleSend}
             disabled={!prompt.trim() && !product}
             style={{
-              width: 42, height: 42, borderRadius: "50%",
+              width: "100%", padding: "13px 16px", borderRadius: 12,
               cursor: (prompt.trim() || product) ? "pointer" : "not-allowed",
-              background: (prompt.trim() || product) ? "#fff" : "rgba(255,255,255,.12)",
-              border: "none", display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "background .15s", flexShrink: 0,
+              background: (prompt.trim() || product) ? "linear-gradient(90deg,var(--teal),var(--blue))" : "rgba(255,255,255,.08)",
+              border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              color: (prompt.trim() || product) ? "#06060A" : "var(--faint)",
+              fontSize: 14, fontWeight: 800,
+              boxShadow: (prompt.trim() || product) ? "0 4px 20px rgba(0,255,212,.25)" : "none",
             }}>
-            <ArrowUp size={18} color={(prompt.trim() || product) ? "#000" : "#555"} strokeWidth={2.5} />
+            <ArrowUp size={16} strokeWidth={2.5} />
+            สร้างวิดีโอ
           </button>
+
         </div>
       </div>
 

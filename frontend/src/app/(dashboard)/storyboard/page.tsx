@@ -481,520 +481,354 @@ export default function StoryboardPage() {
 
   /* ─── Main setup UI ─── */
   return (
-    <div className="page-enter" style={{ padding: "28px 40px", maxWidth: 940, margin: "0 auto" }}>
-      <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--faint)" }}>Story Mode</p>
-      <h1 style={{ margin: "0 0 4px", fontSize: 24, fontWeight: 800 }}>Storyboard Editor</h1>
-      <p style={{ margin: "0 0 24px", fontSize: 13, color: "var(--dim)" }}>
-        แต่ละคลิปมี prompt ของตัวเอง · พิมพ์ concept (ไทยหรือ English ก็ได้) → Gemini อ่านรูป + concept → เขียน prompt 140-155 คำ → ส่งไป AI Model ที่เลือก
-      </p>
+    <div style={{ height: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
-      {/* ── Model selector — compact dropdown ── */}
-      <div style={{ marginBottom: 24, position: "relative" }}>
-        <div style={{ fontSize: 11, fontWeight: 800, color: "var(--dim)", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".06em" }}>
-          AI Model
+      {/* Header */}
+      <div style={{ flexShrink: 0, padding: "18px 28px 0", display: "flex", alignItems: "flex-end", gap: 20 }}>
+        <div>
+          <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--faint)" }}>Story Mode</p>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "var(--text)", letterSpacing: "-.02em" }}>Storyboard Editor</h1>
         </div>
-
-        {/* Trigger button */}
-        <button onClick={() => setModelOpen(v => !v)} style={{
-          width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
-          background: `${modelDef.color}10`, border: `1.5px solid ${modelDef.color}40`,
-          borderRadius: 12, cursor: "pointer", textAlign: "left", transition: "all .15s",
-        }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
-              <span style={{ fontSize: 14, fontWeight: 900, color: modelDef.color }}>{modelDef.label}</span>
-              <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: 5, background: `${modelDef.color}22`, color: modelDef.color }}>{modelDef.badge}</span>
-            </div>
-            <div style={{ fontSize: 11, color: "var(--faint)" }}>
-              {modelDef.price} · {modelDef.outputLine1}
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            <Stars n={modelDef.stars} color={modelDef.color} />
-            {modelOpen ? <ChevronUp size={14} color="var(--faint)" /> : <ChevronDown size={14} color="var(--faint)" />}
-          </div>
-        </button>
-
-        {/* Dropdown list */}
-        {modelOpen && (
-          <div style={{
-            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 200,
-            background: "#15151e", border: "1px solid var(--gb)", borderRadius: 12,
-            overflow: "hidden", boxShadow: "0 16px 48px rgba(0,0,0,.7)",
-          }}>
-            {MODELS.map(m => {
-              const active = aiModel === m.id;
-              return (
-                <button key={m.id} onClick={() => {
-                  setAiModel(m.id);
-                  setSlots(prev => prev.map(s => ({
-                    ...s,
-                    duration: m.durations.includes(s.duration) ? s.duration : m.durations[0],
-                  })));
-                  setModelOpen(false);
-                }} style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 14,
-                  padding: "11px 16px", cursor: "pointer", textAlign: "left",
-                  background: active ? `${m.color}10` : "transparent",
-                  borderBottom: "1px solid rgba(255,255,255,.04)",
-                  transition: "background .1s",
-                }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: active ? m.color : "var(--text)" }}>{m.label}</span>
-                      <span style={{ fontSize: 8, padding: "1px 6px", borderRadius: 4, background: active ? `${m.color}25` : "rgba(255,255,255,.07)", color: active ? m.color : "var(--faint)", fontWeight: 800 }}>{m.badge}</span>
-                    </div>
-                    <div style={{ fontSize: 10.5, color: "var(--faint)" }}>{m.outputLine1}</div>
-                  </div>
-                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: active ? m.color : "var(--dim)", marginBottom: 3 }}>{m.price}</div>
-                    <Stars n={m.stars} color={m.color} />
-                  </div>
-                  {active && <div style={{ width: 7, height: 7, borderRadius: "50%", background: m.color, flexShrink: 0 }} />}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-
-        {/* Model constraints strip */}
-        <div style={{ marginTop: 10, padding: "10px 14px", background: `${modelDef.color}0e`, border: `1px solid ${modelDef.color}30`, borderRadius: 10, fontSize: 11.5 }}>
-          <span style={{ fontWeight: 800, color: modelDef.color }}>{modelDef.label}</span>
-          <span style={{ color: "var(--dim)", marginLeft: 8 }}>
-            ความยาว: <b>{modelDef.durations.map(d => `${d}s`).join(", ")}</b>
-          </span>
-          {modelDef.promptLimit && (
-            <span style={{ color: "var(--dim)", marginLeft: 8 }}>
-              · Prompt สูงสุด: <b>{modelDef.promptLimit.toLocaleString()} ตัวอักษร</b>
-            </span>
-          )}
-          <span style={{ color: "var(--faint)", marginLeft: 8 }}>
-            · <b>1 รูป / 1 คลิป</b> (Gemini อ่านรูป + prompt ของคุณ)
-          </span>
-          {modelDef.isAI && (
-            <span style={{ color: "var(--faint)", marginLeft: 8 }}>
-              · ทุกคลิปผ่าน Gemini Vision (อ่านรูป + รักษา concept) → prompt ~120 คำ
-            </span>
-          )}
-        </div>
+        <p style={{ margin: "0 0 2px", fontSize: 12, color: "var(--dim)", flex: 1, lineHeight: 1.5 }}>
+          แต่ละคลิปมี prompt ของตัวเอง · Gemini อ่านรูป + concept → เขียน prompt 140-155 คำ → AI Model ที่เลือก
+        </p>
       </div>
 
-      {/* ── Product selector ── */}
-      {phase === "product_select" ? (
-        <div>
-          <p style={{ fontSize: 13, fontWeight: 700, color: "var(--dim)", marginBottom: 12 }}>เลือก Asset:</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px,1fr))", gap: 10 }}>
-            {products.map(p => (
-              <button key={p.id} onClick={() => selectProduct(p)} style={{
-                padding: "14px", borderRadius: 12, cursor: "pointer", textAlign: "left",
-                background: "var(--glass)", border: "1px solid var(--gb)", transition: "border-color .15s",
+      {/* 2-column body */}
+      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: "14px 28px 20px" }}>
+
+        {/* LEFT sidebar: model + controls */}
+        <div style={{
+          width: 278, flexShrink: 0, display: "flex", flexDirection: "column",
+          background: "#1a1a22", border: "1px solid var(--gb)", borderRadius: 16, overflow: "hidden",
+        }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
+
+            {/* Model selector */}
+            <div style={{ position: "relative", marginBottom: 0 }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: "var(--faint)", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".07em" }}>AI Model</div>
+
+              <button onClick={() => setModelOpen(v => !v)} style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
+                background: `${modelDef.color}10`, border: `1.5px solid ${modelDef.color}40`,
+                borderRadius: 10, cursor: "pointer", textAlign: "left",
               }}>
-                {p.media_urls?.[0] && <img src={imgProxy(p.media_urls[0])} alt="" style={{ width: "100%", height: 80, objectFit: "cover", borderRadius: 8, marginBottom: 8 }} />}
-                <div style={{ fontSize: 12, fontWeight: 700 }}>{p.name}</div>
-                <div style={{ fontSize: 10, color: "var(--faint)", marginTop: 2 }}>{p.media_urls?.length || 0} รูป</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : phase === "questions" && product ? (
-        /* ── Guided questions (Opus-style) ── */
-        <div style={{ maxWidth: 540, margin: "0 auto" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, padding: "10px 14px", background: "rgba(0,255,212,.06)", border: "1px solid rgba(0,255,212,.2)", borderRadius: 12 }}>
-            {product.media_urls?.[0] && <img src={imgProxy(product.media_urls[0])} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover" }} />}
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700 }}>{product.name}</div>
-              <div style={{ fontSize: 11, color: "var(--faint)" }}>{product.media_urls.length} รูป</div>
-            </div>
-            <button onClick={() => { setProduct(null); setPhase("product_select"); }} style={{ fontSize: 11, color: "var(--faint)", background: "none", border: "none", cursor: "pointer" }}>เปลี่ยน</button>
-          </div>
-
-          {/* Q1: Video type */}
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>1. อยากทำวิดีโอแบบไหน?</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {VIDEO_TYPES.map(vt => (
-                <button key={vt.id} onClick={() => setVideoType(vt.id)} style={{
-                  padding: "12px 14px", borderRadius: 12, cursor: "pointer", textAlign: "left",
-                  border: `2px solid ${videoType === vt.id ? "var(--teal)" : "var(--gb)"}`,
-                  background: videoType === vt.id ? "rgba(0,255,212,.08)" : "var(--glass)",
-                }}>
-                  <div style={{ fontSize: 18, marginBottom: 4 }}>{vt.icon}</div>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: videoType === vt.id ? "var(--teal)" : "var(--text)" }}>{vt.id}</div>
-                  <div style={{ fontSize: 10, color: "var(--faint)", marginTop: 2 }}>{vt.desc}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Q2: Focus */}
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8 }}>2. เน้นอะไรเป็นพิเศษ? <span style={{ fontWeight: 400, color: "var(--faint)", fontSize: 11 }}>(ไม่บังคับ)</span></div>
-            <input
-              type="text"
-              value={focusInput}
-              onChange={e => setFocusInput(e.target.value)}
-              placeholder="เช่น สระน้ำ · ห้องนอน ocean view · outdoor dining · วิวทะเล"
-              style={{ width: "100%", background: "#1a1a22", border: "1px solid var(--gb)", borderRadius: 10, padding: "10px 14px", color: "var(--text)", fontSize: 13, outline: "none", boxSizing: "border-box" }}
-            />
-          </div>
-
-          {/* Q3: Duration */}
-          <div style={{ marginBottom: 28 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>3. วิดีโอยาวแค่ไหน?</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              {[15, 30, 60].map(d => (
-                <button key={d} onClick={() => setTargetDuration(d)} style={{
-                  flex: 1, padding: "12px", borderRadius: 10, cursor: "pointer",
-                  border: `2px solid ${targetDuration === d ? "var(--teal)" : "var(--gb)"}`,
-                  background: targetDuration === d ? "rgba(0,255,212,.08)" : "var(--glass)",
-                  color: targetDuration === d ? "var(--teal)" : "var(--faint)",
-                  fontSize: 14, fontWeight: 800,
-                }}>{d} วิ</button>
-              ))}
-            </div>
-          </div>
-
-          <button onClick={generateAIStoryboard} style={{
-            width: "100%", padding: "15px", borderRadius: 14, cursor: "pointer",
-            background: "linear-gradient(90deg,var(--teal),var(--blue))",
-            border: "none", color: "#06060A", fontSize: 15, fontWeight: 900,
-            boxShadow: "0 6px 24px rgba(0,255,212,.3)",
-          }}>
-            <Wand2 size={16} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />
-            Gemini วาง Storyboard ให้เลย →
-          </button>
-          <div style={{ marginTop: 10, textAlign: "center", fontSize: 11, color: "var(--faint)" }}>
-            Gemini เลือกรูป + เขียน concept ต่อ scene ให้อัตโนมัติ — คุณแก้ได้ก่อน render
-          </div>
-        </div>
-      ) : product ? (
-        <>
-          {/* Product header */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, padding: "10px 14px", background: "rgba(0,255,212,.06)", border: "1px solid rgba(0,255,212,.2)", borderRadius: 12 }}>
-            {product.media_urls?.[0] && <img src={imgProxy(product.media_urls[0])} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover" }} />}
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700 }}>{product.name}</div>
-              <div style={{ fontSize: 11, color: "var(--faint)" }}>{slots.length} คลิป · รวม {totalDuration} วิ · {product.media_urls.length} รูป</div>
-            </div>
-            <button onClick={() => { setProduct(null); setSlots([]); setSessionJobId(null); setPhase("product_select"); }} style={{ fontSize: 11, color: "var(--faint)", background: "none", border: "none", cursor: "pointer" }}>เปลี่ยน</button>
-          </div>
-
-          {/* Clip slots */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
-            {slots.map((slot, i) => {
-              const imgUrl = product.media_urls[slot.imageIndex];
-              const ps = !modelDef.isAI ? null : getPromptStatus(slot.prompt);
-              const charCount = slot.prompt.length;
-              const charLimit = modelDef.promptLimit;
-              const charColor = !charLimit ? "var(--faint)"
-                : charCount > 1900 ? "rgba(255,77,106,.9)"
-                : charCount > 1500 ? "#f59e0b"
-                : "var(--faint)";
-
-              return (
-                <div key={i} style={{
-                  background: "var(--glass)",
-                  border: `1px solid ${ps ? ps.borderColor : "var(--gb)"}`,
-                  borderRadius: 14, overflow: "visible",
-                }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 12, padding: "12px 14px", alignItems: "flex-start" }}>
-
-                    {/* Image + order + image picker */}
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
-                        <div style={{ fontSize: 10, fontWeight: 800, color: "var(--teal)", background: "rgba(0,255,212,.1)", borderRadius: 6, padding: "2px 8px" }}>#{i + 1}</div>
-                        {slots.length > 1 && (
-                          <button onClick={() => removeSlot(i)} title="ลบคลิปนี้" style={{ width: 18, height: 18, borderRadius: 4, border: "1px solid rgba(255,77,106,.3)", background: "rgba(255,77,106,.06)", cursor: "pointer", color: "rgba(255,77,106,.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
-                            <X size={9} />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Current image — click to open picker */}
-                      <div style={{ position: "relative" }}>
-                        {imgUrl && (
-                          <img
-                            src={imgProxy(imgUrl)}
-                            alt=""
-                            onClick={() => setImgPickerOpen(imgPickerOpen === i ? null : i)}
-                            style={{ width: 68, height: 120, objectFit: "cover", borderRadius: 8, cursor: product.media_urls.length > 1 ? "pointer" : "default", border: imgPickerOpen === i ? "2px solid var(--teal)" : "2px solid transparent" }}
-                          />
-                        )}
-                        {product.media_urls.length > 1 && (
-                          <div onClick={() => setImgPickerOpen(imgPickerOpen === i ? null : i)} style={{ fontSize: 8, fontWeight: 700, textAlign: "center", color: "var(--faint)", cursor: "pointer", marginTop: 2, letterSpacing: ".03em" }}>
-                            {imgPickerOpen === i ? "✕ ปิด" : "เปลี่ยนรูป"}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Image picker grid */}
-                      {imgPickerOpen === i && product.media_urls.length > 1 && (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 3, width: 148, marginTop: 4, padding: 6, background: "rgba(0,0,0,.5)", borderRadius: 8, border: "1px solid var(--gb)" }}>
-                          {product.media_urls.map((url, idx) => (
-                            <img
-                              key={idx}
-                              src={imgProxy(url)}
-                              alt=""
-                              onClick={() => { updateSlot(i, { imageIndex: idx }); setImgPickerOpen(null); }}
-                              style={{
-                                width: 40, height: 70, objectFit: "cover", borderRadius: 5, cursor: "pointer",
-                                border: `2px solid ${slot.imageIndex === idx ? "var(--teal)" : "transparent"}`,
-                                opacity: slot.imageIndex === idx ? 1 : 0.55,
-                                transition: "opacity .1s, border-color .1s",
-                              }}
-                            />
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Move up/down */}
-                      <div style={{ display: "flex", gap: 3, marginTop: 4 }}>
-                        <button onClick={() => moveSlot(i, -1)} disabled={i === 0} style={{ width: 22, height: 22, borderRadius: 5, border: "1px solid var(--gb)", background: "transparent", cursor: i === 0 ? "not-allowed" : "pointer", color: "var(--faint)", display: "flex", alignItems: "center", justifyContent: "center" }}><ChevronUp size={10} /></button>
-                        <button onClick={() => moveSlot(i, 1)} disabled={i === slots.length - 1} style={{ width: 22, height: 22, borderRadius: 5, border: "1px solid var(--gb)", background: "transparent", cursor: i === slots.length - 1 ? "not-allowed" : "pointer", color: "var(--faint)", display: "flex", alignItems: "center", justifyContent: "center" }}><ChevronDown size={10} /></button>
-                      </div>
-                    </div>
-
-                    {/* Prompt area */}
-                    <div>
-                      {/* Header row */}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
-                        <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".05em" }}>
-                          Prompt คลิป #{i + 1}
-                        </div>
-                        {ps && (
-                          <span style={{ fontSize: 9, fontWeight: 800, color: ps.color, background: `${ps.color}18`, padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap" }}>
-                            {ps.label}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Textarea with char counter */}
-                      <div style={{ position: "relative" }}>
-                        <textarea
-                          value={slot.prompt}
-                          onChange={e => updateSlot(i, { prompt: e.target.value })}
-                          placeholder={
-                            !modelDef.isAI
-                              ? "ไม่จำเป็น — Ken Burns ไม่ใช้ prompt"
-                              : "พิมพ์ concept ได้เลย (ไทยหรือ English)\nGemini จะอ่านรูป + concept → เขียน prompt ~120 คำ ส่งไป " + modelDef.label
-                          }
-                          rows={3}
-                          style={{
-                            width: "100%", background: "#1a1a22",
-                            border: `1px solid ${ps ? ps.borderColor : "var(--gb)"}`,
-                            borderRadius: 10, padding: "8px 12px", paddingBottom: modelDef.isAI ? "22px" : "8px",
-                            color: "var(--text)", fontSize: 12, outline: "none",
-                            fontFamily: "monospace", resize: "none", lineHeight: 1.6, boxSizing: "border-box",
-                          }}
-                        />
-                        {modelDef.isAI && charLimit && (
-                          <div style={{ position: "absolute", bottom: 5, right: 8, fontSize: 9, color: charColor, pointerEvents: "none", fontWeight: charCount > 1900 ? 800 : 400 }}>
-                            {charCount}/{charLimit}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* AI suggest button */}
-                      {modelDef.isAI && (
-                        <button onClick={() => suggestPrompt(i)} disabled={generating === i} style={{ marginTop: 5, display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "var(--blue)", background: "rgba(77,127,255,.08)", border: "1px solid rgba(77,127,255,.2)", borderRadius: 8, padding: "5px 10px", cursor: "pointer" }}>
-                          {generating === i ? <Loader2 size={10} style={{ animation: "spin 1s linear infinite" }} /> : <Sparkles size={10} />}
-                          Gemini อ่านรูป → เขียน prompt ใหม่ให้คลิปนี้
-                        </button>
-                      )}
-
-                      {/* "What happens" info for good prompts */}
-                      {ps?.state === "good" && (
-                        <div style={{ marginTop: 5, fontSize: 10, color: "#22D499", opacity: .7 }}>
-                          Gemini จะรักษา concept นี้ไว้ทั้งหมด + เพิ่ม camera move / lighting / atmosphere ให้วิดีโอสวยขึ้น
-                        </div>
-                      )}
-
-                      {/* Text label overlay — optional, user-typed, shown first 3s of clip */}
-                      <div style={{ marginTop: 8 }}>
-                        <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>
-                          Text บนจอ <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(ไม่บังคับ — ขึ้น 3 วิแรก fade in/out)</span>
-                        </div>
-                        <input
-                          type="text"
-                          value={slot.label}
-                          onChange={e => updateSlot(i, { label: e.target.value })}
-                          placeholder="เช่น  ห้องนอน · Living Room · ห้องครัว"
-                          maxLength={35}
-                          style={{
-                            width: "100%", background: "#1a1a22",
-                            border: slot.label.trim() ? "1px solid rgba(0,255,212,.3)" : "1px solid var(--gb)",
-                            borderRadius: 8, padding: "6px 10px",
-                            color: "var(--text)", fontSize: 12, outline: "none",
-                            boxSizing: "border-box",
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Duration selector */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 5, minWidth: 66 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".05em" }}>ความยาว</div>
-                      {modelDef.durations.map(d => (
-                        <button key={d} onClick={() => updateSlot(i, { duration: d })} style={{
-                          padding: "5px 8px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
-                          border: `1.5px solid ${slot.duration === d ? modelDef.color : "var(--gb)"}`,
-                          background: slot.duration === d ? `${modelDef.color}18` : "transparent",
-                          color: slot.duration === d ? modelDef.color : "var(--faint)",
-                        }}>{d}s</button>
-                      ))}
-                      {modelDef.minDuration > 5 && (
-                        <div style={{ fontSize: 8, color: "var(--faint)", lineHeight: 1.4, marginTop: 2 }}>min {modelDef.minDuration}s<br/>API limit</div>
-                      )}
-                    </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2 }}>
+                    <span style={{ fontSize: 13, fontWeight: 900, color: modelDef.color }}>{modelDef.label}</span>
+                    <span style={{ fontSize: 8, fontWeight: 800, padding: "1px 5px", borderRadius: 4, background: `${modelDef.color}22`, color: modelDef.color }}>{modelDef.badge}</span>
                   </div>
+                  <div style={{ fontSize: 10.5, color: "var(--faint)" }}>{modelDef.price} · {modelDef.outputLine1}</div>
                 </div>
-              );
-            })}
-          </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                  <Stars n={modelDef.stars} color={modelDef.color} />
+                  {modelOpen ? <ChevronUp size={12} color="var(--faint)" /> : <ChevronDown size={12} color="var(--faint)" />}
+                </div>
+              </button>
 
-          {/* Add slot button */}
-          <button
-            onClick={addSlot}
-            style={{
-              width: "100%", padding: "10px", borderRadius: 12, cursor: "pointer",
-              border: "1.5px dashed rgba(0,255,212,.3)", background: "rgba(0,255,212,.04)",
-              color: "var(--teal)", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 16,
-            }}
-          >
-            <Plus size={13} />
-            เพิ่มคลิป ({slots.length} → {slots.length + 1}) · มีรูป {product.media_urls.length} รูป
-          </button>
-
-          {/* Summary */}
-          <div style={{ background: "rgba(0,0,0,.2)", border: "1px solid var(--gb)", borderRadius: 12, padding: "14px 16px", marginBottom: 14, fontSize: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px", color: "var(--faint)", lineHeight: 2.1 }}>
-            <span>AI Model:</span><b style={{ color: modelDef.color }}>{modelDef.label} — {modelDef.outputLine1}</b>
-            <span>จำนวนคลิป:</span><b style={{ color: "var(--dim)" }}>{slots.length} คลิป × {slots.map(s=>s.duration).join("/")} วิ = {totalDuration} วิ</b>
-            {modelDef.isAI && <><span>ทุก prompt ก่อน render:</span><b style={{ color: "#22D499" }}>Gemini อ่านรูป + concept ที่คุณเขียน → prompt 140-155 คำ</b></>}
-            {modelDef.isAI && <><span>concept ของคุณ:</span><b style={{ color: "#f59e0b" }}>ถูกรักษาไว้เป็น scene หลัก — Gemini เพิ่ม cinematic detail รอบๆ</b></>}
-            {modelDef.isAI && <><span>Prompt limit:</span><b style={{ color: "var(--dim)" }}>{modelDef.promptLimit?.toLocaleString()} ตัวอักษร · 1 รูป/คลิป</b></>}
-            <span>เสียงพากย์:</span>
-            <b style={{ color: audioMode === "ai" ? "var(--ok)" : audioMode === "upload" ? "var(--teal)" : "var(--faint)" }}>
-              {audioMode === "ai" ? `Edge TTS ไทย (${aiVoice}) — ผสมหลัง render วิดีโอ`
-               : audioMode === "upload" ? "ไฟล์เสียงของคุณ — ผสมหลัง render วิดีโอ"
-               : "ไม่มีเสียง"}
-            </b>
-            {modelDef.isAI && <><span>ราคาประมาณ:</span><b style={{ color: "#f87171" }}>${totalCost.toFixed(2)} (~{Math.round(totalCost * 35)} บาท)</b></>}
-          </div>
-
-          {/* AI hint */}
-          {modelDef.isAI && (
-            <div style={{ marginBottom: 12, padding: "10px 14px", background: `${modelDef.color}0a`, border: `1px solid ${modelDef.color}30`, borderRadius: 10, fontSize: 11.5, color: "var(--dim)", lineHeight: 1.8 }}>
-              <b style={{ color: modelDef.color }}>Flow เมื่อกด render ({modelDef.label}):</b>
-              {" "}① Gemini Vision อ่านรูป + เขียน prompt 140-155 คำ →
-              {" "}② {modelDef.label} render {slots.length} คลิป (ไม่มีเสียง) →
-              {" "}③{audioMode === "ai" ? ` Edge TTS สร้างเสียงพากย์ไทย (${aiVoice}) → ผสมเข้าวิดีโอ` : audioMode === "upload" ? " ผสมเสียงที่อัพโหลดเข้าวิดีโอ" : " วิดีโอไม่มีเสียง"}
-            </div>
-          )}
-
-          {/* ── Audio mode selector ── */}
-          <div style={{ marginBottom: 14, padding: "14px 16px", background: "var(--glass)", border: "1px solid var(--gb)", borderRadius: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10 }}>เสียงพากย์</div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-              {[
-                { id: "ai",     label: "🤖 AI สร้างให้",   desc: "Edge TTS ไทย ฟรี" },
-                { id: "upload", label: "🎙️ อัพโหลดเอง",   desc: "mp3 / m4a / wav" },
-                { id: "none",   label: "🔇 ไม่มีเสียง",    desc: "" },
-              ].map(m => (
-                <button key={m.id} onClick={() => setAudioMode(m.id as "ai" | "upload" | "none")} style={{
-                  flex: 1, padding: "10px 8px", borderRadius: 10, cursor: "pointer", textAlign: "center",
-                  border: `2px solid ${audioMode === m.id ? "var(--teal)" : "var(--gb)"}`,
-                  background: audioMode === m.id ? "rgba(0,255,212,.08)" : "transparent",
-                  color: audioMode === m.id ? "var(--teal)" : "var(--faint)",
-                  fontSize: 12, fontWeight: 700,
+              {modelOpen && (
+                <div style={{
+                  position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 200,
+                  background: "#15151e", border: "1px solid var(--gb)", borderRadius: 12,
+                  overflow: "hidden", boxShadow: "0 16px 48px rgba(0,0,0,.8)",
                 }}>
-                  <div>{m.label}</div>
-                  {m.desc && <div style={{ fontSize: 9, fontWeight: 400, marginTop: 2, opacity: .7 }}>{m.desc}</div>}
-                </button>
-              ))}
+                  {MODELS.map(m => {
+                    const active = aiModel === m.id;
+                    return (
+                      <button key={m.id} onClick={() => {
+                        setAiModel(m.id);
+                        setSlots(prev => prev.map(s => ({ ...s, duration: m.durations.includes(s.duration) ? s.duration : m.durations[0] })));
+                        setModelOpen(false);
+                      }} style={{
+                        width: "100%", display: "flex", alignItems: "center", gap: 12,
+                        padding: "10px 14px", cursor: "pointer", textAlign: "left",
+                        background: active ? `${m.color}10` : "transparent",
+                        borderBottom: "1px solid rgba(255,255,255,.04)",
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2 }}>
+                            <span style={{ fontSize: 12, fontWeight: 800, color: active ? m.color : "var(--text)" }}>{m.label}</span>
+                            <span style={{ fontSize: 8, padding: "1px 5px", borderRadius: 4, background: active ? `${m.color}25` : "rgba(255,255,255,.07)", color: active ? m.color : "var(--faint)", fontWeight: 800 }}>{m.badge}</span>
+                          </div>
+                          <div style={{ fontSize: 10, color: "var(--faint)" }}>{m.outputLine1}</div>
+                        </div>
+                        <div style={{ textAlign: "right", flexShrink: 0 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: active ? m.color : "var(--dim)", marginBottom: 2 }}>{m.price}</div>
+                          <Stars n={m.stars} color={m.color} />
+                        </div>
+                        {active && <div style={{ width: 6, height: 6, borderRadius: "50%", background: m.color, flexShrink: 0 }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Constraints */}
+              <div style={{ marginTop: 10, padding: "8px 12px", background: `${modelDef.color}0e`, border: `1px solid ${modelDef.color}25`, borderRadius: 8, fontSize: 10.5, color: "var(--dim)", lineHeight: 1.9 }}>
+                <b style={{ color: modelDef.color }}>{modelDef.label}</b>
+                <div>ความยาว: <b>{modelDef.durations.map(d => `${d}s`).join(", ")}</b></div>
+                {modelDef.promptLimit && <div>Prompt สูงสุด: <b>{modelDef.promptLimit.toLocaleString()} ตัวอักษร</b></div>}
+                {modelDef.isAI && <div style={{ color: "var(--faint)" }}>ทุกคลิป: Gemini Vision → prompt ~120 คำ</div>}
+              </div>
             </div>
 
-            {/* AI voice picker */}
-            {audioMode === "ai" && (
-              <div>
-                <div style={{ fontSize: 10, color: "var(--faint)", marginBottom: 6 }}>เลือกเสียง (Microsoft Edge TTS — ฟรี ภาษาไทย):</div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {[
-                    { id: "หญิง (ไทย)",   label: "หญิง",   desc: "Premwadee · นุ่มนวล" },
-                    { id: "ชาย (ไทย)",    label: "ชาย",    desc: "Niwat · มืออาชีพ" },
-                    { id: "หญิง 2 (ไทย)", label: "หญิง 2", desc: "Achara · สดใส" },
-                  ].map(v => (
-                    <button key={v.id} onClick={() => setAiVoice(v.id)} style={{
-                      padding: "7px 12px", borderRadius: 8, cursor: "pointer",
-                      border: `1.5px solid ${aiVoice === v.id ? "var(--teal)" : "var(--gb)"}`,
-                      background: aiVoice === v.id ? "rgba(0,255,212,.1)" : "transparent",
-                      color: aiVoice === v.id ? "var(--teal)" : "var(--faint)",
-                      fontSize: 11, fontWeight: 700,
+            {/* Setup-phase controls */}
+            {phase === "setup" && product && (
+              <>
+                <div style={{ height: 1, background: "rgba(255,255,255,.06)", margin: "14px 0" }} />
+
+                {/* Audio */}
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>เสียงพากย์</div>
+                  <div style={{ display: "flex", gap: 5, marginBottom: 8 }}>
+                    {([
+                      { id: "ai", label: "🤖 AI" },
+                      { id: "upload", label: "🎙️ Upload" },
+                      { id: "none", label: "🔇 ไม่มี" },
+                    ] as { id: "ai"|"upload"|"none"; label: string }[]).map(m => (
+                      <button key={m.id} onClick={() => setAudioMode(m.id)} style={{
+                        flex: 1, padding: "6px 4px", borderRadius: 8, cursor: "pointer", textAlign: "center",
+                        border: `1.5px solid ${audioMode === m.id ? "var(--teal)" : "var(--gb)"}`,
+                        background: audioMode === m.id ? "rgba(0,255,212,.08)" : "transparent",
+                        color: audioMode === m.id ? "var(--teal)" : "var(--faint)",
+                        fontSize: 10.5, fontWeight: 700,
+                      }}>{m.label}</button>
+                    ))}
+                  </div>
+                  {audioMode === "ai" && (
+                    <div style={{ display: "flex", gap: 5 }}>
+                      {([
+                        { id: "หญิง (ไทย)", label: "หญิง" },
+                        { id: "ชาย (ไทย)", label: "ชาย" },
+                        { id: "หญิง 2 (ไทย)", label: "หญิง 2" },
+                      ] as { id: string; label: string }[]).map(v => (
+                        <button key={v.id} onClick={() => setAiVoice(v.id)} style={{
+                          flex: 1, padding: "5px 6px", borderRadius: 7, cursor: "pointer",
+                          border: `1.5px solid ${aiVoice === v.id ? "var(--teal)" : "var(--gb)"}`,
+                          background: aiVoice === v.id ? "rgba(0,255,212,.1)" : "transparent",
+                          color: aiVoice === v.id ? "var(--teal)" : "var(--faint)",
+                          fontSize: 10.5, fontWeight: 700,
+                        }}>{v.label}</button>
+                      ))}
+                    </div>
+                  )}
+                  {audioMode === "upload" && (
+                    <label style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 12px", borderRadius: 8, border: "1.5px dashed rgba(0,255,212,.35)", background: "rgba(0,255,212,.04)", cursor: "pointer", fontSize: 11 }}>
+                      <input type="file" accept="audio/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadAudio(f); }} />
+                      {uploadingAudio ? <><Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> กำลังอัพโหลด...</>
+                        : uploadedAudioUrl ? <><span>✅</span><span style={{ color: "var(--ok)" }}>{uploadedFileName || "สำเร็จ"}</span></>
+                        : <><span>📁</span><span style={{ color: "var(--teal)" }}>เลือกไฟล์เสียง</span></>}
+                    </label>
+                  )}
+                </div>
+
+                {/* Summary */}
+                <div style={{ marginBottom: 12, padding: "10px 12px", background: "rgba(0,0,0,.2)", border: "1px solid var(--gb)", borderRadius: 10, fontSize: 10.5, color: "var(--faint)", lineHeight: 2 }}>
+                  <div>คลิป: <b style={{ color: "var(--dim)" }}>{slots.length} × {slots.map(s=>s.duration).join("/")}s = {totalDuration}s</b></div>
+                  {modelDef.isAI && <div>ราคา: <b style={{ color: "#f87171" }}>${totalCost.toFixed(2)} (~{Math.round(totalCost * 35)} บาท)</b></div>}
+                  <div>เสียง: <b style={{ color: audioMode === "ai" ? "var(--ok)" : "var(--dim)" }}>{audioMode === "ai" ? `TTS (${aiVoice})` : audioMode === "upload" ? "upload" : "ไม่มี"}</b></div>
+                </div>
+
+                {modelDef.isAI && totalCost > 5 && (
+                  <div style={{ marginBottom: 10, padding: "8px 12px", background: "rgba(255,77,106,.08)", border: "1px solid rgba(255,77,106,.3)", borderRadius: 8, fontSize: 11, color: "#f87171", lineHeight: 1.6 }}>
+                    ⚠️ {slots.length} คลิป × ${modelDef.pricePerClip} = <b>${totalCost.toFixed(2)}</b>
+                  </div>
+                )}
+
+                <button
+                  onClick={runRender}
+                  disabled={audioMode === "upload" && !uploadedAudioUrl}
+                  style={{
+                    width: "100%", padding: "13px 16px", borderRadius: 12,
+                    cursor: audioMode === "upload" && !uploadedAudioUrl ? "not-allowed" : "pointer",
+                    opacity: audioMode === "upload" && !uploadedAudioUrl ? 0.45 : 1,
+                    background: totalCost > 5 && modelDef.isAI ? "linear-gradient(90deg,#f87171,#ef4444)" : `linear-gradient(90deg,${modelDef.color},var(--blue))`,
+                    border: "none", color: "#fff", fontSize: 13, fontWeight: 900,
+                    boxShadow: totalCost > 5 && modelDef.isAI ? "0 4px 20px rgba(239,68,68,.4)" : `0 4px 20px ${modelDef.color}40`,
+                  }}>
+                  {!modelDef.isAI ? `สร้าง Ken Burns ${slots.length} คลิป (ฟรี)` : `สร้าง AI ${slots.length} คลิป →`}
+                </button>
+
+                {modelDef.isAI && slots.some(s => !s.prompt.trim()) && (
+                  <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "var(--faint)" }}>
+                    <Wand2 size={11} /> คลิปที่ว่าง Gemini เขียน prompt ให้
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT: phase content */}
+        <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
+
+          {phase === "product_select" ? (
+            <>
+              <p style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700, color: "var(--dim)" }}>เลือก Asset:</p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 12 }}>
+                {products.map(p => (
+                  <button key={p.id} onClick={() => selectProduct(p)} style={{
+                    padding: "0 0 12px 0", borderRadius: 14, cursor: "pointer", textAlign: "left",
+                    background: "var(--glass)", border: "1px solid var(--gb)", overflow: "hidden",
+                  }}>
+                    {p.media_urls?.[0] && <img src={imgProxy(p.media_urls[0])} alt="" style={{ width: "100%", height: 120, objectFit: "cover" }} />}
+                    <div style={{ padding: "10px 12px 0" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>{p.name}</div>
+                      <div style={{ fontSize: 10, color: "var(--faint)", marginTop: 2 }}>{p.media_urls?.length || 0} รูป</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : phase === "questions" && product ? (
+            <div style={{ maxWidth: 520 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, padding: "10px 14px", background: "rgba(0,255,212,.06)", border: "1px solid rgba(0,255,212,.2)", borderRadius: 12 }}>
+                {product.media_urls?.[0] && <img src={imgProxy(product.media_urls[0])} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover" }} />}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{product.name}</div>
+                  <div style={{ fontSize: 11, color: "var(--faint)" }}>{product.media_urls.length} รูป</div>
+                </div>
+                <button onClick={() => { setProduct(null); setPhase("product_select"); }} style={{ fontSize: 11, color: "var(--faint)", background: "none", border: "none", cursor: "pointer" }}>เปลี่ยน</button>
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>1. อยากทำวิดีโอแบบไหน?</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {VIDEO_TYPES.map(vt => (
+                    <button key={vt.id} onClick={() => setVideoType(vt.id)} style={{
+                      padding: "12px 14px", borderRadius: 12, cursor: "pointer", textAlign: "left",
+                      border: `2px solid ${videoType === vt.id ? "var(--teal)" : "var(--gb)"}`,
+                      background: videoType === vt.id ? "rgba(0,255,212,.08)" : "var(--glass)",
                     }}>
-                      {v.label} <span style={{ fontWeight: 400, opacity: .7 }}>· {v.desc}</span>
+                      <div style={{ fontSize: 18, marginBottom: 4 }}>{vt.icon}</div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: videoType === vt.id ? "var(--teal)" : "var(--text)" }}>{vt.id}</div>
+                      <div style={{ fontSize: 10, color: "var(--faint)", marginTop: 2 }}>{vt.desc}</div>
                     </button>
                   ))}
                 </div>
               </div>
-            )}
-
-            {/* Upload audio */}
-            {audioMode === "upload" && (
-              <div>
-                <label style={{
-                  display: "flex", alignItems: "center", gap: 8, padding: "10px 14px",
-                  borderRadius: 10, border: "1.5px dashed rgba(0,255,212,.35)",
-                  background: "rgba(0,255,212,.04)", cursor: "pointer",
-                }}>
-                  <input type="file" accept="audio/*" style={{ display: "none" }}
-                    onChange={e => { const f = e.target.files?.[0]; if (f) uploadAudio(f); }} />
-                  {uploadingAudio
-                    ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /><span style={{ fontSize: 12, color: "var(--dim)" }}>กำลังอัพโหลด...</span></>
-                    : uploadedAudioUrl
-                    ? <><span style={{ fontSize: 14 }}>✅</span><span style={{ fontSize: 12, color: "var(--ok)" }}>{uploadedFileName || "อัพโหลดสำเร็จ"}</span><span style={{ fontSize: 10, color: "var(--faint)", marginLeft: 4 }}>คลิกเพื่อเปลี่ยน</span></>
-                    : <><span style={{ fontSize: 14 }}>📁</span><span style={{ fontSize: 12, color: "var(--teal)" }}>เลือกไฟล์เสียง (mp3, m4a, wav)</span></>
-                  }
-                </label>
-                {!uploadedAudioUrl && !uploadingAudio && (
-                  <div style={{ marginTop: 6, fontSize: 10, color: "var(--faint)" }}>อัพโหลดก่อนกด render</div>
-                )}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8 }}>2. เน้นอะไรเป็นพิเศษ? <span style={{ fontWeight: 400, color: "var(--faint)", fontSize: 11 }}>(ไม่บังคับ)</span></div>
+                <input type="text" value={focusInput} onChange={e => setFocusInput(e.target.value)}
+                  placeholder="เช่น สระน้ำ · ห้องนอน ocean view · outdoor dining"
+                  style={{ width: "100%", background: "#1a1a22", border: "1px solid var(--gb)", borderRadius: 10, padding: "10px 14px", color: "var(--text)", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
               </div>
-            )}
-          </div>
-
-          {modelDef.isAI && totalCost > 5 && (
-            <div style={{ marginBottom: 10, padding: "10px 14px", background: "rgba(255,77,106,.08)", border: "1px solid rgba(255,77,106,.3)", borderRadius: 10, fontSize: 12, color: "#f87171", lineHeight: 1.6 }}>
-              ⚠️ ราคาสูง — {slots.length} คลิป × ${modelDef.pricePerClip} = <b>${totalCost.toFixed(2)} (~{Math.round(totalCost * 35)} บาท)</b> · กด Generate เมื่อพร้อมจริงๆ
+              <div style={{ marginBottom: 28 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>3. วิดีโอยาวแค่ไหน?</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[15, 30, 60].map(d => (
+                    <button key={d} onClick={() => setTargetDuration(d)} style={{
+                      flex: 1, padding: "12px", borderRadius: 10, cursor: "pointer",
+                      border: `2px solid ${targetDuration === d ? "var(--teal)" : "var(--gb)"}`,
+                      background: targetDuration === d ? "rgba(0,255,212,.08)" : "var(--glass)",
+                      color: targetDuration === d ? "var(--teal)" : "var(--faint)", fontSize: 14, fontWeight: 800,
+                    }}>{d} วิ</button>
+                  ))}
+                </div>
+              </div>
+              <button onClick={generateAIStoryboard} style={{
+                width: "100%", padding: "15px", borderRadius: 14, cursor: "pointer",
+                background: "linear-gradient(90deg,var(--teal),var(--blue))",
+                border: "none", color: "#06060A", fontSize: 15, fontWeight: 900,
+                boxShadow: "0 6px 24px rgba(0,255,212,.3)",
+              }}>
+                <Wand2 size={16} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />
+                Gemini วาง Storyboard ให้เลย →
+              </button>
             </div>
-          )}
+          ) : product ? (
+            <>
+              {/* Product header */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, padding: "10px 14px", background: "rgba(0,255,212,.06)", border: "1px solid rgba(0,255,212,.2)", borderRadius: 12 }}>
+                {product.media_urls?.[0] && <img src={imgProxy(product.media_urls[0])} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover" }} />}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{product.name}</div>
+                  <div style={{ fontSize: 11, color: "var(--faint)" }}>{slots.length} คลิป · รวม {totalDuration} วิ · {product.media_urls.length} รูป</div>
+                </div>
+                <button onClick={() => { setProduct(null); setSlots([]); setSessionJobId(null); setPhase("product_select"); }} style={{ fontSize: 11, color: "var(--faint)", background: "none", border: "none", cursor: "pointer" }}>เปลี่ยน</button>
+              </div>
 
-          <button
-            onClick={runRender}
-            disabled={audioMode === "upload" && !uploadedAudioUrl}
-            style={{
-              width: "100%", padding: "15px", borderRadius: 14,
-              cursor: audioMode === "upload" && !uploadedAudioUrl ? "not-allowed" : "pointer",
-              opacity: audioMode === "upload" && !uploadedAudioUrl ? 0.45 : 1,
-              background: totalCost > 5 && modelDef.isAI
-                ? "linear-gradient(90deg,#f87171,#ef4444)"
-                : `linear-gradient(90deg,${modelDef.color},var(--blue))`,
-              border: "none", color: "#fff", fontSize: 15, fontWeight: 900,
-              boxShadow: totalCost > 5 && modelDef.isAI ? "0 6px 24px rgba(239,68,68,.4)" : `0 6px 24px ${modelDef.color}40`,
-            }}>
-            {!modelDef.isAI
-              ? `สร้าง Ken Burns ${slots.length} คลิป (ฟรี) →`
-              : `สร้างวิดีโอ AI ${slots.length} คลิป ~${Math.round(totalCost * 35)} บาท →`
-            }
-          </button>
+              {/* Clip slots */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+                {slots.map((slot, i) => {
+                  const imgUrl = product.media_urls[slot.imageIndex];
+                  const ps = !modelDef.isAI ? null : getPromptStatus(slot.prompt);
+                  const charCount = slot.prompt.length;
+                  const charLimit = modelDef.promptLimit;
+                  const charColor = !charLimit ? "var(--faint)" : charCount > 1900 ? "rgba(255,77,106,.9)" : charCount > 1500 ? "#f59e0b" : "var(--faint)";
+                  return (
+                    <div key={i} style={{ background: "var(--glass)", border: `1px solid ${ps ? ps.borderColor : "var(--gb)"}`, borderRadius: 14, overflow: "visible" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 12, padding: "12px 14px", alignItems: "flex-start" }}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+                            <div style={{ fontSize: 10, fontWeight: 800, color: "var(--teal)", background: "rgba(0,255,212,.1)", borderRadius: 6, padding: "2px 8px" }}>#{i + 1}</div>
+                            {slots.length > 1 && (
+                              <button onClick={() => removeSlot(i)} style={{ width: 18, height: 18, borderRadius: 4, border: "1px solid rgba(255,77,106,.3)", background: "rgba(255,77,106,.06)", cursor: "pointer", color: "rgba(255,77,106,.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                                <X size={9} />
+                              </button>
+                            )}
+                          </div>
+                          <div style={{ position: "relative" }}>
+                            {imgUrl && <img src={imgProxy(imgUrl)} alt="" onClick={() => setImgPickerOpen(imgPickerOpen === i ? null : i)} style={{ width: 68, height: 120, objectFit: "cover", borderRadius: 8, cursor: product.media_urls.length > 1 ? "pointer" : "default", border: imgPickerOpen === i ? "2px solid var(--teal)" : "2px solid transparent" }} />}
+                            {product.media_urls.length > 1 && <div onClick={() => setImgPickerOpen(imgPickerOpen === i ? null : i)} style={{ fontSize: 8, fontWeight: 700, textAlign: "center", color: "var(--faint)", cursor: "pointer", marginTop: 2 }}>{imgPickerOpen === i ? "✕ ปิด" : "เปลี่ยนรูป"}</div>}
+                          </div>
+                          {imgPickerOpen === i && product.media_urls.length > 1 && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 3, width: 148, marginTop: 4, padding: 6, background: "rgba(0,0,0,.5)", borderRadius: 8, border: "1px solid var(--gb)" }}>
+                              {product.media_urls.map((url, idx) => (
+                                <img key={idx} src={imgProxy(url)} alt="" onClick={() => { updateSlot(i, { imageIndex: idx }); setImgPickerOpen(null); }} style={{ width: 40, height: 70, objectFit: "cover", borderRadius: 5, cursor: "pointer", border: `2px solid ${slot.imageIndex === idx ? "var(--teal)" : "transparent"}`, opacity: slot.imageIndex === idx ? 1 : 0.55 }} />
+                              ))}
+                            </div>
+                          )}
+                          <div style={{ display: "flex", gap: 3, marginTop: 4 }}>
+                            <button onClick={() => moveSlot(i, -1)} disabled={i === 0} style={{ width: 22, height: 22, borderRadius: 5, border: "1px solid var(--gb)", background: "transparent", cursor: i === 0 ? "not-allowed" : "pointer", color: "var(--faint)", display: "flex", alignItems: "center", justifyContent: "center" }}><ChevronUp size={10} /></button>
+                            <button onClick={() => moveSlot(i, 1)} disabled={i === slots.length - 1} style={{ width: 22, height: 22, borderRadius: 5, border: "1px solid var(--gb)", background: "transparent", cursor: i === slots.length - 1 ? "not-allowed" : "pointer", color: "var(--faint)", display: "flex", alignItems: "center", justifyContent: "center" }}><ChevronDown size={10} /></button>
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+                            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".05em" }}>Prompt #{i + 1}</div>
+                            {ps && <span style={{ fontSize: 9, fontWeight: 800, color: ps.color, background: `${ps.color}18`, padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap" }}>{ps.label}</span>}
+                          </div>
+                          <div style={{ position: "relative" }}>
+                            <textarea value={slot.prompt} onChange={e => updateSlot(i, { prompt: e.target.value })}
+                              placeholder={!modelDef.isAI ? "ไม่จำเป็น — Ken Burns ไม่ใช้ prompt" : "concept (ไทยหรือ English) — Gemini อ่านรูป + เขียน prompt ~120 คำ"}
+                              rows={3} style={{ width: "100%", background: "#1a1a22", border: `1px solid ${ps ? ps.borderColor : "var(--gb)"}`, borderRadius: 10, padding: "8px 12px", paddingBottom: modelDef.isAI ? "22px" : "8px", color: "var(--text)", fontSize: 12, outline: "none", fontFamily: "monospace", resize: "none", lineHeight: 1.6, boxSizing: "border-box" }}
+                            />
+                            {modelDef.isAI && charLimit && <div style={{ position: "absolute", bottom: 5, right: 8, fontSize: 9, color: charColor, pointerEvents: "none", fontWeight: charCount > 1900 ? 800 : 400 }}>{charCount}/{charLimit}</div>}
+                          </div>
+                          {modelDef.isAI && (
+                            <button onClick={() => suggestPrompt(i)} disabled={generating === i} style={{ marginTop: 5, display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "var(--blue)", background: "rgba(77,127,255,.08)", border: "1px solid rgba(77,127,255,.2)", borderRadius: 8, padding: "5px 10px", cursor: "pointer" }}>
+                              {generating === i ? <Loader2 size={10} style={{ animation: "spin 1s linear infinite" }} /> : <Sparkles size={10} />}
+                              Gemini อ่านรูป → เขียน prompt ใหม่
+                            </button>
+                          )}
+                          {ps?.state === "good" && <div style={{ marginTop: 5, fontSize: 10, color: "#22D499", opacity: .7 }}>Gemini รักษา concept + เพิ่ม cinematic detail</div>}
+                          <div style={{ marginTop: 8 }}>
+                            <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Text บนจอ <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(ไม่บังคับ — 3 วิแรก)</span></div>
+                            <input type="text" value={slot.label} onChange={e => updateSlot(i, { label: e.target.value })} placeholder="เช่น  ห้องนอน · Living Room" maxLength={35}
+                              style={{ width: "100%", background: "#1a1a22", border: slot.label.trim() ? "1px solid rgba(0,255,212,.3)" : "1px solid var(--gb)", borderRadius: 8, padding: "6px 10px", color: "var(--text)", fontSize: 12, outline: "none", boxSizing: "border-box" }} />
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 5, minWidth: 66 }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".05em" }}>ความยาว</div>
+                          {modelDef.durations.map(d => (
+                            <button key={d} onClick={() => updateSlot(i, { duration: d })} style={{ padding: "5px 8px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700, border: `1.5px solid ${slot.duration === d ? modelDef.color : "var(--gb)"}`, background: slot.duration === d ? `${modelDef.color}18` : "transparent", color: slot.duration === d ? modelDef.color : "var(--faint)" }}>{d}s</button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
 
-          {modelDef.isAI && slots.some(s => !s.prompt.trim()) && (
-            <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--faint)" }}>
-              <Wand2 size={12} />
-              คลิปที่ยังว่าง Gemini จะอ่านรูปและเขียน prompt ให้อัตโนมัติเมื่อกด render
-            </div>
-          )}
-        </>
-      ) : null}
+              <button onClick={addSlot} style={{ width: "100%", padding: "10px", borderRadius: 12, cursor: "pointer", border: "1.5px dashed rgba(0,255,212,.3)", background: "rgba(0,255,212,.04)", color: "var(--teal)", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <Plus size={13} />
+                เพิ่มคลิป ({slots.length} → {slots.length + 1}) · มีรูป {product.media_urls.length} รูป
+              </button>
+            </>
+          ) : null}
+        </div>
+
+      </div>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
