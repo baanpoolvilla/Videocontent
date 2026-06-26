@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { api, fileUrl } from "@/lib/api";
-import { Package, Plus, X, Loader2, Search, Zap, Image as ImgIcon, Trash2, ArrowRight, Pencil, SlidersHorizontal } from "lucide-react";
+import { Package, Plus, X, Loader2, Search, Zap, Image as ImgIcon, Trash2, ArrowRight, Pencil, SlidersHorizontal, Check, FolderOpen } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 
 interface Product {
@@ -13,6 +13,69 @@ interface Product {
   category: string | null;
   price: number | null;
   media_urls: string[];
+}
+
+interface AssetItem { id: string; url: string; name: string; mime_type: string | null; }
+
+function AssetPickerModal({ onSelect, onClose }: { onSelect: (urls: string[]) => void; onClose: () => void }) {
+  const [assets, setAssets] = useState<AssetItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    api.get("/assets/?asset_type=image")
+      .then(r => setAssets((r.data as AssetItem[]).filter(a => a.mime_type?.startsWith("image/"))))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggle = (url: string) => setSelected(prev => {
+    const n = new Set(prev); n.has(url) ? n.delete(url) : n.add(url); return n;
+  });
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 620, width: "92vw" }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>เลือกจาก Asset Library</h2>
+          <button className="icon-btn" onClick={onClose}><X size={14} /></button>
+        </div>
+        {loading ? (
+          <div style={{ textAlign: "center", padding: 32, color: "var(--faint)" }}>
+            <Loader2 size={20} style={{ animation: "spin 1s linear infinite", margin: "0 auto 8px", display: "block" }} />กำลังโหลด...
+          </div>
+        ) : assets.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 32, color: "var(--faint)", fontSize: 13 }}>
+            ยังไม่มีรูปใน Asset Library — อัปโหลดก่อนที่หน้า Asset Library
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, maxHeight: 360, overflowY: "auto", marginBottom: 16, padding: 2 }}>
+            {assets.map(a => {
+              const sel = selected.has(a.url);
+              return (
+                <div key={a.id} onClick={() => toggle(a.url)} style={{
+                  position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", cursor: "pointer",
+                  border: `2px solid ${sel ? "var(--teal)" : "transparent"}`, transition: "border-color .12s",
+                }}>
+                  <img src={fileUrl(a.url)} alt={a.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  {sel && (
+                    <div style={{ position: "absolute", top: 5, right: 5, width: 20, height: 20, background: "var(--teal)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Check size={11} color="#06060A" strokeWidth={3} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 10 }}>
+          <button className="btn btn-ghost" style={{ flex: 1 }} onClick={onClose}>ยกเลิก</button>
+          <button className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} onClick={() => { onSelect([...selected]); onClose(); }} disabled={selected.size === 0}>
+            เลือก {selected.size > 0 ? `${selected.size} รูป` : "รูป"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 type Form = { name: string; description: string; category: string; price: string };
@@ -28,13 +91,18 @@ export default function ProductsPage() {
   const [sort, setSort]             = useState<SortKey>("newest");
   const [analyzing, setAnalyzing]   = useState<string | null>(null);
 
+  // ── Asset picker state ───────────────────────────────────────────
+  const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [assetPickerFor, setAssetPickerFor]   = useState<"add" | "edit">("add");
+
   // ── Add modal state ──────────────────────────────────────────────
-  const [showAdd, setShowAdd]         = useState(false);
-  const [addForm, setAddForm]         = useState<Form>(EMPTY);
-  const [addFiles, setAddFiles]       = useState<File[]>([]);
-  const [addPreviews, setAddPreviews] = useState<string[]>([]);
-  const [addBusy, setAddBusy]         = useState(false);
-  const [addProgress, setAddProgress] = useState<string | null>(null);
+  const [showAdd, setShowAdd]               = useState(false);
+  const [addForm, setAddForm]               = useState<Form>(EMPTY);
+  const [addFiles, setAddFiles]             = useState<File[]>([]);
+  const [addPreviews, setAddPreviews]       = useState<string[]>([]);
+  const [addLibraryUrls, setAddLibraryUrls] = useState<string[]>([]);
+  const [addBusy, setAddBusy]               = useState(false);
+  const [addProgress, setAddProgress]       = useState<string | null>(null);
 
   // ── Edit modal state ─────────────────────────────────────────────
   const [editProduct, setEditProduct]           = useState<Product | null>(null);
@@ -69,7 +137,21 @@ export default function ProductsPage() {
   };
   const clearAdd = () => {
     addPreviews.forEach(u => URL.revokeObjectURL(u));
-    setAddFiles([]); setAddPreviews([]);
+    setAddFiles([]); setAddPreviews([]); setAddLibraryUrls([]);
+  };
+
+  const handleAssetSelect = (urls: string[]) => {
+    if (assetPickerFor === "add") {
+      setAddLibraryUrls(prev => {
+        const merged = [...prev, ...urls.filter(u => !prev.includes(u))];
+        return merged.slice(0, Math.max(0, 8 - addFiles.length));
+      });
+    } else {
+      setEditExistingUrls(prev => {
+        const merged = [...prev, ...urls.filter(u => !prev.includes(u))];
+        return merged.slice(0, Math.max(0, 8 - editNewFiles.length));
+      });
+    }
   };
 
   // ── Edit dropzone (multiple) ──────────────────────────────────────
@@ -124,6 +206,12 @@ export default function ProductsPage() {
           if (i === 0) product.media_urls = [up.data.url];
           else product.media_urls = [...product.media_urls, up.data.url];
         }
+      }
+      if (addLibraryUrls.length > 0) {
+        setAddProgress("กำลังบันทึกรูปจาก Library…");
+        const merged = [...(product.media_urls || []), ...addLibraryUrls];
+        const r = await api.patch(`/products/${product.id}`, { media_urls: merged });
+        product.media_urls = r.data.media_urls ?? merged;
       }
       setProducts(prev => [product, ...prev]);
       setAddForm(EMPTY); clearAdd(); setShowAdd(false);
@@ -246,30 +334,53 @@ export default function ProductsPage() {
             </div>
 
             {/* Image upload — multiple (up to 8) */}
-            <div style={{ marginBottom: 16 }}>
-              {addPreviews.length > 0 && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 8 }}>
-                  {addPreviews.map((src, i) => (
-                    <div key={i} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", border: "1px solid var(--gb)" }}>
-                      <img src={src} alt={`รูป ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      <button onClick={() => removeAddFile(i)} style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, padding: 0, border: "none", borderRadius: 5, cursor: "pointer", background: "rgba(0,0,0,.75)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
-                        <X size={10} />
-                      </button>
+            {(() => {
+              const addTotal = addPreviews.length + addLibraryUrls.length;
+              return (
+                <div style={{ marginBottom: 16 }}>
+                  {(addPreviews.length > 0 || addLibraryUrls.length > 0) && (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 8 }}>
+                      {addPreviews.map((src, i) => (
+                        <div key={`file-${i}`} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", border: "1px solid var(--gb)" }}>
+                          <img src={src} alt={`รูป ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          <button onClick={() => removeAddFile(i)} style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, padding: 0, border: "none", borderRadius: 5, cursor: "pointer", background: "rgba(0,0,0,.75)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                            <X size={10} />
+                          </button>
+                        </div>
+                      ))}
+                      {addLibraryUrls.map((url, i) => (
+                        <div key={`lib-${i}`} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", border: "1px solid rgba(0,255,212,.35)" }}>
+                          <img src={fileUrl(url)} alt={`library ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          <div style={{ position: "absolute", bottom: 3, left: 3, fontSize: 9, background: "rgba(0,255,212,.8)", color: "#000", borderRadius: 3, padding: "1px 4px", fontWeight: 800 }}>LIB</div>
+                          <button onClick={() => setAddLibraryUrls(p => p.filter((_, j) => j !== i))} style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, padding: 0, border: "none", borderRadius: 5, cursor: "pointer", background: "rgba(0,0,0,.75)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                            <X size={10} />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+                  {addTotal < 8 && (
+                    <div {...addRoot()} className={`upload-zone${addDrag ? " drag-over" : ""}`} style={addTotal > 0 ? { padding: "14px 16px" } : {}}>
+                      <input {...addInput()} />
+                      <ImgIcon size={addTotal > 0 ? 18 : 28} color="var(--faint)" style={{ margin: "0 auto 6px", display: "block" }} />
+                      <p style={{ margin: "0 0 4px", fontSize: addTotal > 0 ? 11 : 13, color: "var(--dim)", fontWeight: 600 }}>
+                        {addDrag ? "วางรูปที่นี่…" : addTotal > 0 ? `+ เพิ่มรูปได้อีก ${8 - addTotal} รูป` : "ลากรูปมาวาง หรือคลิกเลือก"}
+                      </p>
+                      {addTotal === 0 && <p style={{ margin: 0, fontSize: 11, color: "var(--faint)" }}>PNG, JPG, WEBP สูงสุด 10MB · ใส่ได้สูงสุด 8 รูป</p>}
+                    </div>
+                  )}
+                  {addTotal < 8 && (
+                    <button onClick={() => { setAssetPickerFor("add"); setShowAssetPicker(true); }} style={{
+                      marginTop: 8, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                      padding: "9px 14px", borderRadius: 10, cursor: "pointer", fontSize: 12.5, fontWeight: 700,
+                      border: "1px solid rgba(0,255,212,.25)", background: "rgba(0,255,212,.05)", color: "var(--teal)",
+                    }}>
+                      <FolderOpen size={14} /> เลือกจาก Asset Library
+                    </button>
+                  )}
                 </div>
-              )}
-              {addPreviews.length < 8 && (
-                <div {...addRoot()} className={`upload-zone${addDrag ? " drag-over" : ""}`} style={addPreviews.length > 0 ? { padding: "14px 16px" } : {}}>
-                  <input {...addInput()} />
-                  <ImgIcon size={addPreviews.length > 0 ? 18 : 28} color="var(--faint)" style={{ margin: "0 auto 6px", display: "block" }} />
-                  <p style={{ margin: "0 0 4px", fontSize: addPreviews.length > 0 ? 11 : 13, color: "var(--dim)", fontWeight: 600 }}>
-                    {addDrag ? "วางรูปที่นี่…" : addPreviews.length > 0 ? `+ เพิ่มรูปได้อีก ${8 - addPreviews.length} รูป` : "ลากรูปมาวาง หรือคลิกเลือก"}
-                  </p>
-                  {addPreviews.length === 0 && <p style={{ margin: 0, fontSize: 11, color: "var(--faint)" }}>PNG, JPG, WEBP สูงสุด 10MB · ใส่ได้สูงสุด 8 รูป</p>}
-                </div>
-              )}
-            </div>
+              );
+            })()}
 
             <FormFields form={addForm} setForm={setAddForm} categories={categories} />
 
@@ -333,6 +444,15 @@ export default function ProductsPage() {
                   </p>
                   {editTotalImages === 0 && <p style={{ margin: 0, fontSize: 11, color: "var(--faint)" }}>PNG, JPG, WEBP สูงสุด 10MB · ใส่ได้สูงสุด 8 รูป</p>}
                 </div>
+              )}
+              {editTotalImages < 8 && (
+                <button onClick={() => { setAssetPickerFor("edit"); setShowAssetPicker(true); }} style={{
+                  marginTop: 8, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                  padding: "9px 14px", borderRadius: 10, cursor: "pointer", fontSize: 12.5, fontWeight: 700,
+                  border: "1px solid rgba(0,255,212,.25)", background: "rgba(0,255,212,.05)", color: "var(--teal)",
+                }}>
+                  <FolderOpen size={14} /> เลือกจาก Asset Library
+                </button>
               )}
               {editProgress && (
                 <div style={{ marginTop: 8, padding: "8px 12px", background: "rgba(0,255,212,.06)", border: "1px solid rgba(0,255,212,.2)", borderRadius: 8, display: "flex", alignItems: "center", gap: 8 }}>
@@ -405,6 +525,13 @@ export default function ProductsPage() {
             );
           })}
         </div>
+      )}
+
+      {showAssetPicker && (
+        <AssetPickerModal
+          onSelect={handleAssetSelect}
+          onClose={() => setShowAssetPicker(false)}
+        />
       )}
 
       <style>{`
