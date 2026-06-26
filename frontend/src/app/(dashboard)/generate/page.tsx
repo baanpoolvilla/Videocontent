@@ -186,6 +186,8 @@ export default function GeneratePage() {
   const [captions, setCaptions]       = useState(false);
   const [includeVoice, setIncludeVoice] = useState(true);
   const [clipCount, setClipCount]     = useState(0); // 0 = auto (match image count, max 3)
+  const [quickDuration, setQuickDuration] = useState(30);
+  const [quickStyle, setQuickStyle]       = useState("✨ Luxury หรูหรา");
   const [showAspectMenu, setShowAspectMenu] = useState(false);
   const [showModelMenu, setShowModelMenu]   = useState(false);
 
@@ -274,26 +276,31 @@ export default function GeneratePage() {
     }
     if (!prompt.trim() && !product) return;
     const userPrompt = prompt.trim() || `สร้างวิดีโอสำหรับ ${product?.name}`;
+    setPrompt("");
 
+    // Fast path: prompt typed + product selected → skip all Q&A, generate directly
+    if (prompt.trim() && mode === "assets" && product) {
+      const autoAnswers = {
+        visual: userPrompt,
+        duration: `${quickDuration} วิ`,
+        style: quickStyle,
+        platform: "TikTok",
+      };
+      setAnswers(autoAnswers);
+      runGenerate(autoAnswers);
+      return;
+    }
+
+    // Story path: no prompt typed, or non-assets mode → Q&A flow
     pushMsg({
       role: "user", text: userPrompt,
       images: product?.media_urls?.slice(0, 3),
       assets: product ? [`📦 ${product.name}`] : [],
     });
     setPhase("story");
-    setPrompt("");
-
-    const hasVisual = prompt.trim().length > 0 && mode === "assets";
-    if (hasVisual) {
-      // user typed a prompt → use it as visual concept, skip Q1
-      setAnswers({ visual: userPrompt });
-      setQIndex(1);
-      await addAiTyping(`โอเค! จะใช้ "${userPrompt}" เป็น concept หลัก — วิดีโอจะยาวแค่ไหน?`, 700);
-    } else {
-      setQIndex(0);
-      const q0 = questions[0];
-      await addAiTyping(q0.getAi?.(userPrompt) ?? "", 800);
-    }
+    setQIndex(0);
+    const q0 = questions[0];
+    await addAiTyping(q0.getAi?.(userPrompt) ?? "", 800);
   };
 
   // ── story answer ───────────────────────────────────────────────────────────
@@ -583,6 +590,37 @@ export default function GeneratePage() {
             fontFamily: "inherit", marginBottom: 14, boxSizing: "border-box",
           }}
         />
+
+        {/* Quick options — only show in assets mode */}
+        {mode === "assets" && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "var(--faint)", fontWeight: 600, marginRight: 2 }}>ความยาว:</span>
+            {[15, 30, 60, 90].map(d => (
+              <button key={d} onMouseDown={() => setQuickDuration(d)} style={{
+                padding: "4px 10px", borderRadius: 6, cursor: "pointer",
+                fontSize: 11, fontWeight: 700,
+                background: quickDuration === d ? "rgba(0,255,212,.12)" : "rgba(255,255,255,.04)",
+                border: `1px solid ${quickDuration === d ? "rgba(0,255,212,.35)" : "var(--gb)"}`,
+                color: quickDuration === d ? "var(--teal)" : "var(--faint)",
+              }}>{d}s</button>
+            ))}
+            <span style={{ fontSize: 11, color: "var(--faint)", fontWeight: 600, marginLeft: 4, marginRight: 2 }}>สไตล์:</span>
+            {[
+              { id: "✨ Luxury หรูหรา", short: "Luxury" },
+              { id: "🎉 Party สนุก",    short: "Party" },
+              { id: "🎨 Playful สีสัน", short: "Playful" },
+              { id: "⬜ Minimal เรียบ", short: "Minimal" },
+            ].map(s => (
+              <button key={s.id} onMouseDown={() => setQuickStyle(s.id)} style={{
+                padding: "4px 10px", borderRadius: 6, cursor: "pointer",
+                fontSize: 11, fontWeight: 700,
+                background: quickStyle === s.id ? "rgba(167,139,250,.12)" : "rgba(255,255,255,.04)",
+                border: `1px solid ${quickStyle === s.id ? "rgba(167,139,250,.35)" : "var(--gb)"}`,
+                color: quickStyle === s.id ? "#A78BFA" : "var(--faint)",
+              }}>{s.short}</button>
+            ))}
+          </div>
+        )}
 
         {/* Badges + send row */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
