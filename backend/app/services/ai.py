@@ -170,34 +170,34 @@ class AIService:
         else:
             concept_block = ""
 
+        # Build the concept directive — user concept is the #1 priority
+        if concept.strip():
+            concept_directive = (
+                f"USER INTENT (TOP PRIORITY — follow this exactly):\n"
+                f'"{concept.strip()}"\n\n'
+                f"Your job: translate this intent into a precise video prompt.\n"
+                f"Use the uploaded image ONLY to add specific visual details "
+                f"(colors, architecture, materials) that make the concept more vivid.\n"
+                f"NEVER replace or override the user intent with random image elements.\n"
+            )
+        else:
+            concept_directive = (
+                f"No specific user concept — describe the most cinematic moment visible in the image.\n"
+            )
+
         prompt_text = (
-            f"You are an elite cinematographer writing AI video generation prompts.\n"
-            f"TARGET VIDEO MODEL: {model_guide}\n"
-            f"{story_block}"
-            f"{concept_block}\n"
+            f"You are a cinematographer turning a user's creative intent into an AI video prompt.\n\n"
+            f"{concept_directive}"
             f"PRODUCT: {product_name}\n"
-            f"VISUAL STYLE: {style_feel}\n\n"
-            f"Study the uploaded image carefully. Write ONE prompt that produces a stunning, "
-            f"professional video from this exact image.\n\n"
-            f"WRITE IN THIS ORDER (no labels in output):\n"
-            f"1. Camera move with speed — e.g. 'Ultra-slow dolly push-in reveals,' "
-            f"'Gentle overhead crane descends over,' 'Low orbital arc sweeps across'\n"
-            f"2. Central subject — richly describe exactly what is in the image\n"
-            f"3. Natural motion in frame — water rippling, palms swaying, steam curling, "
-            f"curtains drifting, reflections shimmering, leaves catching light\n"
-            f"4. Lighting — quality, direction, color temp: golden-hour amber backlight, "
-            f"dappled sunlight through palms, soft volumetric rays, bokeh highlights\n"
-            f"5. Atmosphere — sensory mood: tropical warmth, morning mist, blue-hour serenity, "
-            f"candlelight flicker, salt-air breeze\n"
-            f"6. Quality tags — cinematic, photorealistic, 4K, ultra-slow motion, "
-            f"anamorphic lens character, shallow depth of field\n\n"
-            f"RULES:\n"
-            f"1. English ONLY — absolutely zero Thai characters in output.\n"
-            f"2. 140-155 words — richer prompts produce dramatically better video.\n"
-            f"3. Describe ONLY what is visible in the image — no invented people or new locations.\n"
-            f"4. Start directly with camera move — not 'I', not 'Here is', not 'The prompt'.\n"
-            f"5. Specific beats vague — every word must earn its place.\n"
-            f"6. Output raw prompt text ONLY — no labels, no numbering, no markdown."
+            f"STYLE FEEL: {style_feel}\n"
+            f"TARGET MODEL: {model_guide}\n"
+            f"{story_block}\n"
+            f"OUTPUT RULES:\n"
+            f"1. English ONLY — zero Thai characters.\n"
+            f"2. 50-70 words MAX — concise and focused.\n"
+            f"3. Start with camera movement (e.g. 'Slow dolly push-in...', 'Ultra-slow overhead pan...').\n"
+            f"4. Include: camera move · subject · motion in scene · lighting · atmosphere.\n"
+            f"5. Raw prompt text only — no labels, no markdown, no explanations."
         )
 
         import asyncio as _asyncio
@@ -210,7 +210,7 @@ class AIService:
         clean = _clean_prompt(raw)
         words = clean.split()
         logger.info(f"[AI] vision prompt slot={slot_index}/{total_slots} ({len(words)} words): {' '.join(words[:10])}...")
-        return " ".join(words[:155])
+        return " ".join(words[:70])
 
     async def analyze_product(self, product_name: str, description: str, brand_context: str = "") -> dict:
         prompt = f"""วิเคราะห์สินค้าต่อไปนี้เพื่อสร้างวิดีโอสั้น:
