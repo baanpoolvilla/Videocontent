@@ -40,8 +40,20 @@ export default function AnalyticsPage() {
         </p>
         <h1 style={{ margin: "0 0 4px", fontSize: 26, fontWeight: 800, color: "var(--text)", letterSpacing: "-.02em" }}>Analytics</h1>
         <p style={{ margin: 0, fontSize: 13, color: "var(--dim)" }}>
-          วิเคราะห์ประสิทธิภาพคอนเทนต์ · <span className="live-dot" />อัปเดตทุกชั่วโมง
+          วิเคราะห์ประสิทธิภาพคอนเทนต์
         </p>
+      </div>
+
+      {/* Coming soon notice */}
+      <div style={{ marginBottom: 20, padding: "14px 18px", background: "rgba(255,176,46,.07)", border: "1px solid rgba(255,176,46,.22)", borderRadius: 14, display: "flex", gap: 12, alignItems: "center" }}>
+        <BarChart3 size={16} color="var(--warn)" style={{ flexShrink: 0 }} />
+        <div style={{ flex: 1 }}>
+          <p style={{ margin: "0 0 2px", fontSize: 13, fontWeight: 700, color: "var(--text)" }}>ข้อมูลตัวอย่าง (Demo)</p>
+          <p style={{ margin: 0, fontSize: 12, color: "var(--dim)", lineHeight: 1.55 }}>
+            Analytics กำลังพัฒนา — ข้อมูลที่แสดงเป็นตัวอย่างสาธิตเท่านั้น ยังไม่ได้เชื่อมต่อกับ TikTok / Instagram API
+          </p>
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 8, background: "rgba(255,176,46,.15)", color: "var(--warn)", flexShrink: 0 }}>Coming Soon</span>
       </div>
 
       {/* KPI row */}
@@ -69,7 +81,7 @@ export default function AnalyticsPage() {
         <div className="card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <h2 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: "var(--text)" }}>Views รายวัน</h2>
-            <span className="tag tag-info">7 วันล่าสุด</span>
+            <span className="tag tag-warn">ตัวอย่าง</span>
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={mockData} barSize={28}>
@@ -126,7 +138,7 @@ export default function AnalyticsPage() {
             <TrendingUp size={15} color="var(--teal)" />
           </div>
           <h2 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: "var(--text)" }}>AI Insights</h2>
-          <span className="tag tag-ok" style={{ marginLeft: "auto" }}>อัปเดตล่าสุด</span>
+          <span className="tag tag-warn" style={{ marginLeft: "auto" }}>ตัวอย่าง</span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
           {TIPS.map(({ label, tip, c }) => (

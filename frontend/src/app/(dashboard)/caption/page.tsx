@@ -315,7 +315,8 @@ export default function CaptionPage() {
   const product    = job ? products[job.product_id] : null;
   const jobScripts = selectedJob ? (scripts[selectedJob] || []) : [];
   const script     = jobScripts[0] || null;
-  const hashtags   = POOL_VILLA_TAGS;
+  const [hashtagText, setHashtagText] = useState(() => POOL_VILLA_TAGS.join(" "));
+  const hashtags = hashtagText.split(/\s+/).filter(t => t.length > 0);
   const caption    = script ? buildCaption(script, hashtags) : "";
   const jobsWithScripts = jobs.filter(j => scripts[j.id]?.length > 0);
   const hasScripts = jobsWithScripts.length > 0;
@@ -440,17 +441,27 @@ export default function CaptionPage() {
                     <h2 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}>
                       <Hash size={15} color="var(--teal)" /> Hashtags
                     </h2>
-                    <CopyBtn text={hashtags.join(" ")} label="คัดลอก hashtag" />
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => setHashtagText(POOL_VILLA_TAGS.join(" "))} style={{
+                        padding: "6px 12px", borderRadius: 8, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
+                        border: "1px solid var(--gb)", background: "var(--glass)", color: "var(--faint)",
+                      }}>รีเซ็ต</button>
+                      <CopyBtn text={hashtags.join(" ")} label="คัดลอก hashtag" />
+                    </div>
                   </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {hashtags.map(tag => (
-                      <span key={tag} onClick={() => navigator.clipboard.writeText(tag)} style={{
-                        padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700,
-                        background: "rgba(0,255,212,.08)", border: "1px solid rgba(0,255,212,.2)",
-                        color: "var(--teal)", cursor: "pointer",
-                      }}>{tag}</span>
-                    ))}
-                  </div>
+                  <textarea
+                    value={hashtagText}
+                    onChange={e => setHashtagText(e.target.value)}
+                    placeholder="#hashtag1 #hashtag2 ..."
+                    rows={3}
+                    style={{
+                      width: "100%", boxSizing: "border-box",
+                      background: "var(--bg)", border: "1px solid var(--gb)", borderRadius: 10,
+                      padding: "12px 14px", color: "var(--text)", fontSize: 13,
+                      resize: "vertical", lineHeight: 1.7, outline: "none",
+                    }}
+                  />
+                  <p style={{ margin: "6px 0 0", fontSize: 11, color: "var(--faint)" }}>{hashtags.length} hashtag · แก้ไขได้โดยตรง</p>
                 </div>
 
                 {/* Schedule panel */}

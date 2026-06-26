@@ -49,12 +49,18 @@ const RULES = [
 
 export default function CompliancePage() {
   const allIds = RULES.flatMap(g => g.items.map(i => i.id));
-  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [checked, setChecked] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem("compliance_checked");
+      return saved ? new Set<string>(JSON.parse(saved)) : new Set<string>();
+    } catch { return new Set<string>(); }
+  });
 
   const toggle = (id: string) =>
     setChecked(prev => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
+      localStorage.setItem("compliance_checked", JSON.stringify([...next]));
       return next;
     });
 
@@ -62,6 +68,7 @@ export default function CompliancePage() {
     setChecked(prev => {
       const next = new Set(prev);
       ids.forEach(id => next.add(id));
+      localStorage.setItem("compliance_checked", JSON.stringify([...next]));
       return next;
     });
 
@@ -151,7 +158,7 @@ export default function CompliancePage() {
       <div style={{ marginTop: 20, padding: "14px 16px", background: "rgba(77,127,255,.06)", border: "1px solid rgba(77,127,255,.18)", borderRadius: 12, display: "flex", gap: 10 }}>
         <Info size={15} color="var(--blue)" style={{ flexShrink: 0, marginTop: 1 }} />
         <p style={{ margin: 0, fontSize: 12, color: "var(--dim)", lineHeight: 1.65 }}>
-          รายการนี้ใช้สำหรับการตรวจสอบด้วยตนเอง ไม่ได้บันทึกอัตโนมัติ — ตรวจสอบก่อนทุกครั้งที่จะโพสต์
+          รายการนี้ใช้สำหรับการตรวจสอบด้วยตนเอง — บันทึกสถานะไว้ในเบราว์เซอร์นี้อัตโนมัติ
         </p>
       </div>
 

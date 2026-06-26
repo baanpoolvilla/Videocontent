@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { Package, Film, Clock, CheckCircle2, TrendingUp, AlertTriangle, ArrowRight } from "lucide-react";
 import Link from "next/link";
@@ -45,7 +45,6 @@ const PIPELINE = [
 ];
 
 const WEEK = ["จ", "อ", "พ", "พฤ", "ศ", "ส", "อา"];
-const BAR_H = [55, 80, 38, 95, 62, 45, 72];
 
 export default function DashboardPage() {
   const [stats, setStats]     = useState<Stats | null>(null);
@@ -55,7 +54,7 @@ export default function DashboardPage() {
   useEffect(() => {
     Promise.all([
       api.get("/dashboard/stats"),
-      api.get("/jobs/?limit=8"),
+      api.get("/jobs/?limit=50"),
     ]).then(([statsRes, jobsRes]) => {
       setStats(statsRes.data);
       setRecentJobs(jobsRes.data);
@@ -64,6 +63,21 @@ export default function DashboardPage() {
   }, []);
 
   const val = (key: keyof Stats) => stats?.[key] ?? 0;
+
+  const BAR_H = useMemo(() => {
+    if (!recentJobs.length) return [4, 4, 4, 4, 4, 4, 4];
+    const now = Date.now();
+    const counts = new Array(7).fill(0);
+    recentJobs.forEach(j => {
+      const daysAgo = Math.floor((now - new Date(j.created_at).getTime()) / 86400000);
+      if (daysAgo >= 0 && daysAgo < 7) {
+        const dow = new Date(j.created_at).getDay(); // 0=Sun..6=Sat
+        counts[dow === 0 ? 6 : dow - 1]++;           // remap Mon=0..Sun=6
+      }
+    });
+    const max = Math.max(...counts, 1);
+    return counts.map(c => Math.max(Math.round((c / max) * 95), 4));
+  }, [recentJobs]);
 
   return (
     <div className="page-enter" style={{ padding: "32px 40px", minHeight: "100vh" }}>

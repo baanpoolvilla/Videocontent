@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Calendar, Clock, CheckCircle2, AlertCircle, X, Plus, RefreshCw } from "lucide-react";
-
-const API = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1`;
+import { api } from "@/lib/api";
 
 interface ScheduledPost {
   id: string;
@@ -45,11 +44,6 @@ function fmt(iso: string | null) {
   return d.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" });
 }
 
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem("access_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 export default function SchedulePage() {
   const [posts, setPosts] = useState<ScheduledPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,9 +55,8 @@ export default function SchedulePage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API}/schedule/posts/`, { headers: authHeaders() });
-      if (!res.ok) throw new Error(await res.text());
-      setPosts(await res.json());
+      const res = await api.get("/schedule/posts/");
+      setPosts(res.data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "โหลดข้อมูลไม่สำเร็จ");
     } finally {
@@ -75,10 +68,7 @@ export default function SchedulePage() {
     if (!confirm("ยืนยันการยกเลิกโพสต์?")) return;
     setDeleting(id);
     try {
-      await fetch(`${API}/schedule/posts/${id}`, {
-        method: "DELETE",
-        headers: authHeaders(),
-      });
+      await api.delete(`/schedule/posts/${id}`);
       setPosts((p) => p.filter((x) => x.id !== id));
     } catch {
       alert("ยกเลิกไม่สำเร็จ");
