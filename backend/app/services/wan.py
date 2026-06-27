@@ -114,8 +114,8 @@ class WanService:
             raise RuntimeError(f"fal.ai did not return request_id: {data}")
 
         status_url   = data.get("status_url") or f"{FAL_QUEUE}/{model}/requests/{request_id}/status"
-        # fal.ai response_url is truncated (missing model path) — always construct it
-        response_url = f"{FAL_QUEUE}/{model}/requests/{request_id}"
+        # Use fal.ai's own response_url — constructing it with model path returns 405
+        response_url = data.get("response_url") or f"{FAL_QUEUE}/{model}/requests/{request_id}"
         logger.info(f"[FAL] request_id={request_id}")
         logger.info(f"[FAL] status_url={status_url}")
         logger.info(f"[FAL] response_url={response_url}")
