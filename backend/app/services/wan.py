@@ -40,6 +40,16 @@ MODEL_PROMPT_CHARS: dict[str, int] = {
     "fal-ai/wan/v2.1/image-to-video":                  1900,  # Wan — no hard limit, cap at 1900
 }
 
+# Max seconds per single clip generation for each model
+MODEL_MAX_DUR_PER_CLIP: dict[str, int] = {
+    "fal-ai/kling-video/v3/standard/image-to-video": 10,
+    "fal-ai/kling-video/v3/pro/image-to-video":      10,
+    "fal-ai/minimax/hailuo-2.3/pro/image-to-video":  9,
+    "fal-ai/bytedance/seedance-v1/i2v/turbo":         10,
+    "fal-ai/bytedance/seedance-v1/i2v/standard":      10,
+    "fal-ai/wan/v2.1/image-to-video":                 5,
+}
+
 DEFAULT_I2V = MODELS["kling3s"]
 DEFAULT_T2V = MODELS["kling3s"]
 
@@ -103,9 +113,9 @@ class WanService:
         if not request_id:
             raise RuntimeError(f"fal.ai did not return request_id: {data}")
 
-        # Use URLs returned by fal.ai — don't construct manually
-        status_url   = data.get("status_url")   or f"{FAL_QUEUE}/{model}/requests/{request_id}/status"
-        response_url = data.get("response_url") or f"{FAL_QUEUE}/{model}/requests/{request_id}"
+        status_url   = data.get("status_url") or f"{FAL_QUEUE}/{model}/requests/{request_id}/status"
+        # fal.ai response_url is truncated (missing model path) — always construct it
+        response_url = f"{FAL_QUEUE}/{model}/requests/{request_id}"
         logger.info(f"[FAL] request_id={request_id}")
         logger.info(f"[FAL] status_url={status_url}")
         logger.info(f"[FAL] response_url={response_url}")

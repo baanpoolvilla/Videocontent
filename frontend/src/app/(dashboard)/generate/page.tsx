@@ -88,70 +88,19 @@ const MODE_TABS = [
 ];
 
 const ASPECT_OPTIONS: AspectRatio[] = ["9:16", "1:1", "16:9"];
-const MODEL_OPTIONS: { id: AIModel; label: string; desc: string; priceClip: string; price3clips: string; badge?: string; color: string }[] = [
-  {
-    id: "kenburs",
-    label: "Ken Burns",
-    desc: "รูปนิ่ง + zoom/pan — ไม่ใช้ AI",
-    priceClip: "ฟรี",
-    price3clips: "ฟรี",
-    badge: "FREE",
-    color: "#22D499",
-  },
-  {
-    id: "kling3s",
-    label: "Kling v3 Standard",
-    desc: "AI motion จริง — คุณภาพสูง",
-    priceClip: "$1.89 / คลิป",
-    price3clips: "~$5.67 / วิดีโอ",
-    badge: "ถูกสุด",
-    color: "#00FFD4",
-  },
-  {
-    id: "seedance2",
-    label: "Seedance 2.0 Fast",
-    desc: "AI ByteDance — motion ลื่น",
-    priceClip: "$2.43 / คลิป",
-    price3clips: "~$7.29 / วิดีโอ",
-    color: "#4D7FFF",
-  },
-  {
-    id: "seedance2_pro",
-    label: "Seedance 2.0 Pro",
-    desc: "คุณภาพสูงสุด — 4K",
-    priceClip: "$4.25 / คลิป",
-    price3clips: "~$12.75 / วิดีโอ",
-    badge: "แพง",
-    color: "#FF6B6B",
-  },
-  {
-    id: "hailuo2pro",
-    label: "Hailuo 2.3 Pro",
-    desc: "Minimax — motion ลื่น atmospheric",
-    priceClip: "$0.49 / คลิป",
-    price3clips: "~$1.47 / วิดีโอ",
-    badge: "ถูก",
-    color: "#A78BFA",
-  },
-  {
-    id: "wan21",
-    label: "Wan 2.1",
-    desc: "Alibaba — เข้าใจ prompt ดี ราคาประหยัด",
-    priceClip: "$0.30 / คลิป",
-    price3clips: "~$0.90 / วิดีโอ",
-    badge: "ถูกสุด",
-    color: "#34D399",
-  },
-  {
-    id: "kling3s_pro",
-    label: "Kling v3 Pro",
-    desc: "Kuaishou — คุณภาพสูงสุด ระดับภาพยนตร์",
-    priceClip: "$2.88 / คลิป",
-    price3clips: "~$8.64 / วิดีโอ",
-    badge: "Pro",
-    color: "#818CF8",
-  },
+const MODEL_OPTIONS: { id: AIModel; label: string; desc: string; maxClipSec: number; priceClip: string; badge?: string; color: string }[] = [
+  { id: "kenburs",      label: "Ken Burns",         desc: "รูปนิ่ง + zoom/pan — ไม่ใช้ AI",              maxClipSec: 99, priceClip: "ฟรี",           badge: "FREE",  color: "#22D499" },
+  { id: "wan21",        label: "Wan 2.1",            desc: "Alibaba — เข้าใจ prompt ดี ราคาประหยัด",      maxClipSec: 5,  priceClip: "$0.30 / คลิป",  badge: "ถูกสุด", color: "#34D399" },
+  { id: "hailuo2pro",   label: "Hailuo 2.3 Pro",    desc: "Minimax — motion ลื่น atmospheric",            maxClipSec: 9,  priceClip: "$0.49 / คลิป",  badge: "ถูก",   color: "#A78BFA" },
+  { id: "kling3s",      label: "Kling v3 Standard",  desc: "AI motion จริง — คุณภาพสูง",                  maxClipSec: 10, priceClip: "$1.89 / คลิป",                  color: "#00FFD4" },
+  { id: "seedance2",    label: "Seedance 2.0 Fast",  desc: "AI ByteDance — motion ลื่น",                  maxClipSec: 10, priceClip: "$2.43 / คลิป",                  color: "#4D7FFF" },
+  { id: "kling3s_pro",  label: "Kling v3 Pro",       desc: "Kuaishou — คุณภาพสูงสุด ระดับภาพยนตร์",       maxClipSec: 10, priceClip: "$2.88 / คลิป",  badge: "Pro",   color: "#818CF8" },
+  { id: "seedance2_pro",label: "Seedance 2.0 Pro",   desc: "คุณภาพสูงสุด — 4K",                           maxClipSec: 10, priceClip: "$4.25 / คลิป",  badge: "แพง",   color: "#FF6B6B" },
 ];
+
+const MODEL_MAX_CLIP_SEC: Record<AIModel, number> = Object.fromEntries(
+  MODEL_OPTIONS.map(m => [m.id, m.maxClipSec])
+) as Record<AIModel, number>;
 
 const PLATFORM_MAP: Record<string, string> = {
   "tiktok": "tiktok", "instagram reel": "instagram", "instagram": "instagram",
@@ -185,9 +134,6 @@ export default function GeneratePage() {
   const [aiModel, setAiModel]         = useState<AIModel>("hailuo2pro");
   const [captions, setCaptions]       = useState(false);
   const [includeVoice, setIncludeVoice] = useState(true);
-  const [clipCount, setClipCount]     = useState(1);
-  // combined preset: sets both duration + clip count together
-  const [videoPreset, setVideoPreset] = useState<"short"|"medium"|"long">("short");
   const [quickDuration, setQuickDuration] = useState(15);
   const [quickStyle, setQuickStyle]       = useState("✨ Luxury หรูหรา");
   const [quickTone, setQuickTone]         = useState("หรู พรีเมียม ซีเนมาติก");
@@ -436,7 +382,7 @@ export default function GeneratePage() {
           ai_model:      aiModel,
           aspect_ratio:  aspectRatio.replace(/:/g, "x"),
           logo_url:      logoUrl,
-          clip_count:    clipCount,
+          clip_count:    aiModel === "kenburs" ? 1 : Math.ceil(pendingDurSec / (MODEL_MAX_CLIP_SEC[aiModel] ?? 5)),
         },
       });
 
@@ -643,26 +589,31 @@ export default function GeneratePage() {
 
               {/* ความยาว */}
               <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 7 }}>
-                  <div style={{ width: 2, height: 10, borderRadius: 1, background: "var(--teal)", flexShrink: 0 }} />
-                  <div style={{ fontSize: 9, color: "var(--dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em" }}>ความยาว</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <div style={{ width: 2, height: 10, borderRadius: 1, background: "var(--teal)", flexShrink: 0 }} />
+                    <div style={{ fontSize: 9, color: "var(--dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em" }}>ความยาว</div>
+                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 900, color: "var(--teal)" }}>{quickDuration}s</span>
                 </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {([
-                    { id: "short"  as const, label: "สั้น", sub: "~15s", clips: 1, dur: 15 },
-                    { id: "medium" as const, label: "กลาง", sub: "~30s", clips: 2, dur: 30 },
-                    { id: "long"   as const, label: "ยาว",  sub: "~60s", clips: 3, dur: 60 },
-                  ] as { id: "short"|"medium"|"long"; label: string; sub: string; clips: number; dur: number }[]).map(p => (
-                    <button key={p.id} onMouseDown={() => { setVideoPreset(p.id); setClipCount(p.clips); setQuickDuration(p.dur); }} style={{
-                      flex: 1, padding: "7px 6px", borderRadius: 8, cursor: "pointer", textAlign: "center",
-                      background: videoPreset === p.id ? "rgba(0,255,212,.1)" : "rgba(255,255,255,.04)",
-                      border: `1px solid ${videoPreset === p.id ? "rgba(0,255,212,.35)" : "var(--gb)"}`,
-                    }}>
-                      <div style={{ fontSize: 11.5, fontWeight: 800, color: videoPreset === p.id ? "var(--teal)" : "var(--dim)" }}>{p.label}</div>
-                      <div style={{ fontSize: 9, color: "var(--faint)" }}>{p.sub}</div>
-                    </button>
-                  ))}
+                <input
+                  type="range" min={5} max={60} step={5}
+                  value={quickDuration}
+                  onChange={e => setQuickDuration(Number(e.target.value))}
+                  style={{ width: "100%", accentColor: "var(--teal)", cursor: "pointer" }}
+                />
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "var(--faint)", marginTop: 2 }}>
+                  <span>5s</span><span>30s</span><span>60s</span>
                 </div>
+                {aiModel !== "kenburs" && (() => {
+                  const maxSec = MODEL_MAX_CLIP_SEC[aiModel];
+                  const clips = Math.ceil(quickDuration / maxSec);
+                  return clips > 1 ? (
+                    <div style={{ marginTop: 5, fontSize: 10, color: "#fbbf24", background: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.2)", borderRadius: 6, padding: "4px 8px" }}>
+                      {quickDuration}s ÷ {maxSec}s = <b>{clips} คลิป AI</b>
+                    </div>
+                  ) : null;
+                })()}
               </div>
 
               {/* โทน */}
@@ -796,7 +747,7 @@ export default function GeneratePage() {
                       </div>
                       <div style={{ textAlign: "right", flexShrink: 0 }}>
                         <div style={{ fontSize: 11.5, fontWeight: 700, color: active ? m.color : "var(--dim)" }}>{m.priceClip}</div>
-                        <div style={{ fontSize: 9.5, color: "var(--faint)" }}>{m.price3clips}</div>
+                        <div style={{ fontSize: 9.5, color: "var(--faint)" }}>{m.maxClipSec === 99 ? "ไม่จำกัด" : `สูงสุด ${m.maxClipSec}s/คลิป`}</div>
                       </div>
                     </button>
                   );
@@ -1002,7 +953,8 @@ export default function GeneratePage() {
     const px = falPricing[aiModel];
     const clipUsd       = px?.usd_per_clip   ?? 0;
     const clipThb       = px?.thb_per_clip   ?? 0;
-    const actualClips   = clipCount > 0 ? clipCount : Math.min(product?.media_urls?.length ?? 3, 3);
+    const maxClipSec    = MODEL_MAX_CLIP_SEC[aiModel] ?? 5;
+    const actualClips   = aiModel === "kenburs" ? 1 : Math.ceil(pendingDurSec / maxClipSec);
     const estimatedUsd  = clipUsd * actualClips;
     const estimatedThb  = clipThb * actualClips;
     return (
@@ -1087,7 +1039,7 @@ export default function GeneratePage() {
                       <span style={{ fontSize: 12, fontWeight: 800, color: active ? m.color : "var(--dim)" }}>{m.label}</span>
                       {m.badge && <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 6, background: active ? m.color : "rgba(255,255,255,.08)", color: active ? "#06060A" : "var(--faint)" }}>{m.badge}</span>}
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--faint)" }}>{m.priceClip} · {m.price3clips}</div>
+                    <div style={{ fontSize: 11, color: "var(--faint)" }}>{m.priceClip} · {m.maxClipSec === 99 ? "ไม่จำกัด" : `สูงสุด ${m.maxClipSec}s/คลิป`}</div>
                   </button>
                 );
               })}
@@ -1102,7 +1054,7 @@ export default function GeneratePage() {
               { label: "Duration", value: `${pendingDurSec}s` },
               { label: "Style", value: pendingStyle },
               { label: "Voice", value: includeVoice ? "ON" : "OFF" },
-              ...(aiModel !== "kenburs" ? [{ label: "Clips", value: clipCount === 0 ? `auto (${Math.min(product?.media_urls?.length ?? 3, 3)})` : `${clipCount}` }] : []),
+              ...(aiModel !== "kenburs" ? [{ label: "Clips", value: `${actualClips} (${pendingDurSec}s ÷ ${MODEL_MAX_CLIP_SEC[aiModel] ?? 5}s)` }] : []),
             ].map(({ label, value }) => (
               <div key={label} style={{ background: "rgba(255,255,255,.04)", border: "1px solid var(--gb)", borderRadius: 8, padding: "4px 10px", fontSize: 11 }}>
                 <span style={{ color: "var(--faint)" }}>{label}: </span>

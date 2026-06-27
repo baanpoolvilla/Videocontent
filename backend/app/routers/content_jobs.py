@@ -24,7 +24,8 @@ from app.services.ai import ai_service
 from app.services.tts import tts_service
 from app.services.video import video_service
 from app.services.kling import kling_service
-from app.services.wan import wan_service
+from math import ceil
+from app.services.wan import wan_service, MODEL_MAX_DUR_PER_CLIP
 
 router = APIRouter(prefix="/jobs", tags=["content-jobs"])
 
@@ -325,9 +326,11 @@ async def _do_render(
 
             if settings.FAL_KEY and image_urls and ai_model != "kenburs":
                 prompt = video_prompt.strip() or _STYLE_PROMPTS.get(style, _STYLE_PROMPTS["playful"])
-                n_clips = min(len(image_urls), clip_count if clip_count > 0 else 3)
+                per_clip_dur = MODEL_MAX_DUR_PER_CLIP.get(fal_model, 5)
+                n_clips = clip_count if clip_count > 0 else ceil(duration_sec / per_clip_dur)
+                # Cycle through images if we need more clips than images available
                 images_to_use = [image_urls[i % len(image_urls)] for i in range(n_clips)]
-                logger.info(f"[RENDER] AI mode ai_model={ai_model} fal_model={fal_model} aspect={aspect_ratio} n_clips={n_clips}")
+                logger.info(f"[RENDER] AI mode ai_model={ai_model} fal_model={fal_model} aspect={aspect_ratio} n_clips={n_clips} per_clip_dur={per_clip_dur}s")
 
                 async def _gen_clip(img_path: str) -> str:
                     raw = img_path.strip("/")
@@ -337,7 +340,7 @@ async def _do_render(
                             image_url=public_url,
                             prompt=prompt,
                             aspect_ratio=aspect_ratio,
-                            duration="5",
+                            duration=str(per_clip_dur),
                             model=fal_model,
                         )
                         return r.get("video_url", "")
