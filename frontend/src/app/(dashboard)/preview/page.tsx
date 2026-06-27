@@ -24,8 +24,30 @@ interface RenderVersion {
   id: string; content_job_id: string; version_label: string | null;
   final_video_url: string | null; status: string; created_at: string;
   script_text?: string | null;
+  ffmpeg_config?: { duration_sec?: number; images?: number; provider?: string; clips?: number; model?: string; } | null;
 }
 interface Product { id: string; name: string; media_urls: string[]; }
+
+const MODEL_LABELS: Record<string, string> = {
+  "kenburs":        "Ken Burns (FFmpeg)",
+  "ffmpeg-kenburs": "Ken Burns (FFmpeg)",
+  "hailuo2pro":     "Hailuo 2.3 Pro",
+  "kling3s":        "Kling v3 Standard",
+  "kling3s_pro":    "Kling v3 Pro",
+  "seedance2":      "Seedance 2.0 Fast",
+  "seedance2_pro":  "Seedance 2.0 Pro",
+  "seedance2_multi":"Seedance Multi-Shot",
+  "wan21":          "Wan 2.2 Turbo",
+  "story":          "Story Mode",
+};
+const MODEL_COLORS: Record<string, string> = {
+  "kenburs":        "#22D499", "ffmpeg-kenburs": "#22D499",
+  "hailuo2pro":     "#A78BFA",
+  "kling3s":        "#00FFD4", "kling3s_pro": "#818CF8",
+  "seedance2":      "#FB923C", "seedance2_pro": "#F43F5E", "seedance2_multi": "#F59E0B",
+  "wan21":          "#34D399",
+  "story":          "#4D7FFF",
+};
 
 const VIDEO_STYLES: Record<string, { emoji: string; label: string; color: string; border: string }> = {
   playful: { emoji: "🎨", label: "Playful Overlay",    color: "rgba(255,107,183,.15)", border: "rgba(255,107,183,.4)" },
@@ -601,35 +623,53 @@ export default function PreviewPage() {
               </div>
             </div>
 
-            {/* Badges */}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
-              {[
-                { label: "Asset to video", color: "rgba(0,255,212,.1)", border: "rgba(0,255,212,.25)", text: "var(--teal)" },
-                { label: "9:16",           color: "rgba(77,127,255,.1)", border: "rgba(77,127,255,.25)", text: "var(--blue)" },
-                { label: "30s",            color: "var(--glass)",        border: "var(--gb)",            text: "var(--dim)" },
-              ].map(b => (
-                <span key={b.label} style={{
-                  padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
-                  background: b.color, border: `1px solid ${b.border}`, color: b.text,
-                }}>
-                  {b.label}
-                </span>
-              ))}
-            </div>
+            {/* Badges — dynamic from render ffmpeg_config */}
+            {(() => {
+              const cfg = selected?.ffmpeg_config;
+              const durSec = cfg?.duration_sec;
+              const imgCount = cfg?.images;
+              const versionLabel = selected?.version_label;
+              const typeLabel = versionLabel === "story" ? "Story Mode" : versionLabel === "voice" ? "Remix Audio" : "Asset to video";
+              return (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+                  <span style={{ padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: "rgba(0,255,212,.1)", border: "1px solid rgba(0,255,212,.25)", color: "var(--teal)" }}>
+                    {typeLabel}
+                  </span>
+                  {durSec != null && (
+                    <span style={{ padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: "var(--glass)", border: "1px solid var(--gb)", color: "var(--dim)" }}>
+                      {durSec}s
+                    </span>
+                  )}
+                  {imgCount != null && imgCount > 0 && (
+                    <span style={{ padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: "rgba(77,127,255,.1)", border: "1px solid rgba(77,127,255,.25)", color: "var(--blue)" }}>
+                      {imgCount} รูป
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
 
-            {/* AI model badges */}
-            <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
-              {["Kling v1", "Seedance 1.5"].map(m => (
-                <span key={m} style={{
-                  display: "flex", alignItems: "center", gap: 5,
-                  padding: "5px 10px", borderRadius: 7, fontSize: 11, fontWeight: 700,
-                  background: "var(--glass)", border: "1px solid var(--gb)", color: "var(--dim)",
-                }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--teal)", display: "inline-block" }} />
-                  {m}
-                </span>
-              ))}
-            </div>
+            {/* AI model badge — actual model used, from ffmpeg_config.provider */}
+            {(() => {
+              const provider = selected?.ffmpeg_config?.provider || "";
+              const label = MODEL_LABELS[provider] || (provider ? provider : "ไม่ทราบโมเดล");
+              const color = MODEL_COLORS[provider] || "var(--teal)";
+              return (
+                <div style={{ marginBottom: 20 }}>
+                  <p style={{ margin: "0 0 6px", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--faint)" }}>
+                    AI Model ที่ใช้
+                  </p>
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700,
+                    background: `${color}15`, border: `1px solid ${color}35`, color,
+                  }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0 }} />
+                    {label}
+                  </span>
+                </div>
+              );
+            })()}
 
             {/* Transcript */}
             <div style={{ marginBottom: 20 }}>
