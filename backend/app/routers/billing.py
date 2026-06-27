@@ -9,15 +9,16 @@ logger = logging.getLogger(__name__)
 
 FAL_CREDIT_URL = "https://rest.alpha.fal.ai/billing/credit"
 
-# Verified fal.ai pricing (USD per clip, 5-second generation)
+# Verified fal.ai pricing (USD per clip/video)
 MODEL_PRICING = {
-    "kenburs":       {"usd_per_clip": 0.00,  "label": "Ken Burns (ฟรี)",        "model_id": "ffmpeg"},
-    "hailuo2pro":    {"usd_per_clip": 0.49,  "label": "Hailuo 2.3 Pro",         "model_id": "fal-ai/minimax/hailuo-2.3/pro/image-to-video"},
-    "wan21":         {"usd_per_clip": 0.30,  "label": "Wan 2.1",                 "model_id": "fal-ai/wan/v2.1/image-to-video"},
-    "kling3s":       {"usd_per_clip": 1.89,  "label": "Kling v3 Standard",       "model_id": "fal-ai/kling-video/v3/standard/image-to-video"},
-    "kling3s_pro":   {"usd_per_clip": 2.88,  "label": "Kling v3 Pro",            "model_id": "fal-ai/kling-video/v3/pro/image-to-video"},
-    "seedance2":     {"usd_per_clip": 2.43,  "label": "Seedance 2.0 Turbo",      "model_id": "fal-ai/bytedance/seedance-v1/i2v/turbo"},
-    "seedance2_pro": {"usd_per_clip": 4.25,  "label": "Seedance 2.0 Standard",   "model_id": "fal-ai/bytedance/seedance-v1/i2v/standard"},
+    "kenburs":        {"usd_per_clip": 0.00,  "label": "Ken Burns (ฟรี)",              "model_id": "ffmpeg"},
+    "hailuo2pro":     {"usd_per_clip": 0.49,  "label": "Hailuo 2.3 Pro",               "model_id": "fal-ai/minimax/hailuo-2.3/pro/image-to-video"},
+    "wan21":          {"usd_per_clip": 0.10,  "label": "Wan 2.2 Turbo",                "model_id": "fal-ai/wan/v2.2-a14b/image-to-video/turbo"},
+    "kling3s":        {"usd_per_clip": 1.89,  "label": "Kling v3 Standard",            "model_id": "fal-ai/kling-video/v3/standard/image-to-video"},
+    "kling3s_pro":    {"usd_per_clip": 2.88,  "label": "Kling v3 Pro",                 "model_id": "fal-ai/kling-video/v3/pro/image-to-video"},
+    "seedance2":      {"usd_per_clip": 2.43,  "label": "Seedance 2.0 Fast",            "model_id": "bytedance/seedance-2.0/fast/image-to-video"},
+    "seedance2_pro":  {"usd_per_clip": 4.25,  "label": "Seedance 2.0 Pro (4K)",        "model_id": "bytedance/seedance-2.0/image-to-video"},
+    "seedance2_multi":{"usd_per_clip": 4.25,  "label": "Seedance Multi-Shot (9 รูป)",  "model_id": "bytedance/seedance-2.0/reference-to-video"},
 }
 
 THB_PER_USD = 35.0  # approximate exchange rate

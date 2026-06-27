@@ -14,9 +14,17 @@ OUT_W, OUT_H = 1080, 1920
 PRE_W, PRE_H = int(OUT_W * 1.3), int(OUT_H * 1.3)   # 1404 x 2496
 
 # Crossfade settings for AI clips
-FADE_DUR = 1.0          # seconds — dissolve between clips
-FADE_TRANSITION = "fadeblack"  # xfade transition type (fadeblack = cinematic fade through black)
-FADE_ENDS = 0.4         # seconds — fade-in at start and fade-out at end
+FADE_DUR = 1.5          # seconds — max crossfade between clips
+FADE_TRANSITION = "dissolve"   # xfade transition: dissolve = true crossfade (no black flash)
+FADE_ENDS = 0.5         # seconds — fade-in at start and fade-out at end
+
+# Cinematic color grade applied to every clip before compositing (CapCut/Runway approach)
+# Warm shadows, lifted highlights, slight contrast boost, subtle vignette
+_COLOR_GRADE = (
+    "eq=saturation=1.12:contrast=1.06:brightness=0.02,"
+    "colorbalance=rs=0.04:bs=-0.03:rh=0.07:bh=-0.05,"
+    "vignette=angle=PI/5:mode=forward"
+)
 
 # Scale+crop any image to PRE_W x PRE_H preserving aspect ratio, then Ken Burns
 _SCALE_CROP = (
@@ -95,9 +103,11 @@ class VideoService:
                 # Sanitize: remove ffmpeg filter special chars
                 safe_label = label.replace("'", "").replace("\\", "").replace(":", " ").replace("[", "").replace("]", "").replace(";", "")[:35]
 
+                # Scale + crop + cinematic color grade + vignette (applied consistently to every clip)
                 base_vf = (
                     f"scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=increase,"
-                    f"crop={OUT_W}:{OUT_H}"
+                    f"crop={OUT_W}:{OUT_H},"
+                    f"{_COLOR_GRADE}"
                 )
                 if safe_label:
                     # Text fades in 0→0.5s, stays until 2.5s, fades out 2.5→3.0s
@@ -117,8 +127,8 @@ class VideoService:
                 await self._run_ffmpeg([
                     "ffmpeg", "-y", "-i", cp,
                     "-vf", vf,
-                    "-r", "25",
-                    "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                    "-r", "30",
+                    "-c:v", "libx264", "-preset", "medium", "-crf", "17",
                     "-pix_fmt", "yuv420p", "-an",
                     np_,
                 ])
@@ -132,7 +142,7 @@ class VideoService:
             else:
                 merged = os.path.join(tmpdir, "merged.mp4")
                 durations = [await self._get_duration(p) for p in norm_paths]
-                fade_dur = min(FADE_DUR, min(durations) * 0.15)
+                fade_dur = min(FADE_DUR, min(durations) * 0.25)
                 logger.info(f"[VIDEO] xfade {len(norm_paths)} clips fade={fade_dur:.2f}s transition={FADE_TRANSITION}")
                 await self._xfade_clips(norm_paths, durations, fade_dur, merged)
 
@@ -144,7 +154,7 @@ class VideoService:
                 await self._run_ffmpeg([
                     "ffmpeg", "-y", "-i", merged,
                     "-vf", f"fade=t=in:st=0:d={FADE_ENDS},fade=t=out:st={fade_out_start:.3f}:d={FADE_ENDS}",
-                    "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                    "-c:v", "libx264", "-preset", "medium", "-crf", "17",
                     "-pix_fmt", "yuv420p", "-an", faded,
                 ])
                 merged = faded
@@ -170,7 +180,7 @@ class VideoService:
                     "[1:v]scale=iw*0.15:-1,format=rgba,colorchannelmixer=aa=0.85[logo];"
                     "[0:v][logo]overlay=W-w-30:H-h-30[v]",
                     "-map", "[v]", "-map", "0:a?",
-                    "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                    "-c:v", "libx264", "-preset", "medium", "-crf", "17",
                     "-c:a", "copy", "-movflags", "+faststart",
                     base,
                 ])
@@ -386,7 +396,7 @@ class VideoService:
             *inputs,
             "-filter_complex", ";".join(filter_parts),
             "-map", "[vout]",
-            "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+            "-c:v", "libx264", "-preset", "medium", "-crf", "17",
             "-pix_fmt", "yuv420p", "-movflags", "+faststart",
             output,
         ])

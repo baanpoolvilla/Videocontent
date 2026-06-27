@@ -78,13 +78,14 @@ class AIService:
 
         # Per-model word targets — 90% of each model's char limit (~5 chars/word)
         model_word_limit = {
-            "kling3s":       430,   # 2500 chars × 90% ÷ 5
-            "kling3s_pro":   430,
-            "hailuo2pro":    350,   # 2000 chars × 90% ÷ 5
-            "seedance2":     350,
-            "seedance2_pro": 350,
-            "wan21":         350,
-            "kenburs":       150,
+            "kling3s":        430,   # 2500 chars × 90% ÷ 5
+            "kling3s_pro":    430,
+            "hailuo2pro":     350,   # 2000 chars × 90% ÷ 5
+            "seedance2":      350,
+            "seedance2_pro":  350,
+            "seedance2_multi":350,   # per-slot limit; combined prompt is assembled by backend
+            "wan21":          350,
+            "kenburs":        150,
         }
         word_limit = model_word_limit.get(ai_model, 350)
         word_range = f"{max(word_limit - 50, 100)}-{word_limit}"
@@ -127,11 +128,19 @@ class AIService:
                 "COMBINE: cinematic language with natural motion."
             ),
             "wan21": (
-                "Wan 2.1 by Alibaba. "
+                "Wan 2.2 Turbo by Alibaba. "
                 "STRENGTHS: follows detailed scene descriptions closely, versatile, layered compositions. "
                 "POWER KEYWORDS: layered composition, foreground detail, depth layers, "
                 "specific motion, background depth, cinematic scene. "
                 "STRATEGY: describe in layers — foreground, midground, background, then motion and light."
+            ),
+            "seedance2_multi": (
+                "Seedance 2.0 Reference-to-Video by ByteDance (multi-image, one video). "
+                "STRENGTHS: AI weaves multiple images into a single seamless video with natural shot transitions. "
+                "POWER KEYWORDS: seamless transition, multi-angle showcase, natural scene flow, "
+                "lifestyle journey, cinematic reveal, premium resort narrative. "
+                "STRATEGY: write a vivid single-scene description — backend will combine all slot prompts "
+                "into one multi-shot sequence. Focus on mood and motion rather than shot structure."
             ),
             "kenburs": "FFmpeg Ken Burns — static zoom/pan only, prompt is ignored.",
         }.get(ai_model, "AI image-to-video model")
@@ -420,9 +429,14 @@ IMPORTANT: สร้าง Script ที่แตกต่างจากเว�
         clip_count = max(2, min(clip_count, image_count))
 
         model_label = {
-            "hailuo2pro": "Hailuo 2.3 Pro", "kling3s": "Kling v3 Standard",
-            "kling3s_pro": "Kling v3 Pro", "seedance2": "Seedance 2.0 Turbo",
-            "seedance2_pro": "Seedance 2.0 Standard", "wan21": "Wan 2.1", "kenburs": "Ken Burns (FFmpeg)",
+            "hailuo2pro":     "Hailuo 2.3 Pro",
+            "kling3s":        "Kling v3 Standard",
+            "kling3s_pro":    "Kling v3 Pro",
+            "seedance2":      "Seedance 2.0 Fast",
+            "seedance2_pro":  "Seedance 2.0 Pro",
+            "seedance2_multi":"Seedance Multi-Shot (9 images in one video)",
+            "wan21":          "Wan 2.2 Turbo",
+            "kenburs":        "Ken Burns (FFmpeg)",
         }.get(ai_model, ai_model)
 
         prompt = (

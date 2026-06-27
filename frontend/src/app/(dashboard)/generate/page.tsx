@@ -13,7 +13,7 @@ interface Product { id: string; name: string; media_urls: string[]; }
 type Phase = "home" | "story" | "generating" | "prompt_edit" | "rendering" | "done" | "error";
 type Mode  = "assets" | "script" | "audio" | "ads";
 type AspectRatio = "9:16" | "1:1" | "16:9";
-type AIModel = "kenburs" | "hailuo2pro" | "wan21" | "kling3s" | "kling3s_pro" | "seedance2" | "seedance2_pro";
+type AIModel = "kenburs" | "hailuo2pro" | "wan21" | "kling3s" | "kling3s_pro" | "seedance2" | "seedance2_pro" | "seedance2_multi";
 
 interface ChatMsg {
   role: "user" | "ai" | "loading";
@@ -88,14 +88,15 @@ const MODE_TABS = [
 ];
 
 const ASPECT_OPTIONS: AspectRatio[] = ["9:16", "1:1", "16:9"];
-const MODEL_OPTIONS: { id: AIModel; label: string; desc: string; maxClipSec: number; priceClip: string; badge?: string; color: string }[] = [
-  { id: "kenburs",      label: "Ken Burns",         desc: "รูปนิ่ง + zoom/pan — ไม่ใช้ AI",              maxClipSec: 99, priceClip: "ฟรี",           badge: "FREE",  color: "#22D499" },
-  { id: "wan21",        label: "Wan 2.2 Turbo",      desc: "Alibaba — เร็ว คุณภาพ 14B ราคาถูกสุด",        maxClipSec: 5,  priceClip: "$0.10 / คลิป",  badge: "ถูกสุด", color: "#34D399" },
-  { id: "hailuo2pro",   label: "Hailuo 2.3 Pro",    desc: "Minimax — motion ลื่น atmospheric",            maxClipSec: 9,  priceClip: "$0.49 / คลิป",  badge: "ถูก",   color: "#A78BFA" },
-  { id: "kling3s",      label: "Kling v3 Standard",  desc: "AI motion จริง — คุณภาพสูง",                  maxClipSec: 10, priceClip: "$1.89 / คลิป",                  color: "#00FFD4" },
-  { id: "seedance2",    label: "Seedance 2.0 Fast",  desc: "AI ByteDance — motion ลื่น",                  maxClipSec: 10, priceClip: "$2.43 / คลิป",                  color: "#4D7FFF" },
-  { id: "kling3s_pro",  label: "Kling v3 Pro",       desc: "Kuaishou — คุณภาพสูงสุด ระดับภาพยนตร์",       maxClipSec: 15, priceClip: "$2.88 / คลิป",  badge: "Pro",   color: "#818CF8" },
-  { id: "seedance2_pro",label: "Seedance 2.0 Pro",   desc: "คุณภาพสูงสุด — 4K",                           maxClipSec: 10, priceClip: "$4.25 / คลิป",  badge: "แพง",   color: "#FF6B6B" },
+const MODEL_OPTIONS: { id: AIModel; label: string; desc: string; maxClipSec: number; priceClip: string; badge?: string; color: string; features: string[] }[] = [
+  { id: "kenburs",      label: "Ken Burns",         desc: "รูปนิ่ง + zoom/pan — ไม่ใช้ AI",              maxClipSec: 99, priceClip: "ฟรี",           badge: "FREE",   color: "#22D499", features: ["ฟรี 100%", "zoom/pan", "ไม่ใช้ AI", "ไม่จำกัดเวลา"] },
+  { id: "wan21",        label: "Wan 2.2 Turbo",     desc: "Alibaba — เร็ว คุณภาพ 14B ราคาถูกสุด",        maxClipSec: 5,  priceClip: "$0.10 / คลิป",  badge: "ถูกสุด", color: "#34D399", features: ["720p · max quality", "5s/คลิป", "multi-photo ✓", "smooth transition"] },
+  { id: "hailuo2pro",   label: "Hailuo 2.3 Pro",   desc: "Minimax — motion ลื่น atmospheric",            maxClipSec: 10, priceClip: "$0.49 / คลิป",  badge: "ถูก",    color: "#A78BFA", features: ["smooth motion", "prompt optimizer", "6s หรือ 10s", "atmospheric / cinematic"] },
+  { id: "kling3s",      label: "Kling v3 Standard", desc: "Kuaishou — AI motion จริง คมชัด สมจริง",       maxClipSec: 10, priceClip: "$1.89 / คลิป",               color: "#00FFD4", features: ["cinematic motion", "5s หรือ 10s", "multi-photo ✓", "negative prompt ✓"] },
+  { id: "seedance2",    label: "Seedance 2.0 Fast", desc: "ByteDance — เร็ว ลื่น สมจริง",                 maxClipSec: 15, priceClip: "$2.43 / คลิป",               color: "#4D7FFF", features: ["1080p HD", "4–15s ยืดหยุ่น", "multi-photo ✓", "natural motion"] },
+  { id: "kling3s_pro",  label: "Kling v3 Pro",      desc: "Kuaishou — ระดับภาพยนตร์ detail สูงสุด",       maxClipSec: 10, priceClip: "$2.88 / คลิป",  badge: "Pro",    color: "#818CF8", features: ["studio grade", "5s หรือ 10s", "multi-photo ✓", "fine detail · complex motion"] },
+  { id: "seedance2_pro",  label: "Seedance 2.0 Pro",        desc: "ByteDance คุณภาพสูงสุด — 4K high bitrate",       maxClipSec: 15, priceClip: "$4.25 / คลิป",  badge: "4K",       color: "#FF6B6B", features: ["4K resolution", "high bitrate", "4–15s ยืดหยุ่น", "multi-photo ✓"] },
+  { id: "seedance2_multi",label: "Seedance Multi-Shot ✨",  desc: "9 รูปใน 1 API call — AI สร้าง transition เอง",  maxClipSec: 15, priceClip: "$4.25 / วิดีโอ", badge: "BEST",     color: "#F59E0B", features: ["9 รูป/วิดีโอ", "AI transitions", "720p", "no black cuts"] },
 ];
 
 const MODEL_MAX_CLIP_SEC: Record<AIModel, number> = Object.fromEntries(
@@ -123,6 +124,7 @@ export default function GeneratePage() {
 
   // ── core state ─────────────────────────────────────────────────────────────
   const [phase, setPhase]       = useState<Phase>("home");
+  const [isDirectRender, setIsDirectRender] = useState(false);
   const [mode, setMode]         = useState<Mode>("assets");
   const [prompt, setPrompt]     = useState("");
   const [products, setProducts] = useState<Product[]>([]);
@@ -370,6 +372,7 @@ export default function GeneratePage() {
   // ── direct render: skip all AI, use user's prompt straight to fal.ai ────────
   const runDirectRender = async () => {
     if (!product || !prompt.trim()) return;
+    setIsDirectRender(true);
     setPhase("generating");
     try {
       const jobRes = await api.post("/jobs/", { product_id: product.id, platform: "tiktok" });
@@ -383,6 +386,7 @@ export default function GeneratePage() {
     } catch (e: unknown) {
       const ax = e as { response?: { data?: { detail?: string }; status?: number }; message?: string };
       setErrMsg(ax.response?.data?.detail || ax.message || "เกิดข้อผิดพลาด");
+      setIsDirectRender(false);
       setPhase("error");
     }
   };
@@ -442,7 +446,7 @@ export default function GeneratePage() {
     setPhase("home"); setMessages([]); setQIndex(0); setAnswers({});
     setChatInput(""); setErrMsg(""); setElapsed(0);
     setVideoPrompt(""); setPendingJobId(""); setPendingVoiceUrl("");
-    setRenderVideoUrl(""); setLogoUrl("");
+    setRenderVideoUrl(""); setLogoUrl(""); setIsDirectRender(false);
   };
 
   const currentQ = questions[qIndex];
@@ -751,7 +755,7 @@ export default function GeneratePage() {
                   const active = aiModel === m.id;
                   return (
                     <button key={m.id} onMouseDown={() => { setAiModel(m.id); setShowModelMenu(false); }} style={{
-                      width: "100%", display: "flex", alignItems: "center", gap: 10,
+                      width: "100%", display: "flex", alignItems: "flex-start", gap: 10,
                       padding: "10px 14px", cursor: "pointer", textAlign: "left",
                       background: active ? `${m.color}12` : "transparent",
                       borderBottom: "1px solid rgba(255,255,255,.04)",
@@ -763,11 +767,20 @@ export default function GeneratePage() {
                           </span>
                           {m.badge && <span style={{ fontSize: 8, fontWeight: 800, padding: "1px 6px", borderRadius: 4, background: active ? `${m.color}22` : "rgba(255,255,255,.07)", color: active ? m.color : "var(--faint)" }}>{m.badge}</span>}
                         </div>
-                        <div style={{ fontSize: 10.5, color: "var(--faint)" }}>{m.desc}</div>
+                        <div style={{ fontSize: 10.5, color: "var(--faint)", marginBottom: 5 }}>{m.desc}</div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                          {m.features.map(f => (
+                            <span key={f} style={{ fontSize: 9, padding: "2px 7px", borderRadius: 10, fontWeight: 600,
+                              background: active ? `${m.color}18` : "rgba(255,255,255,.06)",
+                              color: active ? m.color : "rgba(255,255,255,.45)",
+                              border: `1px solid ${active ? `${m.color}30` : "rgba(255,255,255,.06)"}`,
+                            }}>{f}</span>
+                          ))}
+                        </div>
                       </div>
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ textAlign: "right", flexShrink: 0, paddingTop: 2 }}>
                         <div style={{ fontSize: 11.5, fontWeight: 700, color: active ? m.color : "var(--dim)" }}>{m.priceClip}</div>
-                        <div style={{ fontSize: 9.5, color: "var(--faint)" }}>{m.maxClipSec === 99 ? "ไม่จำกัด" : `สูงสุด ${m.maxClipSec}s/คลิป`}</div>
+                        <div style={{ fontSize: 9.5, color: "var(--faint)" }}>{m.maxClipSec === 99 ? "ไม่จำกัด" : `max ${m.maxClipSec}s`}</div>
                       </div>
                     </button>
                   );
@@ -775,6 +788,22 @@ export default function GeneratePage() {
               </div>
             )}
           </div>
+
+          {/* Selected model capability strip */}
+          {(() => {
+            const sel = MODEL_OPTIONS.find(m => m.id === aiModel);
+            if (!sel) return null;
+            return (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 5, padding: "2px 0" }}>
+                {sel.features.map(f => (
+                  <span key={f} style={{ fontSize: 10, padding: "3px 9px", borderRadius: 12, fontWeight: 600,
+                    background: `${sel.color}15`, color: sel.color,
+                    border: `1px solid ${sel.color}30`,
+                  }}>{f}</span>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Send */}
           <button
@@ -795,17 +824,27 @@ export default function GeneratePage() {
 
           {/* Direct render — skip AI, send prompt straight to fal.ai */}
           {prompt.trim() && product && aiModel !== "kenburs" && (
-            <button
-              onMouseDown={runDirectRender}
-              style={{
-                width: "100%", padding: "9px 16px", borderRadius: 10, marginTop: 6,
-                cursor: "pointer", border: "1px solid rgba(255,255,255,.12)",
-                background: "rgba(255,255,255,.04)",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                color: "var(--dim)", fontSize: 12, fontWeight: 600,
-              }}>
-              ⚡ Render ตรง (ข้าม AI)
-            </button>
+            <>
+              {/[฀-๿]/.test(prompt) && (
+                <div style={{ fontSize: 11, color: "#f87171", marginTop: 6, padding: "6px 10px", borderRadius: 8, background: "rgba(248,113,113,.08)", border: "1px solid rgba(248,113,113,.25)" }}>
+                  ⚠ Prompt ต้องเป็นภาษาอังกฤษเท่านั้น — ภาษาไทยจะถูกตัดออก
+                </div>
+              )}
+              <button
+                onMouseDown={runDirectRender}
+                disabled={/[฀-๿]/.test(prompt)}
+                style={{
+                  width: "100%", padding: "9px 16px", borderRadius: 10, marginTop: 6,
+                  cursor: /[฀-๿]/.test(prompt) ? "not-allowed" : "pointer",
+                  border: "1px solid rgba(255,255,255,.12)",
+                  background: "rgba(255,255,255,.04)",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  color: /[฀-๿]/.test(prompt) ? "var(--faint)" : "var(--dim)", fontSize: 12, fontWeight: 600,
+                  opacity: /[฀-๿]/.test(prompt) ? 0.5 : 1,
+                }}>
+                ⚡ Render ตรง (ข้าม AI)
+              </button>
+            </>
           )}
 
 
@@ -951,8 +990,8 @@ export default function GeneratePage() {
         <Sparkles size={28} color="var(--teal)" style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)" }} />
       </div>
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", marginBottom: 6 }}>กำลังสร้าง Script + Voice...</div>
-        <div style={{ fontSize: 13, color: "var(--faint)" }}>AI กำลังเขียน script และสร้างเสียงให้</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", marginBottom: 6 }}>{isDirectRender ? "กำลังเตรียมงาน..." : "กำลังสร้าง Script + Voice..."}</div>
+        <div style={{ fontSize: 13, color: "var(--faint)" }}>{isDirectRender ? "เตรียม job สำหรับ prompt ของคุณ" : "AI กำลังเขียน script และสร้างเสียงให้"}</div>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         {["Script", "Voice", "Prompt"].map(s => (
@@ -1075,7 +1114,15 @@ export default function GeneratePage() {
                       <span style={{ fontSize: 12, fontWeight: 800, color: active ? m.color : "var(--dim)" }}>{m.label}</span>
                       {m.badge && <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 6, background: active ? m.color : "rgba(255,255,255,.08)", color: active ? "#06060A" : "var(--faint)" }}>{m.badge}</span>}
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--faint)" }}>{m.priceClip} · {m.maxClipSec === 99 ? "ไม่จำกัด" : `สูงสุด ${m.maxClipSec}s/คลิป`}</div>
+                    <div style={{ fontSize: 11, color: "var(--faint)", marginBottom: 5 }}>{m.priceClip} · {m.maxClipSec === 99 ? "ไม่จำกัด" : `max ${m.maxClipSec}s`}</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                      {m.features.slice(0, 3).map(f => (
+                        <span key={f} style={{ fontSize: 8, padding: "1px 5px", borderRadius: 8, fontWeight: 600,
+                          background: active ? `${m.color}18` : "rgba(255,255,255,.05)",
+                          color: active ? m.color : "rgba(255,255,255,.35)",
+                        }}>{f}</span>
+                      ))}
+                    </div>
                   </button>
                 );
               })}

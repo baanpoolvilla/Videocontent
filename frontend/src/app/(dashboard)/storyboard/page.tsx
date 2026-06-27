@@ -8,7 +8,7 @@ import { Loader2, Sparkles, ChevronUp, ChevronDown, CheckCircle2, Wand2, X, Plus
 interface Product { id: string; name: string; media_urls: string[]; }
 
 // Key must match wan.py MODELS dict exactly — step 3 of "add a new model"
-type AIModel = "kenburs" | "hailuo2pro" | "kling3s" | "kling3s_pro" | "seedance2" | "seedance2_pro" | "wan21";
+type AIModel = "kenburs" | "hailuo2pro" | "kling3s" | "kling3s_pro" | "seedance2" | "seedance2_pro" | "seedance2_multi" | "wan21";
 
 interface ClipSlot {
   imageIndex: number;
@@ -44,7 +44,7 @@ const MODELS: ModelDef[] = [
     color: "#6EE7B7",
     durations: [5, 10, 15, 20, 30],
     badge: "FREE",
-    outputLine1: "รูปซูม / เลื่อนอัตโนมัติ",
+    outputLine1: "ฟรี 100% · zoom/pan อัตโนมัติ",
     outputLine2: "FFmpeg — ไม่ใช่ AI จริง ไม่มีการเคลื่อนไหว",
     stars: 1,
     promptLimit: null,
@@ -59,7 +59,7 @@ const MODELS: ModelDef[] = [
     color: "#A78BFA",
     durations: [6, 10],
     badge: "AI · $0.49",
-    outputLine1: "smooth motion · atmosphere · bokeh",
+    outputLine1: "smooth motion · atmosphere · bokeh · prompt optimizer",
     outputLine2: "ripple · dolly · light shimmer · cinematic",
     stars: 4,
     promptLimit: 2000,
@@ -74,8 +74,8 @@ const MODELS: ModelDef[] = [
     color: "#34D399",
     durations: [5],
     badge: "AI · $0.10",
-    outputLine1: "ถูกสุด · turbo เร็ว · คุณภาพ 14B",
-    outputLine2: "versatile · scene · outdoor · indoor",
+    outputLine1: "ถูกสุด · 720p max quality · multi-photo ✓",
+    outputLine2: "versatile · scene · outdoor · indoor · smooth transition",
     stars: 3,
     promptLimit: 2000,
     minDuration: 5,
@@ -89,8 +89,8 @@ const MODELS: ModelDef[] = [
     color: "#00FFD4",
     durations: [5, 10],
     badge: "AI · $1.89",
-    outputLine1: "realism สูง · ตามใจ prompt มาก",
-    outputLine2: "motion ซับซ้อน · คมชัด · สมจริง",
+    outputLine1: "cinematic motion · multi-photo ✓ · negative prompt ✓",
+    outputLine2: "realism สูง · คมชัด · สมจริง · ตามใจ prompt",
     stars: 4,
     promptLimit: 2500,
     minDuration: 5,
@@ -104,8 +104,8 @@ const MODELS: ModelDef[] = [
     color: "#818CF8",
     durations: [5, 10],
     badge: "AI · $2.88",
-    outputLine1: "Kling คุณภาพสูงสุด — ระดับภาพยนตร์",
-    outputLine2: "fine detail · complex motion · studio grade",
+    outputLine1: "studio grade · multi-photo ✓ · negative prompt ✓",
+    outputLine2: "fine detail · complex motion · ระดับภาพยนตร์",
     stars: 5,
     promptLimit: 2500,
     minDuration: 5,
@@ -113,32 +113,47 @@ const MODELS: ModelDef[] = [
   },
   {
     id: "seedance2",
-    label: "Seedance 2.0 Turbo",
+    label: "Seedance 2.0 Fast",
     pricePerClip: 2.43,
     price: "$2.43 / คลิป",
     color: "#FB923C",
-    durations: [5, 10],
+    durations: [5, 10, 15],
     badge: "AI · $2.43",
-    outputLine1: "ByteDance · เร็ว · สมจริง",
-    outputLine2: "outdoor · คน · natural motion · lifestyle",
+    outputLine1: "1080p HD · 4–15s ยืดหยุ่น · multi-photo ✓",
+    outputLine2: "ByteDance · natural motion · outdoor · lifestyle",
     stars: 4,
     promptLimit: 2000,
-    minDuration: 5,
+    minDuration: 4,
     isAI: true,
   },
   {
     id: "seedance2_pro",
-    label: "Seedance 2.0 Standard",
+    label: "Seedance 2.0 Pro",
     pricePerClip: 4.25,
     price: "$4.25 / คลิป",
     color: "#F43F5E",
-    durations: [5, 10],
+    durations: [5, 10, 15],
     badge: "AI · $4.25",
-    outputLine1: "ByteDance · คุณภาพสูงสุด · detail มาก",
-    outputLine2: "cinematic realism · best from ByteDance",
+    outputLine1: "4K resolution · high bitrate · 4–15s · multi-photo ✓",
+    outputLine2: "ByteDance คุณภาพสูงสุด · cinematic realism",
     stars: 5,
     promptLimit: 2000,
-    minDuration: 5,
+    minDuration: 4,
+    isAI: true,
+  },
+  {
+    id: "seedance2_multi",
+    label: "Seedance Multi-Shot ✨",
+    pricePerClip: 4.25,
+    price: "$4.25 / วิดีโอ",
+    color: "#F59E0B",
+    durations: [10, 15],
+    badge: "BEST",
+    outputLine1: "9 รูปใน 1 call · AI สร้าง transition เอง · 720p",
+    outputLine2: "ByteDance reference-to-video · no black cuts · seamless shots",
+    stars: 5,
+    promptLimit: 3800,
+    minDuration: 4,
     isAI: true,
   },
 ];
@@ -160,7 +175,7 @@ function Stars({ n, color }: { n: number; color: string }) {
 
 type PromptState = "empty" | "thai" | "short" | "toolong" | "good";
 
-function getPromptStatus(prompt: string): { state: PromptState; label: string; color: string; borderColor: string } {
+function getPromptStatus(prompt: string, promptLimit: number | null = 1900): { state: PromptState; label: string; color: string; borderColor: string } {
   if (!prompt.trim())
     return { state: "empty", label: "ว่าง — AI เขียนให้อัตโนมัติ", color: "rgba(255,77,106,.9)", borderColor: "rgba(255,77,106,.35)" };
   if (/[฀-๿]/.test(prompt))
@@ -168,8 +183,9 @@ function getPromptStatus(prompt: string): { state: PromptState; label: string; c
   const words = prompt.trim().split(/\s+/).filter(Boolean).length;
   if (words < 8)
     return { state: "short", label: `${words} คำ — AI ขยาย prompt ให้ถูกรูปแบบ`, color: "#f59e0b", borderColor: "rgba(245,158,11,.35)" };
-  if (prompt.length > 1900)
-    return { state: "toolong", label: `ยาวเกิน — จะถูกตัดที่ 2000 ตัวอักษร!`, color: "rgba(255,77,106,.9)", borderColor: "rgba(255,77,106,.35)" };
+  const limit = promptLimit ?? 1900;
+  if (prompt.length > limit)
+    return { state: "toolong", label: `ยาวเกิน — จะถูกตัดที่ ${limit} ตัวอักษร!`, color: "rgba(255,77,106,.9)", borderColor: "rgba(255,77,106,.35)" };
   return { state: "good", label: "✅ concept ดี — Gemini รักษาไว้ + เพิ่ม cinematic detail", color: "#22D499", borderColor: "rgba(34,212,153,.2)" };
 }
 
@@ -763,10 +779,11 @@ export default function StoryboardPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
                 {slots.map((slot, i) => {
                   const imgUrl = product.media_urls[slot.imageIndex];
-                  const ps = !modelDef.isAI ? null : getPromptStatus(slot.prompt);
-                  const charCount = slot.prompt.length;
                   const charLimit = modelDef.promptLimit;
-                  const charColor = !charLimit ? "var(--faint)" : charCount > 1900 ? "rgba(255,77,106,.9)" : charCount > 1500 ? "#f59e0b" : "var(--faint)";
+                  const ps = !modelDef.isAI ? null : getPromptStatus(slot.prompt, charLimit);
+                  const charCount = slot.prompt.length;
+                  const warnAt = charLimit ? Math.round(charLimit * 0.8) : 1500;
+                  const charColor = !charLimit ? "var(--faint)" : charCount > (charLimit - 100) ? "rgba(255,77,106,.9)" : charCount > warnAt ? "#f59e0b" : "var(--faint)";
                   return (
                     <div key={i} style={{ background: "var(--glass)", border: `1px solid ${ps ? ps.borderColor : "var(--gb)"}`, borderRadius: 14, overflow: "visible" }}>
                       <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 12, padding: "12px 14px", alignItems: "flex-start" }}>

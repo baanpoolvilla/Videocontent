@@ -24,8 +24,9 @@ from app.services.ai import ai_service
 from app.services.tts import tts_service
 from app.services.video import video_service
 from app.services.kling import kling_service
+from app.services.storage import storage_service
 from math import ceil
-from app.services.wan import wan_service, MODEL_MAX_DUR_PER_CLIP
+from app.services.wan import wan_service, MODEL_MAX_DUR_PER_CLIP, MULTI_IMAGE_MODELS
 
 router = APIRouter(prefix="/jobs", tags=["content-jobs"])
 
@@ -285,11 +286,69 @@ async def generate_voiceover(
 
 
 _STYLE_PROMPTS = {
-    "playful": "playful animated overlay, vibrant colors, energetic motion, pool villa",
-    "luxury":  "luxury cinematic, slow elegant motion, golden hour lighting, premium pool villa",
-    "party":   "party vibes, dynamic movement, festive colorful lights, pool party",
-    "minimal": "minimal clean motion, smooth transitions, modern sleek, pool villa",
+    "playful": "playful vibrant colors, energetic movement, pool villa lifestyle",
+    "luxury":  "luxury cinematic, golden hour lighting, premium pool villa resort",
+    "party":   "party vibes, festive colorful lights, pool party celebration",
+    "minimal": "modern sleek architecture, clean lines, elegant pool villa",
 }
+
+# Rotating camera movement prefixes — cycle across clips so each clip has unique direction
+# Same technique used by Runway, CapCut, Pika to create visual rhythm
+_CAMERA_MOVES = [
+    "Smooth slow dolly forward,",
+    "Gentle pull back revealing,",
+    "Smooth pan right,",
+    "Slow pan left,",
+    "Subtle crane shot descending,",
+    "Gentle zoom in,",
+]
+
+
+async def _extract_last_frame(video_url: str, job_id: str, clip_idx: int) -> str:
+    """Download video clip, extract last frame, upload to MinIO — used for frame chaining."""
+    import tempfile, os
+    tmp_video = tmp_frame = ""
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            r = await client.get(video_url)
+            if not r.is_success:
+                return ""
+        tmp_video = tempfile.mktemp(suffix=".mp4")
+        tmp_frame = tempfile.mktemp(suffix=".jpg")
+        with open(tmp_video, "wb") as f:
+            f.write(r.content)
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-sseof", "-0.5", "-i", tmp_video,
+            "-vframes", "1", "-q:v", "2", "-y", tmp_frame,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await proc.wait()
+        if not os.path.exists(tmp_frame):
+            return ""
+        with open(tmp_frame, "rb") as f:
+            data = f.read()
+        internal_path = await storage_service.upload_bytes(
+            data=data,
+            filename=f"chain_{clip_idx}.jpg",
+            content_type="image/jpeg",
+            bucket="renders",
+            prefix=str(job_id),
+        )
+        # upload_bytes returns "/renders/..." — wrap in public proxy URL so fal.ai can fetch it
+        public_url = f"{settings.API_BASE_URL}/api/v1/files{internal_path}"
+        logger.info(f"[CHAIN] frame extracted clip={clip_idx} url={public_url[:60]}")
+        return public_url
+    except Exception as e:
+        logger.warning(f"[CHAIN] failed clip={clip_idx}: {e}")
+        return ""
+    finally:
+        for p in (tmp_video, tmp_frame):
+            try:
+                if p and os.path.exists(p):
+                    os.unlink(p)
+            except Exception:
+                pass
 
 
 async def _do_render(
@@ -327,29 +386,61 @@ async def _do_render(
             if settings.FAL_KEY and image_urls and ai_model != "kenburs":
                 prompt = video_prompt.strip() or _STYLE_PROMPTS.get(style, _STYLE_PROMPTS["playful"])
                 per_clip_dur = MODEL_MAX_DUR_PER_CLIP.get(fal_model, 5)
-                n_clips = clip_count if clip_count > 0 else ceil(duration_sec / per_clip_dur)
-                # Cycle through images if we need more clips than images available
-                images_to_use = [image_urls[i % len(image_urls)] for i in range(n_clips)]
-                logger.info(f"[RENDER] AI mode ai_model={ai_model} fal_model={fal_model} aspect={aspect_ratio} n_clips={n_clips} per_clip_dur={per_clip_dur}s")
+                logger.info(f"[RENDER] AI mode ai_model={ai_model} fal_model={fal_model} aspect={aspect_ratio}")
 
-                async def _gen_clip(img_path: str) -> str:
-                    raw = img_path.strip("/")
-                    public_url = f"{settings.API_BASE_URL}/api/v1/files/{raw}"
+                clip_urls: list[str] = []
+
+                if fal_model in MULTI_IMAGE_MODELS and len(image_urls) > 1:
+                    # ─── Seedance Reference-to-Video: all images in ONE API call ───
+                    # AI generates natural multi-shot transitions internally (no FFmpeg crossfade needed)
+                    pub_urls = [f"{settings.API_BASE_URL}/api/v1/files/{u.strip('/')}" for u in image_urls[:9]]
+                    logger.info(f"[RENDER] multi-image mode images={len(pub_urls)} dur={duration_sec}s")
                     try:
-                        r = await wan_service.image_to_video(
-                            image_url=public_url,
+                        r = await wan_service.multi_image_to_video(
+                            image_urls=pub_urls,
                             prompt=prompt,
                             aspect_ratio=aspect_ratio,
-                            duration=str(per_clip_dur),
-                            model=fal_model,
+                            duration=min(duration_sec, 15),
                         )
-                        return r.get("video_url", "")
+                        clip_url = r.get("video_url", "")
+                        if clip_url:
+                            clip_urls.append(clip_url)
                     except Exception as ex:
-                        logger.warning(f"[RENDER] clip failed: {ex}")
-                        return ""
+                        logger.warning(f"[RENDER] multi-image failed: {ex} — falling back to chaining")
 
-                clip_urls_raw = await asyncio.gather(*[_gen_clip(img) for img in images_to_use])
-                clip_urls = [u for u in clip_urls_raw if u]
+                if not clip_urls:
+                    # ─── Frame chaining + rotating camera movement (Runway/CapCut approach) ───
+                    # If fal_model is reference-to-video (multi-image endpoint), fall back to seedance2_pro
+                    from app.services.wan import MODELS as WAN_MODELS, MULTI_IMAGE_MODELS
+                    chain_model = WAN_MODELS["seedance2_pro"] if fal_model in MULTI_IMAGE_MODELS else fal_model
+                    chain_per_clip = MODEL_MAX_DUR_PER_CLIP.get(chain_model, 5)
+                    n_clips = clip_count if clip_count > 0 else ceil(duration_sec / chain_per_clip)
+                    logger.info(f"[RENDER] chaining mode model={chain_model} n_clips={n_clips} per_clip={chain_per_clip}s")
+                    chain_url = f"{settings.API_BASE_URL}/api/v1/files/{image_urls[0].strip('/')}"
+                    for ci in range(n_clips):
+                        next_img = image_urls[(ci + 1) % len(image_urls)]
+                        end_url = f"{settings.API_BASE_URL}/api/v1/files/{next_img.strip('/')}" if len(image_urls) > 1 else ""
+                        cam = _CAMERA_MOVES[ci % len(_CAMERA_MOVES)]
+                        clip_prompt = f"{cam} {prompt}"
+                        try:
+                            r = await wan_service.image_to_video(
+                                image_url=chain_url,
+                                prompt=clip_prompt,
+                                aspect_ratio=aspect_ratio,
+                                duration=str(chain_per_clip),
+                                model=chain_model,
+                                end_image_url=end_url,
+                            )
+                            clip_url = r.get("video_url", "")
+                            if clip_url:
+                                clip_urls.append(clip_url)
+                                frame = await _extract_last_frame(clip_url, str(job_id), ci)
+                                chain_url = frame or f"{settings.API_BASE_URL}/api/v1/files/{next_img.strip('/')}"
+                            else:
+                                chain_url = f"{settings.API_BASE_URL}/api/v1/files/{next_img.strip('/')}"
+                        except Exception as ex:
+                            logger.warning(f"[RENDER] clip {ci} failed: {ex}")
+                            chain_url = f"{settings.API_BASE_URL}/api/v1/files/{next_img.strip('/')}"
 
                 if clip_urls:
                     render_result = await video_service.compose_from_clips(
@@ -575,7 +666,7 @@ async def story_render(
 
 
 async def _do_story_render(job_id: UUID, image_urls: list[str], body: _StoryRequest):
-    from app.services.wan import MODELS as WAN_MODELS
+    from app.services.wan import MODELS as WAN_MODELS, MULTI_IMAGE_MODELS
     import re
     fal_model = WAN_MODELS.get(body.ai_model, WAN_MODELS["hailuo2pro"])
     aspect = body.aspect_ratio.replace("x", ":")
@@ -584,42 +675,76 @@ async def _do_story_render(job_id: UUID, image_urls: list[str], body: _StoryRequ
         try:
             clip_urls: list[str] = []
 
-            for slot in body.clips:
-                idx = min(slot.image_index, len(image_urls) - 1)
-                img_path = image_urls[idx] if image_urls else ""
-                prompt = re.sub(r'[฀-๿]+', '', slot.prompt).strip() or _STYLE_PROMPTS.get("luxury", "")
+            # ── seedance2_multi: all images in one call, ignore per-clip structure ──
+            if fal_model in MULTI_IMAGE_MODELS and image_urls and settings.FAL_KEY:
+                pub_urls = [f"{settings.API_BASE_URL}/api/v1/files/{u.strip('/')}" for u in image_urls[:9]]
+                combined_prompt = re.sub(r'[฀-๿]+', '', " ".join(s.prompt for s in body.clips if s.prompt)).strip()
+                combined_prompt = combined_prompt or _STYLE_PROMPTS.get("luxury", "")
+                total_dur = sum(s.duration_sec for s in body.clips)
+                logger.info(f"[STORY] multi-image mode images={len(pub_urls)} dur={total_dur}s")
+                try:
+                    r = await wan_service.multi_image_to_video(
+                        image_urls=pub_urls, prompt=combined_prompt,
+                        aspect_ratio=aspect, duration=min(total_dur, 15),
+                    )
+                    clip_url = r.get("video_url", "")
+                    if clip_url:
+                        clip_urls.append(clip_url)
+                except Exception as ex:
+                    logger.warning(f"[STORY] multi-image failed: {ex} — falling back to per-clip")
 
-                if body.ai_model != "kenburs" and img_path and settings.FAL_KEY:
-                    raw = img_path.strip("/")
-                    public_url = f"{settings.API_BASE_URL}/api/v1/files/{raw}"
-                    try:
-                        result = await wan_service.image_to_video(
-                            image_url=public_url,
-                            prompt=prompt[:2000],
-                            duration=str(slot.duration_sec),
-                            aspect_ratio=aspect,
-                            model=fal_model,
-                        )
-                        clip_urls.append(result["video_url"])
-                        logger.info(f"[STORY] clip done idx={idx} url={result['video_url'][:60]}")
-                    except Exception as e:
-                        logger.warning(f"[STORY] clip failed idx={idx}: {e} — falling back to kenburs")
-                        # fallback: ken burns for this clip
+            if not clip_urls:
+                # ── Per-clip rendering with frame chaining ──
+                clip_model = WAN_MODELS["seedance2_pro"] if fal_model in MULTI_IMAGE_MODELS else fal_model
+                chain_url: str = ""
+                for ci, slot in enumerate(body.clips):
+                    idx = min(slot.image_index, len(image_urls) - 1)
+                    img_path = image_urls[idx] if image_urls else ""
+                    prompt = re.sub(r'[฀-๿]+', '', slot.prompt).strip() or _STYLE_PROMPTS.get("luxury", "")
+
+                    if body.ai_model != "kenburs" and img_path and settings.FAL_KEY:
+                        raw = img_path.strip("/")
+                        start_url = chain_url or f"{settings.API_BASE_URL}/api/v1/files/{raw}"
+                        next_slot = body.clips[ci + 1] if ci + 1 < len(body.clips) else None
+                        if next_slot and image_urls:
+                            next_idx = min(next_slot.image_index, len(image_urls) - 1)
+                            next_raw = image_urls[next_idx].strip("/")
+                            end_url = f"{settings.API_BASE_URL}/api/v1/files/{next_raw}"
+                        else:
+                            end_url = ""
+                        try:
+                            result = await wan_service.image_to_video(
+                                image_url=start_url,
+                                prompt=prompt[:2000],
+                                duration=str(slot.duration_sec),
+                                aspect_ratio=aspect,
+                                model=clip_model,
+                                end_image_url=end_url,
+                            )
+                            clip_url = result["video_url"]
+                            clip_urls.append(clip_url)
+                            frame = await _extract_last_frame(clip_url, str(job_id), ci)
+                            chain_url = frame
+                            logger.info(f"[STORY] clip done idx={idx} url={clip_url[:60]}")
+                        except Exception as e:
+                            logger.warning(f"[STORY] clip failed idx={idx}: {e} — falling back to kenburs")
+                            chain_url = ""
+                            kb_result = await video_service.render_video(
+                                job_id=f"{job_id}_s{idx}",
+                                voiceover_url="",
+                                image_urls=[img_path],
+                                duration_sec=slot.duration_sec,
+                            )
+                            clip_urls.append(kb_result["url"])
+                    else:
+                        chain_url = ""
                         kb_result = await video_service.render_video(
                             job_id=f"{job_id}_s{idx}",
                             voiceover_url="",
-                            image_urls=[img_path],
+                            image_urls=[img_path] if img_path else [],
                             duration_sec=slot.duration_sec,
                         )
                         clip_urls.append(kb_result["url"])
-                else:
-                    kb_result = await video_service.render_video(
-                        job_id=f"{job_id}_s{idx}",
-                        voiceover_url="",
-                        image_urls=[img_path] if img_path else [],
-                        duration_sec=slot.duration_sec,
-                    )
-                    clip_urls.append(kb_result["url"])
 
             total_dur = sum(s.duration_sec for s in body.clips)
             labels = [s.label for s in body.clips]
