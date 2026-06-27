@@ -88,15 +88,15 @@ const MODE_TABS = [
 ];
 
 const ASPECT_OPTIONS: AspectRatio[] = ["9:16", "1:1", "16:9"];
-const MODEL_OPTIONS: { id: AIModel; label: string; desc: string; maxClipSec: number; priceClip: string; badge?: string; color: string; features: string[] }[] = [
-  { id: "kenburs",      label: "Ken Burns",         desc: "รูปนิ่ง + zoom/pan — ไม่ใช้ AI",              maxClipSec: 99, priceClip: "ฟรี",           badge: "FREE",   color: "#22D499", features: ["ฟรี 100%", "zoom/pan", "ไม่ใช้ AI", "ไม่จำกัดเวลา"] },
-  { id: "wan21",        label: "Wan 2.2 Turbo",     desc: "Alibaba — เร็ว คุณภาพ 14B ราคาถูกสุด",        maxClipSec: 5,  priceClip: "$0.10 / คลิป",  badge: "ถูกสุด", color: "#34D399", features: ["720p · max quality", "5s/คลิป", "multi-photo ✓", "smooth transition"] },
-  { id: "hailuo2pro",   label: "Hailuo 2.3 Pro",   desc: "Minimax — motion ลื่น atmospheric",            maxClipSec: 10, priceClip: "$0.49 / คลิป",  badge: "ถูก",    color: "#A78BFA", features: ["smooth motion", "prompt optimizer", "6s หรือ 10s", "atmospheric / cinematic"] },
-  { id: "kling3s",      label: "Kling v3 Standard", desc: "Kuaishou — AI motion จริง คมชัด สมจริง",       maxClipSec: 10, priceClip: "$1.89 / คลิป",               color: "#00FFD4", features: ["cinematic motion", "5s หรือ 10s", "multi-photo ✓", "negative prompt ✓"] },
-  { id: "seedance2",    label: "Seedance 2.0 Fast", desc: "ByteDance — เร็ว ลื่น สมจริง",                 maxClipSec: 15, priceClip: "$2.43 / คลิป",               color: "#4D7FFF", features: ["1080p HD", "4–15s ยืดหยุ่น", "multi-photo ✓", "natural motion"] },
-  { id: "kling3s_pro",  label: "Kling v3 Pro",      desc: "Kuaishou — ระดับภาพยนตร์ detail สูงสุด",       maxClipSec: 10, priceClip: "$2.88 / คลิป",  badge: "Pro",    color: "#818CF8", features: ["studio grade", "5s หรือ 10s", "multi-photo ✓", "fine detail · complex motion"] },
-  { id: "seedance2_pro",  label: "Seedance 2.0 Pro",        desc: "ByteDance คุณภาพสูงสุด — 4K high bitrate",       maxClipSec: 15, priceClip: "$4.25 / คลิป",  badge: "4K",       color: "#FF6B6B", features: ["4K resolution", "high bitrate", "4–15s ยืดหยุ่น", "multi-photo ✓"] },
-  { id: "seedance2_multi",label: "Seedance Multi-Shot ✨",  desc: "9 รูปใน 1 API call — AI สร้าง transition เอง",  maxClipSec: 15, priceClip: "$4.25 / วิดีโอ", badge: "BEST",     color: "#F59E0B", features: ["9 รูป/วิดีโอ", "AI transitions", "720p", "no black cuts"] },
+const MODEL_OPTIONS: { id: AIModel; label: string; desc: string; maxClipSec: number; priceClip: string; badge?: string; color: string; features: string[]; multiPhoto: boolean }[] = [
+  { id: "kenburs",       label: "Ken Burns",            desc: "รูปนิ่ง + zoom/pan — ไม่ใช้ AI",             maxClipSec: 99, priceClip: "ฟรี",           badge: "FREE", color: "#22D499", multiPhoto: true,  features: ["ฟรี 100%", "zoom/pan", "ไม่ใช้ AI", "ไม่จำกัดเวลา"] },
+  { id: "wan21",         label: "Wan 2.2 Turbo",        desc: "Alibaba — เร็ว คุณภาพ 14B ราคาถูกสุด",       maxClipSec: 5,  priceClip: "$0.10 / คลิป", badge: "ถูกสุด", color: "#34D399", multiPhoto: true,  features: ["720p · max quality", "5s/คลิป", "multi-photo ✓", "smooth transition"] },
+  { id: "hailuo2pro",    label: "Hailuo 2.3 Pro",       desc: "Minimax — motion ลื่น atmospheric",           maxClipSec: 10, priceClip: "$0.49 / คลิป", badge: "ถูก",   color: "#A78BFA", multiPhoto: false, features: ["smooth motion", "prompt optimizer", "6s หรือ 10s", "1 รูป/คลิป"] },
+  { id: "kling3s",       label: "Kling v3 Standard",    desc: "Kuaishou — AI motion จริง คมชัด สมจริง",      maxClipSec: 10, priceClip: "$1.89 / คลิป",             color: "#00FFD4", multiPhoto: true,  features: ["cinematic motion", "5s หรือ 10s", "multi-photo ✓", "negative prompt ✓"] },
+  { id: "seedance2",     label: "Seedance 2.0 Fast",    desc: "ByteDance — เร็ว ลื่น สมจริง",                maxClipSec: 15, priceClip: "$2.43 / คลิป",             color: "#4D7FFF", multiPhoto: true,  features: ["1080p HD", "4–15s ยืดหยุ่น", "multi-photo ✓", "natural motion"] },
+  { id: "kling3s_pro",   label: "Kling v3 Pro",         desc: "Kuaishou — ระดับภาพยนตร์ detail สูงสุด",      maxClipSec: 10, priceClip: "$2.88 / คลิป", badge: "Pro",   color: "#818CF8", multiPhoto: true,  features: ["studio grade", "5s หรือ 10s", "multi-photo ✓", "fine detail · complex motion"] },
+  { id: "seedance2_pro", label: "Seedance 2.0 Pro",     desc: "ByteDance คุณภาพสูงสุด — 4K high bitrate",    maxClipSec: 15, priceClip: "$4.25 / คลิป", badge: "4K",    color: "#FF6B6B", multiPhoto: true,  features: ["4K resolution", "high bitrate", "4–15s ยืดหยุ่น", "multi-photo ✓"] },
+  { id: "seedance2_multi",label: "Seedance Multi-Shot ✨", desc: "9 รูปใน 1 API call — AI สร้าง transition เอง", maxClipSec: 15, priceClip: "$4.25 / วิดีโอ", badge: "BEST", color: "#F59E0B", multiPhoto: true,  features: ["9 รูป/วิดีโอ", "AI transitions", "720p", "no black cuts"] },
 ];
 
 const MODEL_MAX_CLIP_SEC: Record<AIModel, number> = Object.fromEntries(
@@ -789,18 +789,35 @@ export default function GeneratePage() {
             )}
           </div>
 
-          {/* Selected model capability strip */}
+          {/* Selected model capability strip + multi-photo warning */}
           {(() => {
             const sel = MODEL_OPTIONS.find(m => m.id === aiModel);
             if (!sel) return null;
+            const imgCount = product?.media_urls?.length ?? 0;
+            const showWarn = !sel.multiPhoto && imgCount > 1;
             return (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5, padding: "2px 0" }}>
-                {sel.features.map(f => (
-                  <span key={f} style={{ fontSize: 10, padding: "3px 9px", borderRadius: 12, fontWeight: 600,
-                    background: `${sel.color}15`, color: sel.color,
-                    border: `1px solid ${sel.color}30`,
-                  }}>{f}</span>
-                ))}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                  {sel.features.map(f => (
+                    <span key={f} style={{ fontSize: 10, padding: "3px 9px", borderRadius: 12, fontWeight: 600,
+                      background: `${sel.color}15`, color: sel.color,
+                      border: `1px solid ${sel.color}30`,
+                    }}>{f}</span>
+                  ))}
+                </div>
+                {showWarn && (
+                  <div style={{
+                    display: "flex", alignItems: "flex-start", gap: 8, padding: "9px 12px",
+                    background: "rgba(251,146,60,.08)", border: "1px solid rgba(251,146,60,.35)",
+                    borderRadius: 10, fontSize: 11, color: "#FB923C", lineHeight: 1.5,
+                  }}>
+                    <span style={{ fontSize: 14, flexShrink: 0 }}>⚠</span>
+                    <span>
+                      <b>Hailuo ใช้รูปแรกเพียงรูปเดียว</b> — ไม่รองรับ multi-photo<br />
+                      เปลี่ยนเป็น <b>Kling / Seedance / Wan</b> เพื่อใช้ทุกรูป ({imgCount} รูป)
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -1192,6 +1209,27 @@ export default function GeneratePage() {
               </div>
             </div>
           )}
+
+          {/* Multi-photo warning for Hailuo */}
+          {(() => {
+            const sel = MODEL_OPTIONS.find(m => m.id === aiModel);
+            const imgCount = product?.media_urls?.length ?? 0;
+            if (!sel || sel.multiPhoto || imgCount <= 1) return null;
+            return (
+              <div style={{
+                marginTop: 12, display: "flex", alignItems: "flex-start", gap: 8,
+                padding: "10px 14px", background: "rgba(251,146,60,.08)",
+                border: "1px solid rgba(251,146,60,.4)", borderRadius: 12,
+                fontSize: 12, color: "#FB923C", lineHeight: 1.6,
+              }}>
+                <span style={{ fontSize: 16, flexShrink: 0 }}>⚠</span>
+                <div>
+                  <b>Hailuo ใช้รูปแรกเพียงรูปเดียว</b> — ไม่รองรับ end_image / multi-photo<br />
+                  เปลี่ยนเป็น <b>Kling · Seedance · Wan</b> ด้านบนเพื่อให้ AI ใช้ทุกรูป ({imgCount} รูป)
+                </div>
+              </div>
+            );
+          })()}
 
           <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
             <button onClick={runRender} style={{
