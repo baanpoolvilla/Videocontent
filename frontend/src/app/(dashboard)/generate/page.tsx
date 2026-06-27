@@ -749,7 +749,7 @@ export default function GeneratePage() {
               <div style={{
                 position: "absolute", bottom: "calc(100% + 8px)", left: 0, right: 0, zIndex: 200,
                 background: "#16161f", border: "1px solid rgba(255,255,255,.12)", borderRadius: 12,
-                overflow: "hidden", boxShadow: "0 -12px 40px rgba(0,0,0,.7)",
+                maxHeight: "65vh", overflowY: "auto", boxShadow: "0 -12px 40px rgba(0,0,0,.7)",
               }}>
                 {MODEL_OPTIONS.map(m => {
                   const active = aiModel === m.id;
