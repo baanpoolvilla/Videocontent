@@ -367,6 +367,26 @@ export default function GeneratePage() {
     }
   };
 
+  // ── direct render: skip all AI, use user's prompt straight to fal.ai ────────
+  const runDirectRender = async () => {
+    if (!product || !prompt.trim()) return;
+    setPhase("generating");
+    try {
+      const jobRes = await api.post("/jobs/", { product_id: product.id, platform: "tiktok" });
+      setPendingJobId(jobRes.data.id);
+      setPendingVoiceUrl("");
+      setPendingDurSec(quickDuration);
+      setPendingStyle("playful");
+      setVideoPrompt(prompt.trim());
+      setPrompt("");
+      setPhase("prompt_edit");
+    } catch (e: unknown) {
+      const ax = e as { response?: { data?: { detail?: string }; status?: number }; message?: string };
+      setErrMsg(ax.response?.data?.detail || ax.message || "เกิดข้อผิดพลาด");
+      setPhase("error");
+    }
+  };
+
   // ── render with prompt ─────────────────────────────────────────────────────
   const runRender = async () => {
     setPhase("rendering");
@@ -772,6 +792,22 @@ export default function GeneratePage() {
             <ArrowUp size={16} strokeWidth={2.5} />
             สร้างวิดีโอ
           </button>
+
+          {/* Direct render — skip AI, send prompt straight to fal.ai */}
+          {prompt.trim() && product && aiModel !== "kenburs" && (
+            <button
+              onMouseDown={runDirectRender}
+              style={{
+                width: "100%", padding: "9px 16px", borderRadius: 10, marginTop: 6,
+                cursor: "pointer", border: "1px solid rgba(255,255,255,.12)",
+                background: "rgba(255,255,255,.04)",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                color: "var(--dim)", fontSize: 12, fontWeight: 600,
+              }}>
+              ⚡ Render ตรง (ข้าม AI)
+            </button>
+          )}
+
 
         </div>
       </div>
