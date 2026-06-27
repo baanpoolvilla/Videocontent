@@ -58,6 +58,21 @@ class WanService:
     def _headers(self) -> dict:
         return {"Authorization": f"Key {settings.FAL_KEY}", "Content-Type": "application/json"}
 
+    def _build_payload(self, model: str, image_url: str, prompt: str, dur_int: int, aspect_ratio: str, char_limit: int) -> dict:
+        p = prompt[:char_limit]
+        if "kling-video" in model:
+            # Kling uses start_image_url (not image_url) and duration as string
+            return {"start_image_url": image_url, "prompt": p, "duration": str(dur_int), "aspect_ratio": aspect_ratio}
+        if "wan/v2.2-a14b/image-to-video/turbo" in model:
+            # Wan Turbo uses num_frames (17-161) instead of duration; 16fps × dur_int
+            num_frames = max(17, min(dur_int * 16, 161))
+            return {"image_url": image_url, "prompt": p, "num_frames": num_frames, "aspect_ratio": aspect_ratio}
+        if "hailuo" in model:
+            # Hailuo has no duration or aspect_ratio params — extra fields cause validation error
+            return {"image_url": image_url, "prompt": p}
+        # Default: Seedance 2.0, Wan standard — use image_url + duration (int) + aspect_ratio
+        return {"image_url": image_url, "prompt": p, "duration": dur_int, "aspect_ratio": aspect_ratio}
+
     async def image_to_video(
         self,
         image_url: str,
@@ -71,14 +86,10 @@ class WanService:
         min_dur = MODEL_MIN_DURATION.get(model, 5)
         dur_int = max(dur_int, min_dur)
         char_limit = MODEL_PROMPT_CHARS.get(model, 1900)
-        payload = {
-            "image_url": image_url,
-            "prompt": prompt[:char_limit],
-            "duration": dur_int,
-            "aspect_ratio": aspect_ratio,
-        }
+        payload = self._build_payload(model, image_url, prompt, dur_int, aspect_ratio, char_limit)
         logger.info(f"[FAL] image_to_video model={model} duration={dur_int}s aspect={aspect_ratio} image={image_url[:60]}")
         logger.info(f"[FAL] prompt preview: {prompt[:120]}")
+        logger.info(f"[FAL] payload keys: {list(payload.keys())}")
         return await self._run(model, payload)
 
     async def text_to_video(
