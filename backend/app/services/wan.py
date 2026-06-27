@@ -120,11 +120,12 @@ class WanService:
         logger.info(f"[FAL] status_url={status_url}")
         logger.info(f"[FAL] response_url={response_url}")
 
-        # Poll until COMPLETED (max 5 min)
+        # Poll until COMPLETED (max 5 min) — use ?logs=1 so output is embedded when COMPLETED
+        completed_data: dict = {}
         for attempt in range(60):
             await asyncio.sleep(5)
             async with httpx.AsyncClient(timeout=15) as client:
-                r = await client.get(status_url, headers=self._headers())
+                r = await client.get(status_url + "?logs=1", headers=self._headers())
                 if not r.is_success:
                     logger.warning(f"[FAL] status check {r.status_code}: {r.text[:200]}")
                     continue
@@ -133,22 +134,33 @@ class WanService:
             st = status_data.get("status", "")
             logger.info(f"[FAL] attempt {attempt+1} status={st}")
             if st == "COMPLETED":
+                completed_data = status_data
                 break
             if st in ("FAILED", "ERROR"):
                 raise RuntimeError(f"fal.ai generation failed: {status_data}")
 
-        # Fetch result
-        async with httpx.AsyncClient(timeout=15) as client:
-            r = await client.get(response_url, headers=self._headers())
-            if not r.is_success:
-                raise RuntimeError(f"fal.ai result error {r.status_code}: {r.text[:200]}")
-            result = r.json()
+        # Try output embedded in status response first (fal.ai includes it when ?logs=1)
+        result: dict = {}
+        out = completed_data.get("output") or {}
+        video_url = (out.get("video") or {}).get("url") or out.get("video_url") or ""
+        logger.info(f"[FAL] status output keys: {list(out.keys()) if out else 'empty'}")
 
-        video_url = (
-            (result.get("video") or {}).get("url")
-            or result.get("video_url")
-            or ""
-        )
+        if not video_url:
+            # Fall back: fetch from response_url
+            async with httpx.AsyncClient(timeout=15) as client:
+                r = await client.get(response_url, headers=self._headers())
+                if r.is_success:
+                    result = r.json()
+                else:
+                    logger.warning(f"[FAL] result fetch {r.status_code}: {r.text[:200]}")
+                    raise RuntimeError(f"fal.ai result error {r.status_code}: {r.text[:200]}")
+
+        if not video_url:
+            video_url = (
+                (result.get("video") or {}).get("url")
+                or result.get("video_url")
+                or ""
+            )
         logger.info(f"[FAL] done video_url={video_url[:60] if video_url else 'EMPTY'}")
         return {"task_id": request_id, "video_url": video_url, "status": "succeed"}
 
