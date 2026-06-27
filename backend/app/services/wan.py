@@ -18,10 +18,10 @@ FAL_QUEUE = "https://queue.fal.run"
 MODELS = {
     "hailuo2pro":    "fal-ai/minimax/hailuo-2.3/pro/image-to-video",          # $0.49/คลิป — min 6s
     "kling3s":       "fal-ai/kling-video/v3/standard/image-to-video",         # $1.89/คลิป
-    "kling3s_pro":   "fal-ai/kling-video/v3/pro/image-to-video",              # $2.88/คลิป
-    "seedance2":     "fal-ai/bytedance/seedance-v1/i2v/turbo",                # $2.43/คลิป — ByteDance fast
-    "seedance2_pro": "fal-ai/bytedance/seedance-v1/i2v/standard",             # $4.25/คลิป — ByteDance pro
-    "wan21":         "fal-ai/wan/v2.1/image-to-video",                        # $0.30/คลิป — Wan 2.1
+    "kling3s_pro":   "fal-ai/kling-video/v3/pro/image-to-video",              # $2.88/คลิป — 15s max
+    "seedance2":     "bytedance/seedance-2.0/fast/image-to-video",            # $2.43/คลิป — ByteDance fast
+    "seedance2_pro": "bytedance/seedance-2.0/image-to-video",                 # $4.25/คลิป — ByteDance pro
+    "wan21":         "fal-ai/wan/v2.2-a14b/image-to-video",                   # $0.30/คลิป — Wan 2.2
     "kenburs":       "kenburs",                                                 # ฟรี — FFmpeg Ken Burns
 }
 
@@ -35,19 +35,19 @@ MODEL_PROMPT_CHARS: dict[str, int] = {
     "fal-ai/kling-video/v3/standard/image-to-video":  2400,  # Kling 2500 chars
     "fal-ai/kling-video/v3/pro/image-to-video":       2400,
     "fal-ai/minimax/hailuo-2.3/pro/image-to-video":   1900,  # Hailuo ~2000 chars
-    "fal-ai/bytedance/seedance-v1/i2v/turbo":          1900,  # Seedance ~2000 chars
-    "fal-ai/bytedance/seedance-v1/i2v/standard":       1900,
-    "fal-ai/wan/v2.1/image-to-video":                  1900,  # Wan — no hard limit, cap at 1900
+    "bytedance/seedance-2.0/fast/image-to-video":      1900,  # Seedance ~2000 chars
+    "bytedance/seedance-2.0/image-to-video":           1900,
+    "fal-ai/wan/v2.2-a14b/image-to-video":             1900,  # Wan 2.2 — no hard limit, cap at 1900
 }
 
 # Max seconds per single clip generation for each model
 MODEL_MAX_DUR_PER_CLIP: dict[str, int] = {
     "fal-ai/kling-video/v3/standard/image-to-video": 10,
-    "fal-ai/kling-video/v3/pro/image-to-video":      10,
+    "fal-ai/kling-video/v3/pro/image-to-video":      15,  # Kling Pro supports up to 15s
     "fal-ai/minimax/hailuo-2.3/pro/image-to-video":  9,
-    "fal-ai/bytedance/seedance-v1/i2v/turbo":         10,
-    "fal-ai/bytedance/seedance-v1/i2v/standard":      10,
-    "fal-ai/wan/v2.1/image-to-video":                 5,
+    "bytedance/seedance-2.0/fast/image-to-video":     10,
+    "bytedance/seedance-2.0/image-to-video":          10,
+    "fal-ai/wan/v2.2-a14b/image-to-video":            5,
 }
 
 DEFAULT_I2V = MODELS["kling3s"]
