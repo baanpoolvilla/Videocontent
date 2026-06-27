@@ -21,7 +21,7 @@ MODELS = {
     "kling3s_pro":   "fal-ai/kling-video/v3/pro/image-to-video",              # $2.88/คลิป — 15s max
     "seedance2":     "bytedance/seedance-2.0/fast/image-to-video",            # $2.43/คลิป — ByteDance fast
     "seedance2_pro": "bytedance/seedance-2.0/image-to-video",                 # $4.25/คลิป — ByteDance pro
-    "wan21":         "fal-ai/wan/v2.2-a14b/image-to-video",                   # $0.30/คลิป — Wan 2.2
+    "wan21":         "fal-ai/wan/v2.2-a14b/image-to-video/turbo",             # $0.10/คลิป — Wan 2.2 Turbo
     "kenburs":       "kenburs",                                                 # ฟรี — FFmpeg Ken Burns
 }
 
@@ -37,7 +37,7 @@ MODEL_PROMPT_CHARS: dict[str, int] = {
     "fal-ai/minimax/hailuo-2.3/pro/image-to-video":   1900,  # Hailuo ~2000 chars
     "bytedance/seedance-2.0/fast/image-to-video":      1900,  # Seedance ~2000 chars
     "bytedance/seedance-2.0/image-to-video":           1900,
-    "fal-ai/wan/v2.2-a14b/image-to-video":             1900,  # Wan 2.2 — no hard limit, cap at 1900
+    "fal-ai/wan/v2.2-a14b/image-to-video/turbo":        1900,  # Wan 2.2 Turbo
 }
 
 # Max seconds per single clip generation for each model
@@ -47,7 +47,7 @@ MODEL_MAX_DUR_PER_CLIP: dict[str, int] = {
     "fal-ai/minimax/hailuo-2.3/pro/image-to-video":  9,
     "bytedance/seedance-2.0/fast/image-to-video":     10,
     "bytedance/seedance-2.0/image-to-video":          10,
-    "fal-ai/wan/v2.2-a14b/image-to-video":            5,
+    "fal-ai/wan/v2.2-a14b/image-to-video/turbo":       5,
 }
 
 DEFAULT_I2V = MODELS["kling3s"]

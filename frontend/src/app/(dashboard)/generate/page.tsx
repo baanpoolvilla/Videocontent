@@ -90,7 +90,7 @@ const MODE_TABS = [
 const ASPECT_OPTIONS: AspectRatio[] = ["9:16", "1:1", "16:9"];
 const MODEL_OPTIONS: { id: AIModel; label: string; desc: string; maxClipSec: number; priceClip: string; badge?: string; color: string }[] = [
   { id: "kenburs",      label: "Ken Burns",         desc: "รูปนิ่ง + zoom/pan — ไม่ใช้ AI",              maxClipSec: 99, priceClip: "ฟรี",           badge: "FREE",  color: "#22D499" },
-  { id: "wan21",        label: "Wan 2.2",            desc: "Alibaba — เข้าใจ prompt ดี ราคาประหยัด",      maxClipSec: 5,  priceClip: "$0.30 / คลิป",  badge: "ถูกสุด", color: "#34D399" },
+  { id: "wan21",        label: "Wan 2.2 Turbo",      desc: "Alibaba — เร็ว คุณภาพ 14B ราคาถูกสุด",        maxClipSec: 5,  priceClip: "$0.10 / คลิป",  badge: "ถูกสุด", color: "#34D399" },
   { id: "hailuo2pro",   label: "Hailuo 2.3 Pro",    desc: "Minimax — motion ลื่น atmospheric",            maxClipSec: 9,  priceClip: "$0.49 / คลิป",  badge: "ถูก",   color: "#A78BFA" },
   { id: "kling3s",      label: "Kling v3 Standard",  desc: "AI motion จริง — คุณภาพสูง",                  maxClipSec: 10, priceClip: "$1.89 / คลิป",                  color: "#00FFD4" },
   { id: "seedance2",    label: "Seedance 2.0 Fast",  desc: "AI ByteDance — motion ลื่น",                  maxClipSec: 10, priceClip: "$2.43 / คลิป",                  color: "#4D7FFF" },
