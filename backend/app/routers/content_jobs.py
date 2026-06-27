@@ -411,7 +411,7 @@ async def _do_render(
                 if not clip_urls:
                     # ─── Frame chaining + rotating camera movement (Runway/CapCut approach) ───
                     # If fal_model is reference-to-video (multi-image endpoint), fall back to seedance2_pro
-                    from app.services.wan import MODELS as WAN_MODELS, MULTI_IMAGE_MODELS
+                    from app.services.wan import MODELS as WAN_MODELS
                     chain_model = WAN_MODELS["seedance2_pro"] if fal_model in MULTI_IMAGE_MODELS else fal_model
                     chain_per_clip = MODEL_MAX_DUR_PER_CLIP.get(chain_model, 5)
                     n_clips = clip_count if clip_count > 0 else ceil(duration_sec / chain_per_clip)
@@ -666,7 +666,7 @@ async def story_render(
 
 
 async def _do_story_render(job_id: UUID, image_urls: list[str], body: _StoryRequest):
-    from app.services.wan import MODELS as WAN_MODELS, MULTI_IMAGE_MODELS
+    from app.services.wan import MODELS as WAN_MODELS
     import re
     fal_model = WAN_MODELS.get(body.ai_model, WAN_MODELS["hailuo2pro"])
     aspect = body.aspect_ratio.replace("x", ":")
