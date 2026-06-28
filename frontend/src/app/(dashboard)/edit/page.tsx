@@ -77,27 +77,55 @@ export default function EditPage() {
   const [showPlan,     setShowPlan]     = useState(false);
 
   /* ── Drag & drop ────────────────────────────────────────────────── */
-  const MAX_FILE_MB = 90;
+  const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB per chunk
 
   const addFiles = useCallback((incoming: FileList | File[]) => {
-    const oversized: string[] = [];
-    const arr = Array.from(incoming).filter(f => {
-      if (!/\.(mp4|mov|avi|mkv|m4v)$/i.test(f.name)) return false;
-      if (f.size > MAX_FILE_MB * 1_048_576) {
-        oversized.push(`${f.name} (${(f.size/1_048_576).toFixed(0)}MB)`);
-        return false;
-      }
-      return true;
-    });
-    if (oversized.length) {
-      setError(`ไฟล์ใหญ่เกิน ${MAX_FILE_MB}MB — ลดขนาดก่อนอัปโหลด:\n${oversized.join(", ")}`);
-    }
+    const arr = Array.from(incoming).filter(f =>
+      /\.(mp4|mov|avi|mkv|m4v)$/i.test(f.name)
+    );
     setFiles(prev => {
       const merged = [...prev, ...arr];
       if (merged.length > 10) merged.splice(10);
       return merged;
     });
   }, []);
+
+  async function uploadFile(file: File, idx: number, total: number): Promise<string> {
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    if (totalChunks === 1) {
+      // Small file — direct stage
+      setLoadingMsg(`อัปโหลดคลิป ${idx + 1}/${total}...`);
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await api.post("/video-edit/stage", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      return (r.data as { stage_id: string }).stage_id;
+    }
+
+    // Large file — chunked upload
+    for (let i = 0; i < totalChunks; i++) {
+      setLoadingMsg(`อัปโหลดคลิป ${idx + 1}/${total} (${i + 1}/${totalChunks} ชิ้น)...`);
+      const start = i * CHUNK_SIZE;
+      const blob  = file.slice(start, Math.min(start + CHUNK_SIZE, file.size));
+      const fd    = new FormData();
+      fd.append("upload_id",    uploadId);
+      fd.append("chunk_index",  String(i));
+      fd.append("total_chunks", String(totalChunks));
+      fd.append("filename",     file.name);
+      fd.append("chunk",        new Blob([blob], { type: file.type }), file.name);
+      await api.post("/video-edit/chunk", fd, { headers: { "Content-Type": "multipart/form-data" } });
+    }
+
+    // Assemble
+    setLoadingMsg(`รวมไฟล์คลิป ${idx + 1}/${total}...`);
+    const afd = new FormData();
+    afd.append("upload_id",    uploadId);
+    afd.append("total_chunks", String(totalChunks));
+    afd.append("filename",     file.name);
+    const ar = await api.post("/video-edit/assemble", afd, { headers: { "Content-Type": "multipart/form-data" } });
+    return (ar.data as { stage_id: string }).stage_id;
+  }
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -119,16 +147,11 @@ export default function EditPage() {
     setShowPlan(false);
 
     try {
-      // Stage each file individually to bypass Cloudflare 100MB limit
+      // Upload each file (chunked for large files — no size limit)
       const stageIds: string[] = [];
       for (let i = 0; i < files.length; i++) {
-        setLoadingMsg(`อัปโหลดคลิป ${i + 1}/${files.length}...`);
-        const sf = new FormData();
-        sf.append("file", files[i]);
-        const sr = await api.post("/video-edit/stage", sf, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        stageIds.push((sr.data as { stage_id: string }).stage_id);
+        const stageId = await uploadFile(files[i], i, files.length);
+        stageIds.push(stageId);
       }
 
       // Trigger processing with staged IDs
@@ -218,7 +241,7 @@ export default function EditPage() {
                 <span style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {f.name}
                 </span>
-                <span style={{ fontSize: 11, color: f.size > MAX_FILE_MB * 1_048_576 ? "#ff6b6b" : "var(--dim)" }}>
+                <span style={{ color: "var(--dim)", fontSize: 11 }}>
                   {(f.size / 1_048_576).toFixed(1)}MB
                 </span>
                 <button

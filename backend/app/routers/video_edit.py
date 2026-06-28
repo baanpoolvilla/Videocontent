@@ -7,6 +7,7 @@ Supports two upload modes:
 """
 import logging
 import os
+import shutil
 import tempfile
 from typing import Annotated
 
@@ -72,36 +73,80 @@ async def delete_edit(object_name: str):
         raise HTTPException(500, f"ลบไม่สำเร็จ: {exc}")
 
 
-# ── Stage a single clip ───────────────────────────────────────────────
+# ── Chunked upload (for large files — bypasses Cloudflare 100MB limit) ───
+_CHUNK_DIR = "/tmp/video_chunks"
+
+@router.post("/chunk")
+async def upload_chunk(
+    upload_id:    Annotated[str, Form()],
+    chunk_index:  Annotated[int, Form()],
+    total_chunks: Annotated[int, Form()],
+    filename:     Annotated[str, Form()],
+    chunk:        Annotated[UploadFile, File()],
+):
+    """Receive one chunk of a large file. Call /assemble after all chunks arrive."""
+    chunk_dir = os.path.join(_CHUNK_DIR, upload_id)
+    os.makedirs(chunk_dir, exist_ok=True)
+    data = await chunk.read()
+    chunk_path = os.path.join(chunk_dir, f"{chunk_index:05d}")
+    with open(chunk_path, "wb") as fp:
+        fp.write(data)
+    logger.info(f"[CHUNK] {upload_id} chunk {chunk_index+1}/{total_chunks} ({len(data)//1024}KB)")
+    return {"received": chunk_index, "total": total_chunks}
+
+
+@router.post("/assemble")
+async def assemble_chunks(
+    upload_id:    Annotated[str, Form()],
+    total_chunks: Annotated[int, Form()],
+    filename:     Annotated[str, Form()],
+):
+    """Assemble all chunks into a staged file. Returns stage_id."""
+    _ensure_buckets()
+    chunk_dir = os.path.join(_CHUNK_DIR, upload_id)
+    ext = os.path.splitext(filename)[1].lower() or ".mp4"
+
+    # Write chunks sequentially to a temp file then stream to MinIO
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        tmp_path = tmp.name
+        for i in range(total_chunks):
+            cp = os.path.join(chunk_dir, f"{i:05d}")
+            if not os.path.exists(cp):
+                raise HTTPException(400, f"chunk {i} หายไป — อัปโหลดใหม่อีกครั้ง")
+            with open(cp, "rb") as fp:
+                tmp.write(fp.read())
+
+    try:
+        with open(tmp_path, "rb") as fp:
+            data = fp.read()
+        minio_path = await storage_service.upload_bytes(
+            data=data, filename=f"stage{ext}",
+            content_type="video/mp4", bucket=_STAGING_BUCKET,
+        )
+        logger.info(f"[ASSEMBLE] {filename} {len(data)//1024}KB → {minio_path}")
+        return {"stage_id": minio_path, "filename": filename, "size_mb": round(len(data)/1_048_576, 1)}
+    finally:
+        os.unlink(tmp_path)
+        shutil.rmtree(chunk_dir, ignore_errors=True)
+
+
+# ── Stage a single clip (small files ≤ 80MB) ─────────────────────────
 @router.post("/stage")
 async def stage_clip(file: Annotated[UploadFile, File(description="Single video clip")]):
-    """
-    Upload ONE clip to staging storage.
-    Returns a stage_id to pass to POST /video-edit.
-    Use this to bypass Cloudflare's 100MB per-request limit when uploading multiple clips.
-    """
+    """Upload ONE clip to staging. For large files use /chunk + /assemble instead."""
     _ensure_buckets()
-
     data = await file.read()
     if not data:
         raise HTTPException(400, "ไฟล์ว่างเปล่า")
-
     ext = os.path.splitext(file.filename or "clip.mp4")[1].lower() or ".mp4"
     if ext not in _VALID_EXT:
-        raise HTTPException(400, f"รองรับ mp4, mov, avi, mkv เท่านั้น")
-
+        raise HTTPException(400, "รองรับ mp4, mov, avi, mkv เท่านั้น")
     minio_path = await storage_service.upload_bytes(
-        data=data,
-        filename=f"stage{ext}",
-        content_type=file.content_type or "video/mp4",
-        bucket=_STAGING_BUCKET,
+        data=data, filename=f"stage{ext}",
+        content_type=file.content_type or "video/mp4", bucket=_STAGING_BUCKET,
     )
     logger.info(f"[STAGE] {file.filename} ({len(data)//1024}KB) → {minio_path}")
-    return {
-        "stage_id": minio_path,      # e.g. "/video-staging/uuid.mp4"
-        "filename": file.filename,
-        "size_mb":  round(len(data) / 1_048_576, 1),
-    }
+    return {"stage_id": minio_path, "filename": file.filename, "size_mb": round(len(data)/1_048_576, 1)}
 
 
 # ── Main edit endpoint ────────────────────────────────────────────────
