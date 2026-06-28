@@ -1,6 +1,6 @@
 """
 ffmpeg_render.py — Local FFmpeg video renderer.
-Pipeline: trim → scale-to-cover → center-crop (+ pan offset) → speed → fade → color grade → xfade concat
+Pipeline: trim → scale-to-cover → animated-crop (Ken Burns) → speed → fade (first/last only) → color grade → xfade concat
 """
 import asyncio
 import json
@@ -16,33 +16,24 @@ RESOLUTIONS = {
     "square":    (1080, 1080),
 }
 
-# Color grades using colorbalance + eq — predictable, no curves quirks
-# colorbalance: rs/rm/rh = red shadows/midtones/highlights, same for g and b (-1 to 1)
-# eq: saturation multiplier, contrast multiplier, brightness (-1 to 1)
 COLOR_GRADES = {
-    # Warm golden — luxury, resort, golden hour
     "warm": (
         "colorbalance=rs=0.08:rm=0.05:rh=0.02:gs=0:gm=0:gh=0:bs=-0.10:bm=-0.06:bh=-0.02,"
         "eq=saturation=1.20:contrast=1.05:brightness=0.01"
     ),
-    # Teal-Orange — Hollywood cinematic
     "teal_orange": (
         "colorbalance=rs=0.12:rm=0.10:rh=0.05:gs=-0.02:gm=-0.02:gh=0:bs=-0.08:bm=-0.04:bh=0.06,"
         "eq=saturation=1.30:contrast=1.08"
     ),
-    # Vibrant — party, energetic
     "vibrant": "eq=saturation=1.55:contrast=1.12:brightness=0.02",
-    # Moody — dramatic, dark
     "moody": (
         "colorbalance=rs=-0.03:rm=-0.02:rh=0:gs=-0.02:gm=-0.01:gh=0:bs=0.02:bm=0.02:bh=0,"
         "eq=saturation=0.80:contrast=1.28:brightness=-0.04"
     ),
-    # Fresh blue — pool, water, beach
     "fresh": (
         "colorbalance=rs=-0.02:rm=0:rh=0:gs=0.02:gm=0.02:gh=0:bs=0.08:bm=0.06:bh=0.04,"
         "eq=saturation=1.30:contrast=1.05:brightness=0.02"
     ),
-    # Soft romantic
     "romantic": (
         "colorbalance=rs=0.06:rm=0.04:rh=0.02:gs=0:gm=0:gh=0:bs=-0.08:bm=-0.05:bh=-0.02,"
         "eq=saturation=1.10:contrast=1.03:brightness=0.03"
@@ -58,6 +49,9 @@ XFADE_MAP = {
     "circleopen": "circleopen", "circleclose": "circleclose",
     "pixelize": "pixelize", "hard_cut": "fade",
 }
+
+# Default drift directions for clips without pan (alternated by index)
+_DEFAULT_PANS = ["right", "left", "bottom", "top", "top-right", "bottom-left"]
 
 
 def detect_grade(style_prompt: str) -> str:
@@ -87,25 +81,28 @@ async def _probe_duration(path: str) -> float:
         return 10.0
 
 
-def _crop_expr(out_w: int, out_h: int, pan: str | None, zoom: int) -> tuple[str, str]:
+def _animated_crop_expr(out_w: int, out_h: int, pan: str, total_n: int) -> tuple[str, str]:
     """
-    Return FFmpeg crop x/y expressions.
-    Uses 'iw' and 'ih' (actual scaled dimensions) so the crop is always correct
+    Return FFmpeg crop x/y expressions that animate over total_n frames (Ken Burns pan).
+    Uses n (frame number) and iw/ih (actual scaled dimensions) so it works
     regardless of input aspect ratio.
+    Start from center, drift toward the pan direction.
     """
-    # Horizontal
-    if zoom > 0 and pan and "right" in pan:
-        cx = f"iw-{out_w}"
-    elif zoom > 0 and pan and "left" in pan:
-        cx = "0"
+    t = f"n/{total_n}"  # normalized time 0→1
+
+    # Horizontal: default center
+    if "right" in pan:
+        cx = f"(iw-{out_w})/2*(1+{t})"   # center → right
+    elif "left" in pan:
+        cx = f"(iw-{out_w})/2*(1-{t})"   # center → left
     else:
         cx = f"(iw-{out_w})/2"
 
-    # Vertical
-    if zoom > 0 and pan and "bottom" in pan:
-        cy = f"ih-{out_h}"
-    elif zoom > 0 and pan and "top" in pan:
-        cy = "0"
+    # Vertical: default center
+    if "bottom" in pan:
+        cy = f"(ih-{out_h})/2*(1+{t})"   # center → bottom
+    elif "top" in pan:
+        cy = f"(ih-{out_h})/2*(1-{t})"   # center → top
     else:
         cy = f"(ih-{out_h})/2"
 
@@ -115,49 +112,58 @@ def _crop_expr(out_w: int, out_h: int, pan: str | None, zoom: int) -> tuple[str,
 async def _process_clip(
     src: str, clip: dict, out_w: int, out_h: int,
     grade: str, tmp: str, idx: int,
+    is_first: bool = False, is_last: bool = False,
 ) -> str:
-    """Trim → scale-to-cover → crop (zoom+pan) → speed → fade → color grade."""
+    """Trim → scale-to-cover → animated Ken Burns crop → speed → fade(first/last) → color grade."""
     dest = os.path.join(tmp, f"seg_{idx:02d}.mp4")
 
-    ts     = float(clip["trim_start"])
-    te     = float(clip["trim_end"])
-    dur    = te - ts
-    speed  = max(0.5, min(2.0, float(clip.get("speed", 1.0))))
-    zoom   = max(0, min(10, int(clip.get("zoom", 0))))
-    pan    = clip.get("pan") or None
-    fade_i = max(0.3, float(clip.get("fade_in",  0.4)))
-    fade_o = max(0.3, float(clip.get("fade_out", 0.4)))
+    ts    = float(clip["trim_start"])
+    te    = float(clip["trim_end"])
+    dur   = te - ts
+    speed = max(0.5, min(2.0, float(clip.get("speed", 1.0))))
+    zoom  = max(0, min(10, int(clip.get("zoom", 0))))
+    pan   = clip.get("pan") or None
 
-    adj_dur = dur / speed
+    adj_dur  = dur / speed
+    total_n  = max(1, int(dur * 30))  # frame count at 30fps
 
-    # Zoom scale factor: zoom=0→1.0x (cover only), zoom=10→1.5x (zoomed in)
-    scale_f = 1.0 + zoom * 0.05   # 0→1.0, 5→1.25, 10→1.5
+    # Always scale at least 10% larger to allow Ken Burns movement.
+    # zoom=0 → 1.10x (subtle drift), zoom=5 → 1.35x, zoom=10 → 1.60x
+    scale_f = max(1.10, 1.0 + zoom * 0.05)
     sw = int(out_w * scale_f)
     sh = int(out_h * scale_f)
-    # Ensure even dimensions
-    sw = sw + (sw % 2)
-    sh = sh + (sh % 2)
+    sw += sw % 2
+    sh += sh % 2
 
-    # Crop offsets using FFmpeg expressions (based on actual scaled dimensions)
-    cx_expr, cy_expr = _crop_expr(out_w, out_h, pan, zoom)
+    # If Gemini gave no pan, use a default direction (alternated per clip index)
+    effective_pan = pan or _DEFAULT_PANS[idx % len(_DEFAULT_PANS)]
+
+    cx_expr, cy_expr = _animated_crop_expr(out_w, out_h, effective_pan, total_n)
 
     vf: list[str] = []
 
-    # 1. Scale to cover the (possibly zoomed) target frame
+    # 1. Scale to cover the zoomed target frame
     vf.append(f"scale={sw}:{sh}:force_original_aspect_ratio=increase")
-    # Ensure even output after scale
+
+    # 2. Animated Ken Burns crop
     vf.append(f"crop={out_w}:{out_h}:{cx_expr}:{cy_expr}")
 
-    # 2. Speed change
+    # 3. Speed change
     if abs(speed - 1.0) > 0.05:
         vf.append(f"setpts={1.0/speed:.4f}*PTS")
 
-    # 3. Fade in / out (in adjusted-duration timeline)
-    fo_start = max(0.1, adj_dur - fade_o - 0.1)
-    vf.append(f"fade=t=in:st=0:d={fade_i:.2f}")
-    vf.append(f"fade=t=out:st={fo_start:.2f}:d={fade_o:.2f}")
+    # 4. Fade — ONLY on first clip (fade-in) and last clip (fade-out).
+    #    Intermediate clips rely on xfade transitions — per-clip fades
+    #    cause a double-fade artifact that makes transitions look choppy.
+    fade_i = max(0.4, float(clip.get("fade_in",  0.5)))
+    fade_o = max(0.4, float(clip.get("fade_out", 0.5)))
+    if is_first:
+        vf.append(f"fade=t=in:st=0:d={fade_i:.2f}")
+    if is_last:
+        fo_start = max(0.1, adj_dur - fade_o - 0.1)
+        vf.append(f"fade=t=out:st={fo_start:.2f}:d={fade_o:.2f}")
 
-    # 4. Color grade
+    # 5. Color grade
     gf = COLOR_GRADES.get(grade, "")
     if gf:
         vf.append(gf)
@@ -178,17 +184,15 @@ async def _process_clip(
     ]
 
     logger.info(
-        f"[FFR] clip {idx}: {os.path.basename(src)} zoom={zoom} pan={pan} "
-        f"speed={speed} grade={grade} {dur:.1f}s→{adj_dur:.1f}s"
+        f"[FFR] clip {idx}: {os.path.basename(src)} zoom={zoom}(x{scale_f:.2f}) "
+        f"pan={effective_pan} speed={speed} grade={grade} {dur:.1f}s→{adj_dur:.1f}s"
     )
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
     )
     _, stderr = await proc.communicate()
     if proc.returncode != 0:
-        raise RuntimeError(
-            f"FFmpeg clip {idx} failed:\n{stderr.decode()[-800:]}"
-        )
+        raise RuntimeError(f"FFmpeg clip {idx} failed:\n{stderr.decode()[-800:]}")
 
     return dest
 
@@ -203,15 +207,15 @@ async def _concat(segs: list[str], clips: list[dict], tmp: str) -> str:
 
     durs = [await _probe_duration(s) for s in segs]
 
-    # Transition duration: at most 40% of shortest clip, max 1.0s
+    # Transition duration: 40% of shortest clip, clamp 0.5–1.2s
     min_dur = min(durs)
-    td = round(min(1.0, max(0.4, min_dur * 0.35)), 2)
+    td = round(min(1.2, max(0.5, min_dur * 0.40)), 2)
 
     inputs: list[str] = []
     for s in segs:
         inputs += ["-i", s]
 
-    prev = "[0:v]"
+    prev   = "[0:v]"
     parts: list[str] = []
     offset = max(0.1, durs[0] - td)
 
@@ -257,17 +261,21 @@ async def render_with_ffmpeg(
     style_prompt: str,
     tmp_dir: str,
 ) -> str:
-    """Full FFmpeg pipeline. Returns local path to final MP4."""
     out_w, out_h = RESOLUTIONS.get(resolution, (1080, 1920))
     grade  = detect_grade(style_prompt)
     clips  = plan.get("clips", [])
+    n      = len(clips)
 
-    logger.info(f"[FFR] {len(clips)} clips | {out_w}x{out_h} | grade={grade}")
+    logger.info(f"[FFR] {n} clips | {out_w}x{out_h} | grade={grade}")
 
     segs = []
     for i, clip in enumerate(clips):
         src = clip_paths[clip["source_index"]]
-        seg = await _process_clip(src, clip, out_w, out_h, grade, tmp_dir, i)
+        seg = await _process_clip(
+            src, clip, out_w, out_h, grade, tmp_dir, i,
+            is_first=(i == 0),
+            is_last=(i == n - 1),
+        )
         segs.append(seg)
 
     final = await _concat(segs, clips, tmp_dir)
