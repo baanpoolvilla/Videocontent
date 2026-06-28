@@ -28,9 +28,14 @@ interface EditResult {
 type Resolution = "portrait" | "landscape" | "square";
 
 const PRESETS = [
-  { label: "🎉 สนุก มีชีวิตชีวา", value: "Fun and energetic, upbeat, vibrant colors, fast cuts, punchy transitions, pool villa party atmosphere" },
-  { label: "✨ หรู สงบ ซีเนมาติก", value: "Elegant and calm, luxury pool villa, cinematic slow dissolves, warm golden tones, sophisticated atmosphere" },
-  { label: "🏡 ทัวร์รีวิวบ้าน", value: "Property tour style review, showcasing every room and feature, smooth pans, clear wide shots, welcoming and informative" },
+  { emoji: "🎉", label: "สนุก เฮฮา ปาร์ตี้",   value: "Fun, energetic and party vibe, upbeat fast cuts, vibrant colors, punchy transitions, friends having fun at pool villa" },
+  { emoji: "✨", label: "หรู ซีเนมาติก",         value: "Luxury cinematic, slow elegant dissolves, golden hour tones, teal-orange grade, sophisticated pool villa atmosphere, 0.8x speed" },
+  { emoji: "🏡", label: "ทัวร์รีวิวบ้าน",        value: "Property tour review style, showcase every room and feature clearly, smooth slide transitions, welcoming and informative" },
+  { emoji: "💑", label: "โรแมนติก คู่รัก",       value: "Romantic couple getaway, soft warm tones, dreamy slow motion, gentle dissolves, intimate pool villa moments" },
+  { emoji: "🌊", label: "ชิลล์ ผ่อนคลาย",       value: "Chill and relaxing vacation mood, turquoise pool, slow drifting shots, soft blue-green tones, peaceful atmosphere" },
+  { emoji: "👨‍👩‍👧", label: "ครอบครัว เที่ยวด้วยกัน", value: "Family vacation, happy moments together, bright cheerful tones, natural light, warm and welcoming atmosphere" },
+  { emoji: "📣", label: "โปรโมชัน ดึงดูด",       value: "Promotional marketing video, highlight best features, eye-catching transitions, bold and exciting, call-to-action energy" },
+  { emoji: "🌅", label: "วิวธรรมชาติ เช้า-เย็น", value: "Nature and scenery focus, golden sunrise or sunset by the pool, cinematic landscape shots, serene and breathtaking" },
 ];
 
 const RESOLUTION_OPTS: { value: Resolution; label: string; sub: string }[] = [
@@ -211,23 +216,28 @@ export default function EditPage() {
         <p style={{ margin: "0 0 8px", fontSize: 12.5, fontWeight: 700, color: "var(--dim)", textTransform: "uppercase", letterSpacing: ".05em" }}>
           สไตล์ด่วน
         </p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {PRESETS.map(p => (
-            <button
-              key={p.label}
-              onClick={() => setPrompt(p.value)}
-              style={{
-                padding: "7px 14px", borderRadius: 20, fontSize: 13, cursor: "pointer",
-                border: `1px solid ${prompt === p.value ? "var(--teal)" : "var(--gb)"}`,
-                background: prompt === p.value ? "rgba(0,255,212,.12)" : "var(--glass2)",
-                color: prompt === p.value ? "var(--teal)" : "var(--text)",
-                fontWeight: prompt === p.value ? 700 : 500,
-                transition: "all .15s",
-              }}
-            >
-              {p.label}
-            </button>
-          ))}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
+          {PRESETS.map(p => {
+            const active = prompt === p.value;
+            return (
+              <button
+                key={p.label}
+                onClick={() => setPrompt(p.value)}
+                style={{
+                  padding: "10px 12px", borderRadius: 10, fontSize: 13, cursor: "pointer",
+                  border: `1px solid ${active ? "var(--teal)" : "var(--gb)"}`,
+                  background: active ? "rgba(0,255,212,.12)" : "var(--glass2)",
+                  color: active ? "var(--teal)" : "var(--text)",
+                  fontWeight: active ? 700 : 500,
+                  textAlign: "left", transition: "all .15s",
+                  display: "flex", flexDirection: "column", gap: 3,
+                }}
+              >
+                <span style={{ fontSize: 20 }}>{p.emoji}</span>
+                <span style={{ fontSize: 12.5, lineHeight: 1.3 }}>{p.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
