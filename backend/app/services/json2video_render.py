@@ -16,27 +16,27 @@ _POLL_INTERVAL = 8    # seconds
 _TIMEOUT_SEC = 300    # 5 minutes
 
 
-def _zoom_scale(zoom: int) -> float:
-    """Convert Gemini zoom (-10..10) to a CSS-like scale factor."""
-    # zoom  0  → 1.00 (no change)
-    # zoom  10 → 1.50 (50% larger — strong zoom in)
-    # zoom -10 → 0.70 (30% smaller — zoom out / wide)
+def _zoom_scale(zoom: int) -> int:
+    """Convert Gemini zoom (-10..10) to JSON2Video integer percentage (100=normal)."""
+    # zoom  0  → 100 (no change)
+    # zoom  10 → 150 (50% zoom in)
+    # zoom -10 →  70 (30% zoom out)
     if zoom >= 0:
-        return round(1.0 + zoom * 0.05, 3)
+        return round(100 + zoom * 5)
     else:
-        return round(1.0 + zoom * 0.03, 3)
+        return round(100 + zoom * 3)
 
 
-def _pan_offset(pan: str | None, scale: float) -> tuple[float, float]:
+def _pan_offset(pan: str | None, scale: int) -> tuple[float, float]:
     """
     Return (x_pct, y_pct) offsets so the oversized element drifts in the pan direction.
-    Values are percentages of the canvas size used to offset the element start position.
+    scale is integer percentage (100=normal, 125=25% larger).
     """
-    if not pan or scale <= 1.0:
+    if not pan or scale <= 100:
         return (0.0, 0.0)
-    # How far the element extends beyond the canvas on each side
-    overflow = (scale - 1.0) / 2.0   # e.g. scale=1.2 → overflow=10% each side
-    drift = overflow * 0.5            # drift half the overflow for subtle pan
+    scale_f = scale / 100.0
+    overflow = (scale_f - 1.0) / 2.0
+    drift = overflow * 0.5
 
     MAP = {
         "left":         (-drift,  0.0),
