@@ -350,6 +350,7 @@ export default function GeneratePage() {
             concept: ans.visual || "",
             image_url: imgUrl,
             ai_model: aiModel,
+            tone: quickTone,
           },
         });
         suggested = suggestRes.data.video_prompt || "";
@@ -1041,6 +1042,7 @@ export default function GeneratePage() {
             concept: answers.visual || "",
             image_url: imgUrl,
             ai_model: aiModel,
+            tone: quickTone,
           },
         });
         setVideoPrompt(r.data.video_prompt || "");

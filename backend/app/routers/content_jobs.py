@@ -895,6 +895,7 @@ async def suggest_video_prompt(
     ai_model: str = "hailuo2pro",
     slot_index: int = 0,
     total_slots: int = 1,
+    tone: str = "",
 ):
     result = await db.execute(select(ContentJob).where(ContentJob.id == job_id))
     job = result.scalar_one_or_none()
@@ -929,6 +930,7 @@ async def suggest_video_prompt(
                 ai_model=ai_model,
                 slot_index=slot_index,
                 total_slots=total_slots,
+                tone=tone,
             )
         else:
             video_prompt = await ai_service.suggest_video_prompt(

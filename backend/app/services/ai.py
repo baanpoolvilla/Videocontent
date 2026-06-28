@@ -24,6 +24,61 @@ def _clean_prompt(text: str) -> str:
     return "".join(out).strip()
 
 
+# Tone → cinematic keywords injected into every video prompt
+TONE_CINEMATIC: dict[str, dict[str, str]] = {
+    "หรู พรีเมียม ซีเนมาติก": {
+        "camera":   "slow dolly-in",
+        "lighting": "golden hour, motivated rim light, warm fill",
+        "optics":   "85mm portrait lens, f/1.8 shallow bokeh, anamorphic lens flare",
+        "grade":    "teal-and-orange color grade, Arri Alexa color science, subtle film grain",
+        "feel":     "luxury resort campaign, Four Seasons editorial, aspirational",
+    },
+    "ผ่อนคลาย พักผ่อน ชวนมาเที่ยว": {
+        "camera":   "gentle floating drift",
+        "lighting": "soft warm afternoon sun, dappled light through palm fronds",
+        "optics":   "35mm wide, soft vignette, sun flare",
+        "grade":    "warm tropical palette, turquoise-and-sand tones, sun-bleached highlights",
+        "feel":     "vacation lifestyle, Booking.com hero shot, breezy and inviting",
+    },
+    "สนุก มีชีวิตชีวา เชิญชวน": {
+        "camera":   "energetic tracking shot, low angle",
+        "lighting": "bright midday sun, high key, vibrant saturation",
+        "optics":   "24mm wide, motion blur accents",
+        "grade":    "punchy saturated colors, vivid pop, high contrast highlights",
+        "feel":     "W Hotel pool party, celebratory, dynamic energy",
+    },
+    "มืออาชีพ กระชับ ข้อมูลครบ": {
+        "camera":   "steady crane reveal",
+        "lighting": "soft diffused overcast light, clean neutral exposure",
+        "optics":   "24mm wide, sharp throughout frame, no distortion",
+        "grade":    "neutral color grade, clean whites, architectural precision",
+        "feel":     "property development reel, real estate showcase, confident",
+    },
+    "อบอุ่น เป็นกันเอง เชิญชวน": {
+        "camera":   "handheld gentle drift",
+        "lighting": "warm practical lights, candlelight warmth, golden hour glow",
+        "optics":   "50mm natural perspective, creamy bokeh",
+        "grade":    "warm amber tones, lifted shadows, intimate feel",
+        "feel":     "boutique hotel lifestyle, Airbnb editorial, welcoming",
+    },
+    "เล่าเรื่อง อารมณ์ ความรู้สึก": {
+        "camera":   "slow pan reveal",
+        "lighting": "moody directional light, deep shadows, single motivated key",
+        "optics":   "35mm f/1.4, selective focus, shallow depth layers",
+        "grade":    "desaturated shadows, cinematic crush, contemplative palette",
+        "feel":     "travel documentary, emotional brand film, evocative",
+    },
+}
+
+_DEFAULT_TONE = {
+    "camera":   "slow dolly-in",
+    "lighting": "golden hour, soft rim light",
+    "optics":   "85mm, shallow bokeh",
+    "grade":    "cinematic color grade, film grain",
+    "feel":     "luxury resort campaign",
+}
+
+
 class AIService:
     def __init__(self):
         genai.configure(api_key=settings.GEMINI_API_KEY)
@@ -59,6 +114,7 @@ class AIService:
         ai_model: str = "hailuo2pro",
         slot_index: int = 0,
         total_slots: int = 1,
+        tone: str = "",
     ) -> str:
         """
         If user supplied a concept → translate it to English + add cinematic language (no image needed).
@@ -75,6 +131,17 @@ class AIService:
             "minimal": "calm, architectural, premium — Muji/Aesop campaign",
             "playful": "fun, inviting, vacation-ready — Booking.com hero shot",
         }.get(style, "premium cinematic luxury resort")
+
+        # Tone-specific cinematic keywords from user's dropdown selection
+        tc = TONE_CINEMATIC.get(tone, _DEFAULT_TONE)
+        tone_block = (
+            f"\nCINEMATIC STYLE (user-selected tone — apply these EXACTLY):\n"
+            f"  Camera move : {tc['camera']}\n"
+            f"  Lighting    : {tc['lighting']}\n"
+            f"  Optics      : {tc['optics']}\n"
+            f"  Color grade : {tc['grade']}\n"
+            f"  Overall feel: {tc['feel']}\n"
+        )
 
         # Per-model word targets — 90% of each model's char limit (~5 chars/word)
         model_word_limit = {
@@ -185,35 +252,46 @@ class AIService:
         else:
             story_block = ""
 
+        shot_grammar = (
+            "SHOT GRAMMAR FORMAT (use this structure):\n"
+            "  [Camera move] · [Shot type] · [Subject + action] · [Lighting] · [Optics] · [Color grade/feel]\n"
+            "  Example: Slow dolly-in · extreme close-up · infinity pool reflecting golden sunset · "
+            "warm rim light, lens flare · 85mm f/1.8 shallow bokeh · teal-orange Arri Alexa grade\n"
+            "Fill every element with specific details from the image. One continuous sentence, no bullet points.\n"
+        )
+
         if concept.strip():
             prompt_text = (
                 f"You are a cinematographer writing an AI video prompt.\n\n"
-                f"STEP 1 — Read the uploaded image to understand: setting, colors, architecture, mood.\n"
-                f"STEP 2 — Write a video prompt that EXACTLY follows this user concept:\n"
+                f"STEP 1 — Read the uploaded image: note architecture, colors, textures, mood, time of day.\n"
+                f"STEP 2 — Write a prompt that EMBODIES this user concept:\n"
                 f'"{concept.strip()}"\n\n'
-                f"The image gives you VISUAL DETAILS (what things look like).\n"
-                f"The user concept gives you the ACTION / INTENT (what should happen in the video).\n"
-                f"Combine both: use the concept as the main action, use image details to make it vivid.\n\n"
+                f"The image = VISUAL DETAILS. The concept = ACTION/INTENT. Merge both.\n\n"
                 f"PRODUCT: {product_name} · STYLE: {style_feel}\n"
+                f"TARGET MODEL: {model_guide}\n"
+                f"{tone_block}"
                 f"{story_block}"
+                f"{shot_grammar}"
                 f"OUTPUT RULES:\n"
                 f"1. English ONLY — zero Thai characters.\n"
-                f"2. {word_range} words — fill every word with specific visual detail for {ai_model}.\n"
-                f"3. Start with camera movement.\n"
-                f"4. Raw text only — no labels, no markdown."
+                f"2. {word_range} words — every word must add visual specificity.\n"
+                f"3. Follow the shot grammar format above.\n"
+                f"4. Raw text only — no labels, no markdown, no intro sentences."
             )
         else:
             prompt_text = (
                 f"You are a cinematographer writing an AI video prompt.\n"
-                f"Study the uploaded image carefully. Write ONE cinematic prompt for this scene.\n\n"
+                f"Study the uploaded image carefully — note every detail: light, color, texture, depth, mood.\n\n"
                 f"PRODUCT: {product_name} · STYLE: {style_feel}\n"
                 f"TARGET MODEL: {model_guide}\n"
+                f"{tone_block}"
                 f"{story_block}"
+                f"{shot_grammar}"
                 f"OUTPUT RULES:\n"
                 f"1. English ONLY — zero Thai characters.\n"
-                f"2. {word_range} words — fill every word with specific visual detail for {ai_model}.\n"
-                f"3. Start with camera movement.\n"
-                f"4. Raw text only — no labels, no markdown."
+                f"2. {word_range} words — every word must add visual specificity.\n"
+                f"3. Follow the shot grammar format above.\n"
+                f"4. Raw text only — no labels, no markdown, no intro sentences."
             )
 
         import asyncio as _asyncio
