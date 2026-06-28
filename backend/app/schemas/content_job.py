@@ -57,5 +57,6 @@ class RenderVersionOut(BaseModel):
     status: str
     cost_usd: float | None
     created_at: datetime
+    ffmpeg_config: dict | None = None
 
     model_config = {"from_attributes": True}
