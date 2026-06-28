@@ -236,11 +236,17 @@ export default function EditPage() {
         <p style={{ margin: "0 0 6px", fontSize: 12.5, fontWeight: 700, color: "var(--dim)", textTransform: "uppercase", letterSpacing: ".05em" }}>
           Style Prompt
         </p>
+        <p style={{ margin: "0 0 6px", fontSize: 12, color: "var(--dim)" }}>
+          พิมได้ทั้ง <b style={{ color: "var(--teal)" }}>ภาษาไทย</b> หรือ <b style={{ color: "var(--teal)" }}>English</b> — Gemini เข้าใจทั้งสองภาษา
+        </p>
         <textarea
           value={prompt}
           onChange={e => setPrompt(e.target.value)}
-          placeholder="อธิบายสไตล์ที่ต้องการ เช่น: elegant pool villa tour, cinematic golden hour, smooth dissolves..."
-          rows={3}
+          placeholder={
+            "ตัวอย่างไทย: ตัดต่อแบบรีวิวพูลวิลล่า บรรยากาศหรูหรา เน้นสระน้ำและวิวทะเล\n" +
+            "ตัวอย่าง English: luxury pool villa tour, golden hour, slow elegant cuts, cinematic"
+          }
+          rows={4}
           style={{
             width: "100%", boxSizing: "border-box",
             background: "var(--glass)", border: "1px solid var(--gb)",
