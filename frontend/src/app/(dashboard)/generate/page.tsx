@@ -231,12 +231,12 @@ export default function GeneratePage() {
     const userPrompt = prompt.trim() || `สร้างวิดีโอสำหรับ ${product?.name}`;
     setPrompt("");
 
-    // Fast path: prompt typed + product selected → skip all Q&A, generate directly
-    if (prompt.trim() && mode === "assets" && product) {
+    // Fast path: assets mode + product → always skip Q&A, use slider/dropdown values
+    if (mode === "assets" && product) {
       const autoAnswers = {
         visual: userPrompt,
         duration: `${quickDuration} วิ`,
-        style: "✨ Luxury หรูหรา",
+        style: quickStyle || "✨ Luxury หรูหรา",
         platform: "TikTok",
       };
       setAnswers(autoAnswers);
@@ -244,7 +244,7 @@ export default function GeneratePage() {
       return;
     }
 
-    // Story path: no prompt typed, or non-assets mode → Q&A flow
+    // Story path: non-assets mode → Q&A flow
     pushMsg({
       role: "user", text: userPrompt,
       images: product?.media_urls?.slice(0, 3),
@@ -826,7 +826,7 @@ export default function GeneratePage() {
             );
           })()}
 
-          {/* Send */}
+          {/* Send — AI optimize */}
           <button
             onMouseDown={handleSend}
             disabled={!prompt.trim() && !product}
@@ -839,11 +839,11 @@ export default function GeneratePage() {
               fontSize: 14, fontWeight: 800,
               boxShadow: (prompt.trim() || product) ? "0 4px 20px rgba(0,255,212,.25)" : "none",
             }}>
-            <ArrowUp size={16} strokeWidth={2.5} />
-            สร้างวิดีโอ
+            <Sparkles size={15} strokeWidth={2.5} />
+            {prompt.trim() ? "AI ช่วยปรับ Prompt" : "สร้างวิดีโอ"}
           </button>
 
-          {/* Direct render — skip AI, send prompt straight to fal.ai */}
+          {/* Direct render — skip AI, send user prompt straight to fal.ai */}
           {prompt.trim() && product && aiModel !== "kenburs" && (
             <>
               {/[฀-๿]/.test(prompt) && (
@@ -857,13 +857,14 @@ export default function GeneratePage() {
                 style={{
                   width: "100%", padding: "9px 16px", borderRadius: 10, marginTop: 6,
                   cursor: /[฀-๿]/.test(prompt) ? "not-allowed" : "pointer",
-                  border: "1px solid rgba(255,255,255,.12)",
-                  background: "rgba(255,255,255,.04)",
+                  border: "1px solid rgba(255,255,255,.18)",
+                  background: "rgba(255,255,255,.06)",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  color: /[฀-๿]/.test(prompt) ? "var(--faint)" : "var(--dim)", fontSize: 12, fontWeight: 600,
+                  color: /[฀-๿]/.test(prompt) ? "var(--faint)" : "var(--text)", fontSize: 12, fontWeight: 700,
                   opacity: /[฀-๿]/.test(prompt) ? 0.5 : 1,
                 }}>
-                ⚡ Render ตรง (ข้าม AI)
+                <ArrowUp size={13} strokeWidth={2.5} />
+                ใช้ Prompt ของฉันเลย
               </button>
             </>
           )}
