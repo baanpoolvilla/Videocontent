@@ -1,6 +1,16 @@
 """
 json2video_render.py — Convert Gemini's editorial plan to a JSON2Video movie and render it.
-Uses httpx (already in requirements.txt). No new packages required.
+
+JSON2Video API v2 (verified from official docs):
+  POST /v2/movies  → {"success":true,"project":"ID","timestamp":"..."}
+  GET  /v2/movies?project=ID → {"success":true,"movie":{"status":"done","url":"...",...}}
+
+Video element supported properties used here:
+  seek, duration, volume, zoom (-10..10 int), pan (direction string),
+  speed (0.5-2.0), fade-in, fade-out, correction {brightness,contrast,saturation}
+
+Scene transition: {type:"xfade", style:"fade"|etc, duration:1}
+Resolution presets: instagram-story (9:16), twitter-landscape (16:9), squared (1:1)
 """
 import asyncio
 import logging
@@ -11,87 +21,119 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_BASE = "https://api.json2video.com/v2/movies"
-_POLL_INTERVAL = 8    # seconds
-_TIMEOUT_SEC = 300    # 5 minutes
+_BASE          = "https://api.json2video.com/v2/movies"
+_POLL_INTERVAL = 8
+_TIMEOUT_SEC   = 300
 
+_VALID_TRANSITIONS = {
+    "fade", "dissolve",
+    "wipeleft", "wiperight", "wipeup", "wipedown",
+    "slideleft", "slideright", "slideup", "slidedown",
+    "circleopen", "circleclose",
+    "pixelize",
+}
 
-def _zoom_scale(zoom: int) -> int:
-    """Convert Gemini zoom (-10..10) to JSON2Video integer percentage (100=normal)."""
-    # zoom  0  → 100 (no change)
-    # zoom  10 → 150 (50% zoom in)
-    # zoom -10 →  70 (30% zoom out)
-    if zoom >= 0:
-        return round(100 + zoom * 5)
-    else:
-        return round(100 + zoom * 3)
+_RESOLUTION_MAP = {
+    "portrait":  "instagram-story",
+    "landscape": "twitter-landscape",
+    "square":    "squared",
+}
 
-
-def _pan_offset(pan: str | None, scale: int) -> tuple[float, float]:
-    """
-    Return (x_pct, y_pct) offsets so the oversized element drifts in the pan direction.
-    scale is integer percentage (100=normal, 125=25% larger).
-    """
-    if not pan or scale <= 100:
-        return (0.0, 0.0)
-    scale_f = scale / 100.0
-    overflow = (scale_f - 1.0) / 2.0
-    drift = overflow * 0.5
-
-    MAP = {
-        "left":         (-drift,  0.0),
-        "right":        ( drift,  0.0),
-        "top":          ( 0.0,  -drift),
-        "bottom":       ( 0.0,   drift),
-        "top-left":     (-drift, -drift),
-        "top-right":    ( drift, -drift),
-        "bottom-left":  (-drift,  drift),
-        "bottom-right": ( drift,  drift),
-    }
-    return MAP.get(pan, (0.0, 0.0))
+# Text element style presets for title overlays
+_TITLE_STYLES = {
+    "top": {
+        "position": "top-center",
+        "style":    "font-family:sans-serif;font-weight:800;color:#FFFFFF;"
+                    "text-shadow:0 2px 8px rgba(0,0,0,.8);letter-spacing:2px;",
+    },
+    "bottom": {
+        "position": "bottom-center",
+        "style":    "font-family:sans-serif;font-weight:800;color:#FFFFFF;"
+                    "text-shadow:0 2px 8px rgba(0,0,0,.8);letter-spacing:2px;",
+    },
+}
 
 
 def build_movie_spec(plan: dict, public_urls: list[str], resolution: str = "portrait") -> dict:
-    """
-    plan        : output of gemini_editor.build_editorial_plan
-    public_urls : public-internet URLs for each source clip (same order as upload)
-    resolution  : "portrait" | "landscape" | "square"
-    """
+    clips  = plan.get("clips", [])
+    title  = plan.get("title")
+    res    = _RESOLUTION_MAP.get(resolution, "instagram-story")
     scenes = []
-    clips = plan.get("clips", [])
 
     for i, clip in enumerate(clips):
-        src = public_urls[clip["source_index"]]
-        scale = _zoom_scale(clip.get("zoom", 0))
-        x_off, y_off = _pan_offset(clip.get("pan"), scale)
+        src      = public_urls[clip["source_index"]]
+        seek_t   = clip["trim_start"]
+        dur      = round(clip["trim_end"] - clip["trim_start"], 2)
+        zoom     = max(-10, min(10, int(clip.get("zoom", 0))))
+        pan      = clip.get("pan") or None
+        speed    = float(clip.get("speed", 1.0))
+        fade_in  = float(clip.get("fade_in", 0.0))
+        fade_out = float(clip.get("fade_out", 0.0))
+        cor      = clip.get("correction") or {}
 
         element: dict = {
-            "type": "video",
-            "src": src,
-            "trim-start": clip["trim_start"],
-            "trim-end": clip["trim_end"],
-            "volume": 0,
-            "zoom": scale,
+            "type":     "video",
+            "src":      src,
+            "seek":     seek_t,
+            "duration": dur,
+            "volume":   0,
         }
-        if x_off or y_off:
-            element["x"] = round(x_off * 100, 1)   # percentage
-            element["y"] = round(y_off * 100, 1)
 
-        scene: dict = {"elements": [element]}
-        # Add outgoing transition for every clip except the last
-        if i < len(clips) - 1:
-            scene["transition"] = {
-                "style": clip.get("transition", "fade"),
-                "duration": 1,
+        if zoom != 0:
+            element["zoom"] = zoom
+        if pan:
+            element["pan"] = pan
+        if abs(speed - 1.0) > 0.05:
+            element["speed"] = round(speed, 2)
+        if fade_in > 0:
+            element["fade-in"] = round(fade_in, 2)
+        if fade_out > 0:
+            element["fade-out"] = round(fade_out, 2)
+
+        # Color correction (only send non-zero values)
+        if any(cor.get(k, 0) != 0 for k in ("brightness", "contrast", "saturation")):
+            element["correction"] = {
+                k: cor[k] for k in ("brightness", "contrast", "saturation")
+                if cor.get(k, 0) != 0
             }
+
+        elements = [element]
+
+        # Title text overlay on first scene only
+        if i == 0 and title and title.get("text"):
+            pos_key  = title.get("position", "bottom")
+            pos_info = _TITLE_STYLES.get(pos_key, _TITLE_STYLES["bottom"])
+            txt_el: dict = {
+                "type":     "text",
+                "text":     title["text"],
+                "position": pos_info["position"],
+                "style":    pos_info["style"] + f"font-size:{title.get('size', 40)}px;",
+                "start":    0.5,
+                "duration": min(3.0, dur - 0.5),
+                "fade-in":  0.3,
+                "fade-out": 0.3,
+            }
+            elements.append(txt_el)
+
+        scene: dict = {"elements": elements}
+
+        # xfade transition (skip for last scene and hard cuts)
+        if i < len(clips) - 1:
+            style = clip.get("transition", "fade")
+            if style in _VALID_TRANSITIONS:
+                scene["transition"] = {
+                    "type":     "xfade",
+                    "style":    style,
+                    "duration": 1,
+                }
+            # hard_cut → no transition object (instant cut)
 
         scenes.append(scene)
 
     return {
-        "comment": "AI-edited — Content Studio",
-        "resolution": resolution,
-        "fps": 30,
-        "scenes": scenes,
+        "comment":    "AI-edited — Content Studio",
+        "resolution": res,
+        "scenes":     scenes,
     }
 
 
@@ -101,26 +143,32 @@ async def render_movie(
     resolution: str = "portrait",
 ) -> str:
     """Submit to JSON2Video, poll until done, return final video URL."""
-    spec = build_movie_spec(plan, public_urls, resolution)
+    spec    = build_movie_spec(plan, public_urls, resolution)
     headers = {
-        "x-api-key": settings.JSON2VIDEO_API_KEY,
+        "x-api-key":    settings.JSON2VIDEO_API_KEY,
         "Content-Type": "application/json",
     }
 
-    logger.info(f"[J2V] Submitting {len(spec['scenes'])} scenes resolution={resolution}")
+    logger.info(
+        f"[J2V] {len(spec['scenes'])} scenes | resolution={spec['resolution']} | "
+        f"title={'yes' if plan.get('title') else 'no'}"
+    )
 
     async with httpx.AsyncClient(timeout=60) as client:
+        # ── Submit ────────────────────────────────────────────────────
         resp = await client.post(_BASE, json=spec, headers=headers)
         if not resp.is_success:
-            raise RuntimeError(f"JSON2Video submit failed {resp.status_code}: {resp.text[:500]}")
+            raise RuntimeError(
+                f"JSON2Video submit failed {resp.status_code}: {resp.text[:500]}"
+            )
 
-        data = resp.json()
-        # Response shape: {"success": true, "project": "ID", ...}
+        data     = resp.json()
         movie_id = data.get("project") or data.get("movie") or data.get("id") or ""
         if not movie_id:
-            raise RuntimeError(f"JSON2Video did not return a movie ID: {data}")
-        logger.info(f"[J2V] movie_id={movie_id}")
+            raise RuntimeError(f"JSON2Video did not return a project ID: {data}")
+        logger.info(f"[J2V] project={movie_id}")
 
+        # ── Poll ──────────────────────────────────────────────────────
         elapsed = 0
         while elapsed < _TIMEOUT_SEC:
             await asyncio.sleep(_POLL_INTERVAL)
@@ -128,28 +176,27 @@ async def render_movie(
 
             poll = await client.get(f"{_BASE}?project={movie_id}", headers=headers)
             if not poll.is_success:
-                logger.warning(f"[J2V] poll error {poll.status_code} — retrying")
+                logger.warning(f"[J2V] poll {poll.status_code} — retrying")
                 continue
 
-            pdata = poll.json()
-            logger.info(f"[J2V] poll raw: {str(pdata)[:300]}")
-
-            # Response shape: {"movie": {"status": "...", "url": "..."}}
+            pdata     = poll.json()
             movie_obj = pdata.get("movie") or {}
             if isinstance(movie_obj, str):
                 continue
 
-            # Flatten: some versions put status/url at top level
             status = movie_obj.get("status") or pdata.get("status", "")
-            url_candidate = movie_obj.get("url") or pdata.get("url", "")
+            url    = movie_obj.get("url")    or pdata.get("url", "")
             logger.info(f"[J2V] elapsed={elapsed}s status={status}")
 
             if status == "done":
-                if url_candidate:
-                    return url_candidate
-                raise RuntimeError("JSON2Video returned done but no URL in response")
+                if url:
+                    logger.info(f"[J2V] done → {url}")
+                    return url
+                raise RuntimeError("JSON2Video status=done but no URL returned")
 
-            if status in ("error", "failed"):
-                raise RuntimeError(f"JSON2Video render failed: {movie_obj}")
+            if status in ("error", "failed", "timeout"):
+                raise RuntimeError(f"JSON2Video render failed: {movie_obj or pdata}")
 
-    raise TimeoutError(f"JSON2Video did not finish within {_TIMEOUT_SEC}s (movie={movie_id})")
+    raise TimeoutError(
+        f"JSON2Video did not finish within {_TIMEOUT_SEC}s (project={movie_id})"
+    )

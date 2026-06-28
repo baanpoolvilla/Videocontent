@@ -1,7 +1,8 @@
 """
 gemini_editor.py — Gemini-powered video editorial planner.
 Extracts sample frames from each clip, sends to Gemini Vision,
-returns a structured editorial plan (clip order, trim, zoom, pan, transition).
+returns a structured editorial plan (clip order, trim, zoom, pan, transition,
+speed, color correction, fade-in/out, and optional title overlay).
 Uses google-generativeai (already in requirements.txt).
 """
 import asyncio
@@ -19,43 +20,73 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 ALLOWED_TRANSITIONS = {
-    "fade", "wipeup", "wipedown", "wipeleft", "wiperight",
-    "circleopen", "circleclose", "slideup", "slidedown",
-    "slideleft", "slideright", "hard_cut",
+    # xfade styles supported by JSON2Video API
+    "fade", "dissolve",
+    "wipeleft", "wiperight", "wipeup", "wipedown",
+    "slideleft", "slideright", "slideup", "slidedown",
+    "circleopen", "circleclose",
+    "pixelize",
+    # hard_cut = omit transition object entirely (instant cut)
+    "hard_cut",
 }
 
-_DIRECTOR_SYSTEM = """You are a professional video editor and director.
+_DIRECTOR_SYSTEM = """You are a professional video editor and colorist.
 You will receive sample frames from {n} raw video clips and a style brief.
-Your job is to produce an editorial plan: choose which clips to use, in what order,
-what section to trim, and what transition to use between scenes.
+Produce an editorial plan: choose which clips to use, order, trim section,
+transition, camera motion, speed, color correction, and fade timing.
 
 CLIENT BRIEF: {style_prompt}
-
 Clip durations (seconds): {durations}
 
 Return ONLY a valid JSON object — no markdown, no code fences, no explanation.
-Follow this schema exactly:
+Schema:
 {{
   "clips": [
     {{
-      "source_index": <int, 0-based index of the source clip>,
-      "trim_start":   <float, start time in seconds>,
-      "trim_end":     <float, end time in seconds>,
-      "zoom":         <int -10 to 10; 0=no zoom, positive=zoom in, negative=zoom out>,
-      "pan":          <string or null: "left","right","top","bottom","top-left","top-right","bottom-left","bottom-right">,
-      "transition":   <string: one of {transitions}>
+      "source_index":  <int 0-based>,
+      "trim_start":    <float seconds>,
+      "trim_end":      <float seconds>,
+      "zoom":          <int -10 to 10; 0=none, positive=zoom-in, negative=zoom-out>,
+      "pan":           <string or null: "left","right","top","bottom","top-left","top-right","bottom-left","bottom-right">,
+      "transition":    <string: one of {transitions}>,
+      "speed":         <float 0.5-2.0; 1.0=normal, 0.5=half-speed slow-mo, 2.0=double-speed>,
+      "fade_in":       <float 0-2.0 seconds; 0=no fade>,
+      "fade_out":      <float 0-2.0 seconds; 0=no fade>,
+      "correction": {{
+        "brightness":  <int -100 to 100; 0=unchanged>,
+        "contrast":    <int -100 to 100; 0=unchanged>,
+        "saturation":  <int -100 to 100; 0=unchanged>
+      }}
     }}
-  ]
+  ],
+  "title": {{
+    "text":     <string or null — short 1-5 word title overlay, or null if not needed>,
+    "position": <"top" | "bottom">,
+    "size":     <int 20-80 font size>
+  }}
 }}
 
 RULES:
 1. Reorder clips to best match the style brief.
-2. trim_start and trim_end must be within 0 and the clip's duration.
+2. trim_start and trim_end must be within 0 and the clip duration.
 3. Each clip segment must be at least 2 seconds (trim_end - trim_start >= 2).
-4. Use each source clip at least once; you may repeat a clip with different trim.
-5. Transitions should match the mood: energetic brief → wipeleft/slidedown/hard_cut;
-   calm/elegant → fade/circleopen; tour → slideright/slideleft.
-6. Return ONLY the JSON object."""
+4. Use each source clip at least once; you may repeat with different trim.
+5. Transition mood guide:
+   - energetic/fun → hard_cut, wipeleft, slidedown
+   - elegant/calm  → fade, dissolve, circleopen
+   - tour/property → slideright, slideleft, fade
+6. Speed guide:
+   - dramatic/hero shot → 0.5-0.8 (slow motion)
+   - normal walk-through → 1.0
+   - quick montage → 1.5-2.0
+7. Correction guide:
+   - luxury/golden → brightness +5, contrast +10, saturation +15
+   - fresh/vibrant  → saturation +20, contrast +5
+   - moody/dramatic → contrast +20, saturation -10
+   - neutral/pro    → brightness 0, contrast 0, saturation 0
+8. Add fade_in 0.5 on the first clip; fade_out 0.5 on the last clip.
+9. Title: add a short Thai or English title only for property tour / promotional styles.
+10. Return ONLY the JSON object."""
 
 
 async def _get_duration(path: str) -> float:
@@ -76,7 +107,7 @@ async def _extract_frames(path: str, n: int = 3) -> list[Image.Image]:
     frames: list[Image.Image] = []
     with tempfile.TemporaryDirectory() as tmp:
         for i in range(n):
-            t = duration * (i + 0.5) / n
+            t   = duration * (i + 0.5) / n
             out = os.path.join(tmp, f"f{i}.jpg")
             proc = await asyncio.create_subprocess_exec(
                 "ffmpeg", "-y",
@@ -99,9 +130,9 @@ async def _extract_frames(path: str, n: int = 3) -> list[Image.Image]:
 
 async def build_editorial_plan(clip_paths: list[str], style_prompt: str) -> dict:
     """
-    clip_paths : local temp paths to uploaded video clips
+    clip_paths   : local temp paths to uploaded video clips
     style_prompt : free-text brief from the user (Thai or English)
-    Returns dict with "clips" list and "durations" list.
+    Returns dict with "clips" list, "durations" list, and optional "title" dict.
     """
     genai.configure(api_key=settings.GEMINI_API_KEY)
     model = genai.GenerativeModel("gemini-2.5-flash")
@@ -126,41 +157,70 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str) -> dict
         parts.extend(frames)
 
     loop = asyncio.get_running_loop()
-    cfg = genai.types.GenerationConfig(temperature=0.35, max_output_tokens=4096)
+    cfg  = genai.types.GenerationConfig(temperature=0.3, max_output_tokens=4096)
     response = await loop.run_in_executor(
         None,
         lambda: model.generate_content(parts, generation_config=cfg),
     )
 
     raw = response.text.strip()
-    # Strip accidental markdown fences
     raw = re.sub(r"^```[a-z]*\s*", "", raw, flags=re.IGNORECASE)
     raw = re.sub(r"\s*```$", "", raw)
 
     plan = json.loads(raw)
 
+    # ── Validate clips ────────────────────────────────────────────────
     validated: list[dict] = []
     for item in plan.get("clips", []):
         idx = max(0, min(len(clip_paths) - 1, int(item.get("source_index", 0))))
         dur = durations[idx]
-        ts = max(0.0, float(item.get("trim_start", 0.0)))
-        te = min(dur, float(item.get("trim_end", dur)))
+        ts  = max(0.0, float(item.get("trim_start", 0.0)))
+        te  = min(dur, float(item.get("trim_end", dur)))
         if te - ts < 2.0:
             te = min(dur, ts + min(10.0, dur))
-        zoom = max(-10, min(10, int(item.get("zoom", 0))))
-        pan = item.get("pan") or None
+
+        zoom       = max(-10, min(10, int(item.get("zoom", 0))))
+        pan        = item.get("pan") or None
         transition = item.get("transition", "fade")
         if transition not in ALLOWED_TRANSITIONS:
             transition = "fade"
+
+        speed = float(item.get("speed", 1.0))
+        speed = max(0.5, min(2.0, speed))
+
+        fade_in  = max(0.0, min(2.0, float(item.get("fade_in",  0.0))))
+        fade_out = max(0.0, min(2.0, float(item.get("fade_out", 0.0))))
+
+        raw_cor  = item.get("correction") or {}
+        correction = {
+            "brightness": max(-100, min(100, int(raw_cor.get("brightness", 0)))),
+            "contrast":   max(-100, min(100, int(raw_cor.get("contrast",   0)))),
+            "saturation": max(-100, min(100, int(raw_cor.get("saturation", 0)))),
+        }
+
         validated.append({
             "source_index": idx,
-            "trim_start": round(ts, 2),
-            "trim_end": round(te, 2),
-            "zoom": zoom,
-            "pan": pan,
-            "transition": transition,
+            "trim_start":   round(ts, 2),
+            "trim_end":     round(te, 2),
+            "zoom":         zoom,
+            "pan":          pan,
+            "transition":   transition,
             "duration_sec": round(te - ts, 2),
+            "speed":        round(speed, 2),
+            "fade_in":      round(fade_in, 2),
+            "fade_out":     round(fade_out, 2),
+            "correction":   correction,
         })
 
-    logger.info(f"[EDITOR] plan: {len(validated)} clips from {len(clip_paths)} sources")
-    return {"clips": validated, "durations": durations}
+    # ── Validate title ────────────────────────────────────────────────
+    raw_title = plan.get("title") or {}
+    title = None
+    if raw_title.get("text"):
+        title = {
+            "text":     str(raw_title["text"])[:60],
+            "position": raw_title.get("position", "bottom"),
+            "size":     max(20, min(80, int(raw_title.get("size", 40)))),
+        }
+
+    logger.info(f"[EDITOR] plan: {len(validated)} clips from {len(clip_paths)} sources, title={title}")
+    return {"clips": validated, "durations": durations, "title": title}
