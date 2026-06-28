@@ -53,9 +53,9 @@ Schema:
       "fade_in":       <float 0-2.0 seconds; 0=no fade>,
       "fade_out":      <float 0-2.0 seconds; 0=no fade>,
       "correction": {{
-        "brightness":  <int -100 to 100; 0=unchanged>,
-        "contrast":    <int -100 to 100; 0=unchanged>,
-        "saturation":  <int -100 to 100; 0=unchanged>
+        "brightness":  <int -3 to 3; 0=unchanged>,
+        "contrast":    <int -3 to 3; 0=unchanged>,
+        "saturation":  <int -3 to 3; 0=unchanged>
       }}
     }}
   ],
@@ -79,10 +79,10 @@ RULES:
    - dramatic/hero shot → 0.5-0.8 (slow motion)
    - normal walk-through → 1.0
    - quick montage → 1.5-2.0
-7. Correction guide:
-   - luxury/golden → brightness +5, contrast +10, saturation +15
-   - fresh/vibrant  → saturation +20, contrast +5
-   - moody/dramatic → contrast +20, saturation -10
+7. Correction guide (range -3 to 3 only):
+   - luxury/golden → brightness +1, contrast +2, saturation +2
+   - fresh/vibrant  → saturation +3, contrast +1
+   - moody/dramatic → contrast +3, saturation -1
    - neutral/pro    → brightness 0, contrast 0, saturation 0
 8. Add fade_in 0.5 on the first clip; fade_out 0.5 on the last clip.
 9. Title: add a short Thai or English title only for property tour / promotional styles.
@@ -193,9 +193,9 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str) -> dict
 
         raw_cor  = item.get("correction") or {}
         correction = {
-            "brightness": max(-100, min(100, int(raw_cor.get("brightness", 0)))),
-            "contrast":   max(-100, min(100, int(raw_cor.get("contrast",   0)))),
-            "saturation": max(-100, min(100, int(raw_cor.get("saturation", 0)))),
+            "brightness": max(-3, min(3, int(raw_cor.get("brightness", 0)))),
+            "contrast":   max(-3, min(3, int(raw_cor.get("contrast",   0)))),
+            "saturation": max(-3, min(3, int(raw_cor.get("saturation", 0)))),
         }
 
         validated.append({
