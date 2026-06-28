@@ -127,9 +127,10 @@ async def _process_clip(
     adj_dur  = dur / speed
     total_n  = max(1, int(dur * 30))  # frame count at 30fps
 
-    # Always scale at least 10% larger to allow Ken Burns movement.
-    # zoom=0 → 1.10x (subtle drift), zoom=5 → 1.35x, zoom=10 → 1.60x
-    scale_f = max(1.10, 1.0 + zoom * 0.05)
+    # Scale factor — party/vibrant gets a bigger minimum for more impact.
+    # vibrant grade: min 1.20x, others: min 1.10x
+    min_scale = 1.20 if grade == "vibrant" else 1.10
+    scale_f = max(min_scale, 1.0 + zoom * 0.06)
     sw = int(out_w * scale_f)
     sh = int(out_h * scale_f)
     sw += sw % 2

@@ -79,16 +79,25 @@ RULES:
 6. Speed guide — DEFAULT 1.0 unless style clearly demands otherwise:
    - luxury/cinematic/elegant → 0.8 (subtle slow motion looks beautiful)
    - normal property tour → 1.0
-   - energetic/party → 1.2 maximum (1.5+ looks rushed and amateur)
+   - energetic/party → 1.0–1.1 (DO NOT exceed 1.2 — looks rushed)
 7. Correction guide (range -3 to 3 only):
    - luxury/golden → brightness +1, contrast +2, saturation +2
    - fresh/vibrant  → saturation +3, contrast +1
    - moody/dramatic → contrast +3, saturation -1
    - neutral/pro    → brightness 0, contrast 0, saturation 0
-8. Smooth fade rules: add fade_in 0.8 on EVERY clip and fade_out 0.8 on EVERY clip for smooth feel.
-9. Transition duration should be 1.5s for elegant styles, 0.8s for energetic styles.
-9. Title: add a short Thai or English title only for property tour / promotional styles.
-10. Return ONLY the JSON object."""
+8. Fade rules: fade_in 0.5 on EVERY clip, fade_out 0.5 on EVERY clip.
+9. ZOOM & PAN rules — THIS IS CRITICAL for visual excitement:
+   - energetic/party/fun → zoom MUST be 4–8 on EVERY clip, pan MUST be set (never null). Alternate pan directions: right, left, top-right, bottom-left, top, bottom. NEVER use zoom=0 or pan=null for party style.
+   - luxury/cinematic → zoom 2–4, slow pan (right or left)
+   - property tour → zoom 1–3, pan toward key features
+   - romantic/chill → zoom 1–3, very slow pan
+   - NEVER leave ALL clips at zoom=0 — at least 80% of clips must have zoom > 0.
+10. Transition guide:
+   - energetic/party → MOSTLY hard_cut and wipeleft/wiperight (fast energy)
+   - elegant/calm  → fade, dissolve
+   - tour/property → slideright, slideleft, fade
+11. Title: add a short Thai or English title only for property tour / promotional styles.
+12. Return ONLY the JSON object."""
 
 
 async def _get_duration(path: str) -> float:
