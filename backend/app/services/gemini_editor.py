@@ -69,9 +69,9 @@ Schema:
 RULES:
 1. Reorder clips to best match the style brief.
 2. trim_start and trim_end must be within 0 and the clip duration.
-3. Each clip segment must be at least 5 seconds (trim_end - trim_start >= 5). Prefer 5-15 seconds per clip.
-4. Use each source clip at least once; you may repeat with different trim sections.
-5. Total number of clips: aim for 4-6 clips maximum regardless of how many sources there are.
+3. Each clip segment must be at least 5 seconds (trim_end - trim_start >= 5).
+4. IMPORTANT: The uploaded clips are already pre-edited by the user. Use as much of each clip as possible. Only trim the very start/end if there is dead air or unwanted content. The total output duration should be close to the total input duration.
+5. Use each source clip fully. If one source clip is 60s, it is fine to use 50-60s of it. Split it into 3-5 scenes of 10-20s each for visual variety.
 6. Transition mood guide:
    - energetic/fun → hard_cut, wipeleft, slidedown
    - elegant/calm  → fade, dissolve, circleopen
@@ -179,7 +179,7 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str) -> dict
         ts  = max(0.0, float(item.get("trim_start", 0.0)))
         te  = min(dur, float(item.get("trim_end", dur)))
         if te - ts < 5.0:
-            te = min(dur, ts + min(15.0, dur))
+            te = min(dur, ts + min(20.0, dur))
 
         zoom       = max(-10, min(10, int(item.get("zoom", 0))))
         pan        = item.get("pan") or None
