@@ -133,7 +133,7 @@ export default function GeneratePage() {
 
   // badge state
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("9:16");
-  const [aiModel, setAiModel]         = useState<AIModel>("hailuo2pro");
+  const [aiModel, setAiModel]         = useState<AIModel>("wan21");
   const [captions, setCaptions]       = useState(false);
   const [includeVoice, setIncludeVoice] = useState(true);
   const [quickDuration, setQuickDuration] = useState(15);

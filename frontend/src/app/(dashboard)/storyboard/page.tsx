@@ -201,7 +201,7 @@ export default function StoryboardPage() {
   const [products, setProducts]         = useState<Product[]>([]);
   const [product, setProduct]           = useState<Product | null>(null);
   const [slots, setSlots]               = useState<ClipSlot[]>([]);
-  const [aiModel, setAiModel]           = useState<AIModel>("hailuo2pro");
+  const [aiModel, setAiModel]           = useState<AIModel>("wan21");
   const [phase, setPhase]               = useState<"product_select" | "questions" | "ai_generating" | "setup" | "rendering" | "done" | "error">("product_select");
   const [renderStep, setRenderStep]     = useState("");
   const [errMsg, setErrMsg]             = useState("");
