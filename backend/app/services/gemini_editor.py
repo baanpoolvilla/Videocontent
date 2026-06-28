@@ -125,7 +125,7 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str) -> dict
         frames = await _extract_frames(path, n=3)
         parts.extend(frames)
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     cfg = genai.types.GenerationConfig(temperature=0.35, max_output_tokens=4096)
     response = await loop.run_in_executor(
         None,

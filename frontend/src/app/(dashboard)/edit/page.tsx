@@ -103,7 +103,9 @@ export default function EditPage() {
     files.forEach(f => fd.append("files", f));
 
     try {
-      const res = await api.post("/video-edit", fd);
+      const res = await api.post("/video-edit", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       setResult(res.data as EditResult);
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
