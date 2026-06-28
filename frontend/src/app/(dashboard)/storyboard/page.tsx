@@ -201,7 +201,11 @@ export default function StoryboardPage() {
   const [products, setProducts]         = useState<Product[]>([]);
   const [product, setProduct]           = useState<Product | null>(null);
   const [slots, setSlots]               = useState<ClipSlot[]>([]);
-  const [aiModel, setAiModel]           = useState<AIModel>("wan21");
+  const [aiModel, setAiModel]           = useState<AIModel>(() => {
+    if (typeof window === "undefined") return "wan21";
+    return (localStorage.getItem("preferred_ai_model") as AIModel) || "wan21";
+  });
+  const setAiModelPersist = (m: AIModel) => { setAiModel(m); localStorage.setItem("preferred_ai_model", m); };
   const [phase, setPhase]               = useState<"product_select" | "questions" | "ai_generating" | "setup" | "rendering" | "done" | "error">("product_select");
   const [renderStep, setRenderStep]     = useState("");
   const [errMsg, setErrMsg]             = useState("");
@@ -556,7 +560,7 @@ export default function StoryboardPage() {
                     const active = aiModel === m.id;
                     return (
                       <button key={m.id} onClick={() => {
-                        setAiModel(m.id);
+                        setAiModelPersist(m.id);
                         setSlots(prev => prev.map(s => ({ ...s, duration: m.durations.includes(s.duration) ? s.duration : m.durations[0] })));
                         setModelOpen(false);
                       }} style={{

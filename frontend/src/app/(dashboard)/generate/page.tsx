@@ -133,7 +133,11 @@ export default function GeneratePage() {
 
   // badge state
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("9:16");
-  const [aiModel, setAiModel]         = useState<AIModel>("wan21");
+  const [aiModel, setAiModel]         = useState<AIModel>(() => {
+    if (typeof window === "undefined") return "wan21";
+    return (localStorage.getItem("preferred_ai_model") as AIModel) || "wan21";
+  });
+  const setAiModelPersist = (m: AIModel) => { setAiModel(m); localStorage.setItem("preferred_ai_model", m); };
   const [captions, setCaptions]       = useState(false);
   const [includeVoice, setIncludeVoice] = useState(true);
   const [quickDuration, setQuickDuration] = useState(15);
@@ -754,7 +758,7 @@ export default function GeneratePage() {
                 {MODEL_OPTIONS.map(m => {
                   const active = aiModel === m.id;
                   return (
-                    <button key={m.id} onMouseDown={() => { setAiModel(m.id); setShowModelMenu(false); }} style={{
+                    <button key={m.id} onMouseDown={() => { setAiModelPersist(m.id); setShowModelMenu(false); }} style={{
                       width: "100%", display: "flex", alignItems: "flex-start", gap: 10,
                       padding: "10px 14px", cursor: "pointer", textAlign: "left",
                       background: active ? `${m.color}12` : "transparent",
@@ -1121,7 +1125,7 @@ export default function GeneratePage() {
               {MODEL_OPTIONS.map(m => {
                 const active = aiModel === m.id;
                 return (
-                  <button key={m.id} onClick={() => setAiModel(m.id)} style={{
+                  <button key={m.id} onClick={() => setAiModelPersist(m.id)} style={{
                     padding: "10px 12px", borderRadius: 12, cursor: "pointer", textAlign: "left",
                     background: active ? `${m.color}18` : "rgba(255,255,255,.03)",
                     border: `1.5px solid ${active ? m.color : "var(--gb)"}`,
