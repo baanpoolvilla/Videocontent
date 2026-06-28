@@ -76,16 +76,17 @@ RULES:
    - energetic/fun → hard_cut, wipeleft, slidedown
    - elegant/calm  → fade, dissolve, circleopen
    - tour/property → slideright, slideleft, fade
-6. Speed guide:
-   - dramatic/hero shot → 0.5-0.8 (slow motion)
-   - normal walk-through → 1.0
-   - quick montage → 1.5-2.0
+6. Speed guide — DEFAULT 1.0 unless style clearly demands otherwise:
+   - luxury/cinematic/elegant → 0.8 (subtle slow motion looks beautiful)
+   - normal property tour → 1.0
+   - energetic/party → 1.2 maximum (1.5+ looks rushed and amateur)
 7. Correction guide (range -3 to 3 only):
    - luxury/golden → brightness +1, contrast +2, saturation +2
    - fresh/vibrant  → saturation +3, contrast +1
    - moody/dramatic → contrast +3, saturation -1
    - neutral/pro    → brightness 0, contrast 0, saturation 0
-8. Add fade_in 0.5 on the first clip; fade_out 0.5 on the last clip.
+8. Smooth fade rules: add fade_in 0.8 on EVERY clip and fade_out 0.8 on EVERY clip for smooth feel.
+9. Transition duration should be 1.5s for elegant styles, 0.8s for energetic styles.
 9. Title: add a short Thai or English title only for property tour / promotional styles.
 10. Return ONLY the JSON object."""
 

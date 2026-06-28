@@ -86,10 +86,9 @@ def build_movie_spec(plan: dict, public_urls: list[str], resolution: str = "port
             element["pan"] = pan
         if abs(speed - 1.0) > 0.05:
             element["speed"] = round(speed, 2)
-        if fade_in > 0:
-            element["fade-in"] = round(fade_in, 2)
-        if fade_out > 0:
-            element["fade-out"] = round(fade_out, 2)
+        # Always apply subtle fade for smooth feel; use Gemini value if larger
+        element["fade-in"]  = round(max(0.4, fade_in),  2)
+        element["fade-out"] = round(max(0.4, fade_out), 2)
 
         # Color correction (only send non-zero values)
         if any(cor.get(k, 0) != 0 for k in ("brightness", "contrast", "saturation")):
@@ -125,7 +124,7 @@ def build_movie_spec(plan: dict, public_urls: list[str], resolution: str = "port
                 scene["transition"] = {
                     "type":     "xfade",
                     "style":    style,
-                    "duration": 1,
+                    "duration": 1.5,
                 }
             # hard_cut → no transition object (instant cut)
 
