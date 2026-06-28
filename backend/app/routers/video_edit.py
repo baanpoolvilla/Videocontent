@@ -1,7 +1,9 @@
 """
 video_edit.py — POST /api/v1/video-edit
-Accepts 1-10 raw video clips + a free-text style prompt.
-Pipeline: save locally → Gemini editorial plan → FFmpeg or JSON2Video render → final URL.
+Supports two upload modes:
+  1. Direct: send files in multipart (small clips only, Cloudflare 100MB limit)
+  2. Staged: upload each clip via POST /stage first, then send stage_ids to process
+     → bypasses Cloudflare limit, each clip is a separate request
 """
 import logging
 import os
@@ -20,23 +22,27 @@ from app.services.storage import storage_service
 router = APIRouter(prefix="/video-edit", tags=["video-edit"])
 logger = logging.getLogger(__name__)
 
-_BUCKET   = "video-edits"
-_MAX_CLIPS = 10
+_BUCKET         = "video-edits"
+_STAGING_BUCKET = "video-staging"
+_MAX_CLIPS      = 10
+_VALID_EXT      = {".mp4", ".mov", ".avi", ".mkv", ".m4v"}
 
 
-def _ensure_bucket() -> None:
-    try:
-        if not storage_service.client.bucket_exists(_BUCKET):
-            storage_service.client.make_bucket(_BUCKET)
-            logger.info(f"[EDIT] created MinIO bucket '{_BUCKET}'")
-    except S3Error as e:
-        logger.warning(f"[EDIT] bucket check/create: {e}")
+def _ensure_buckets() -> None:
+    for bucket in (_BUCKET, _STAGING_BUCKET):
+        try:
+            if not storage_service.client.bucket_exists(bucket):
+                storage_service.client.make_bucket(bucket)
+                logger.info(f"[EDIT] created bucket '{bucket}'")
+        except S3Error as e:
+            logger.warning(f"[EDIT] bucket {bucket}: {e}")
 
 
+# ── List rendered videos ──────────────────────────────────────────────
 @router.get("")
 async def list_edits():
-    """List all rendered videos in the video-edits bucket, newest first."""
-    _ensure_bucket()
+    """List all rendered videos, newest first."""
+    _ensure_buckets()
     try:
         objects = list(storage_service.client.list_objects(_BUCKET, recursive=True))
         results = []
@@ -54,23 +60,53 @@ async def list_edits():
         return {"videos": []}
 
 
+# ── Stage a single clip ───────────────────────────────────────────────
+@router.post("/stage")
+async def stage_clip(file: Annotated[UploadFile, File(description="Single video clip")]):
+    """
+    Upload ONE clip to staging storage.
+    Returns a stage_id to pass to POST /video-edit.
+    Use this to bypass Cloudflare's 100MB per-request limit when uploading multiple clips.
+    """
+    _ensure_buckets()
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "ไฟล์ว่างเปล่า")
+
+    ext = os.path.splitext(file.filename or "clip.mp4")[1].lower() or ".mp4"
+    if ext not in _VALID_EXT:
+        raise HTTPException(400, f"รองรับ mp4, mov, avi, mkv เท่านั้น")
+
+    minio_path = await storage_service.upload_bytes(
+        data=data,
+        filename=f"stage{ext}",
+        content_type=file.content_type or "video/mp4",
+        bucket=_STAGING_BUCKET,
+    )
+    logger.info(f"[STAGE] {file.filename} ({len(data)//1024}KB) → {minio_path}")
+    return {
+        "stage_id": minio_path,      # e.g. "/video-staging/uuid.mp4"
+        "filename": file.filename,
+        "size_mb":  round(len(data) / 1_048_576, 1),
+    }
+
+
+# ── Main edit endpoint ────────────────────────────────────────────────
 @router.post("")
 async def auto_edit(
-    style_prompt:  Annotated[str, Form(description="Style brief (Thai or English)")],
-    files:         Annotated[list[UploadFile], File(description="1–10 raw video clips")],
+    style_prompt:  Annotated[str, Form()],
     resolution:    Annotated[str, Form()] = "portrait",
-    render_engine: Annotated[str, Form()] = "ffmpeg",   # "ffmpeg" | "json2video"
+    render_engine: Annotated[str, Form()] = "ffmpeg",
+    # Direct upload (small files)
+    files:         Annotated[list[UploadFile] | None, File()] = None,
+    # Staged upload (each file uploaded individually via /stage first)
+    stage_ids:     Annotated[list[str] | None, Form()] = None,
 ):
     """
-    Upload 1-10 video clips + a style prompt.
-    Gemini analyses sample frames and produces an editorial plan.
-    render_engine='ffmpeg'      → local FFmpeg pipeline (zoom, color grade, xfade) — default
-    render_engine='json2video'  → JSON2Video cloud render (legacy)
+    Process clips into an edited video.
+    Provide either 'files' (direct) or 'stage_ids' (pre-staged, recommended for multiple clips).
     """
-    if not files:
-        raise HTTPException(400, "กรุณาอัปโหลดอย่างน้อย 1 คลิป")
-    if len(files) > _MAX_CLIPS:
-        raise HTTPException(400, f"อัปโหลดได้สูงสุด {_MAX_CLIPS} คลิป")
     if not style_prompt.strip():
         raise HTTPException(400, "กรุณาระบุ style prompt")
     if resolution not in ("portrait", "landscape", "square"):
@@ -78,28 +114,55 @@ async def auto_edit(
     if render_engine not in ("ffmpeg", "json2video"):
         render_engine = "ffmpeg"
 
-    _ensure_bucket()
+    has_files  = bool(files)
+    has_staged = bool(stage_ids)
+
+    if not has_files and not has_staged:
+        raise HTTPException(400, "กรุณาอัปโหลดคลิปอย่างน้อย 1 ไฟล์")
+
+    _ensure_buckets()
 
     with tempfile.TemporaryDirectory() as tmp:
         clip_paths: list[str] = []
 
-        # ── Save uploaded files locally ───────────────────────────────
-        for i, f in enumerate(files):
-            data = await f.read()
-            if not data:
-                raise HTTPException(400, f"ไฟล์ที่ {i + 1} ว่างเปล่า")
+        # ── Load staged clips from MinIO ──────────────────────────────
+        if has_staged:
+            if len(stage_ids) > _MAX_CLIPS:
+                raise HTTPException(400, f"สูงสุด {_MAX_CLIPS} คลิป")
+            for i, sid in enumerate(stage_ids):
+                ext = os.path.splitext(sid)[1] or ".mp4"
+                local = os.path.join(tmp, f"clip_{i:02d}{ext}")
+                try:
+                    data = storage_service.download_bytes(sid)
+                    with open(local, "wb") as fp:
+                        fp.write(data)
+                    clip_paths.append(local)
+                    logger.info(f"[EDIT] staged clip {i} loaded ({len(data)//1024}KB)")
+                except Exception as exc:
+                    raise HTTPException(400, f"โหลด staged clip {i} ไม่ได้: {exc}")
 
-            ext = os.path.splitext(f.filename or "clip.mp4")[1].lower() or ".mp4"
-            if ext not in (".mp4", ".mov", ".avi", ".mkv", ".m4v"):
-                raise HTTPException(400, f"ไฟล์ที่ {i + 1}: รองรับ mp4, mov, avi, mkv เท่านั้น")
+        # ── Load direct-upload clips ──────────────────────────────────
+        if has_files:
+            offset = len(clip_paths)
+            if offset + len(files) > _MAX_CLIPS:
+                raise HTTPException(400, f"สูงสุด {_MAX_CLIPS} คลิปรวมกัน")
+            for i, f in enumerate(files):
+                data = await f.read()
+                if not data:
+                    raise HTTPException(400, f"ไฟล์ที่ {i+1} ว่างเปล่า")
+                ext = os.path.splitext(f.filename or "clip.mp4")[1].lower() or ".mp4"
+                if ext not in _VALID_EXT:
+                    raise HTTPException(400, f"ไฟล์ที่ {i+1}: รองรับ mp4, mov, avi, mkv เท่านั้น")
+                local = os.path.join(tmp, f"clip_{offset+i:02d}{ext}")
+                with open(local, "wb") as fp:
+                    fp.write(data)
+                clip_paths.append(local)
+                logger.info(f"[EDIT] direct clip {i} saved ({len(data)//1024}KB)")
 
-            local = os.path.join(tmp, f"clip_{i:02d}{ext}")
-            with open(local, "wb") as fp:
-                fp.write(data)
-            clip_paths.append(local)
-            logger.info(f"[EDIT] clip {i} saved locally ({len(data)//1024}KB)")
+        total = len(clip_paths)
+        logger.info(f"[EDIT] total clips: {total} | engine={render_engine}")
 
-        # ── Gemini: analyse frames and produce editorial plan ─────────
+        # ── Gemini editorial plan ─────────────────────────────────────
         try:
             plan = await build_editorial_plan(clip_paths, style_prompt.strip())
         except Exception as exc:
@@ -113,38 +176,29 @@ async def auto_edit(
                     plan, clip_paths, resolution, style_prompt.strip(), tmp
                 )
             except Exception as exc:
-                logger.error(f"[EDIT] FFmpeg render failed: {exc}", exc_info=True)
+                logger.error(f"[EDIT] FFmpeg failed: {exc}", exc_info=True)
                 raise HTTPException(500, f"FFmpeg render ไม่สำเร็จ: {exc}")
 
-            # Upload final output to MinIO
             with open(final_path, "rb") as fp:
                 out_bytes = fp.read()
-
             minio_path = await storage_service.upload_bytes(
-                data=out_bytes,
-                filename="edited_output.mp4",
-                content_type="video/mp4",
-                bucket=_BUCKET,
+                data=out_bytes, filename="edited_output.mp4",
+                content_type="video/mp4", bucket=_BUCKET,
             )
             video_url = f"{settings.PUBLIC_API_BASE_URL}/api/v1/files{minio_path}"
-            logger.info(f"[EDIT] FFmpeg output uploaded → {video_url[:80]}")
+            logger.info(f"[EDIT] uploaded → {video_url[:80]}")
 
         else:
-            # JSON2Video needs public URLs for each source clip
             public_urls: list[str] = []
-            for i, (path, uf) in enumerate(zip(clip_paths, files)):
+            for i, path in enumerate(clip_paths):
                 with open(path, "rb") as fp:
                     fdata = fp.read()
                 ext = os.path.splitext(path)[1]
                 mpath = await storage_service.upload_bytes(
-                    data=fdata,
-                    filename=f"clip_{i:02d}{ext}",
-                    content_type=uf.content_type or "video/mp4",
-                    bucket=_BUCKET,
+                    data=fdata, filename=f"clip_{i:02d}{ext}",
+                    content_type="video/mp4", bucket=_BUCKET,
                 )
-                public_url = f"{settings.PUBLIC_API_BASE_URL}/api/v1/files{mpath}"
-                public_urls.append(public_url)
-                logger.info(f"[EDIT] clip {i} → MinIO {public_url[:80]}")
+                public_urls.append(f"{settings.PUBLIC_API_BASE_URL}/api/v1/files{mpath}")
 
             try:
                 video_url = await render_movie(plan, public_urls, resolution)
@@ -156,7 +210,7 @@ async def auto_edit(
 
     return {
         "video_url":     video_url,
-        "source_count":  len(files),
+        "source_count":  total,
         "clips_used":    len(plan["clips"]),
         "plan":          plan["clips"],
         "resolution":    resolution,

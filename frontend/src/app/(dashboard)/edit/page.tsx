@@ -71,6 +71,7 @@ export default function EditPage() {
   const [resolution,   setResolution]   = useState<Resolution>("portrait");
   const [renderEngine, setRenderEngine] = useState<RenderEngine>("ffmpeg");
   const [loading,      setLoading]      = useState(false);
+  const [loadingMsg,   setLoadingMsg]   = useState("");
   const [result,       setResult]       = useState<EditResult | null>(null);
   const [error,        setError]        = useState("");
   const [showPlan,     setShowPlan]     = useState(false);
@@ -106,13 +107,27 @@ export default function EditPage() {
     setLoading(true);
     setShowPlan(false);
 
-    const fd = new FormData();
-    fd.append("style_prompt", prompt.trim());
-    fd.append("resolution", resolution);
-    fd.append("render_engine", renderEngine);
-    files.forEach(f => fd.append("files", f));
-
     try {
+      // Stage each file individually to bypass Cloudflare 100MB limit
+      const stageIds: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        setLoadingMsg(`อัปโหลดคลิป ${i + 1}/${files.length}...`);
+        const sf = new FormData();
+        sf.append("file", files[i]);
+        const sr = await api.post("/video-edit/stage", sf, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        stageIds.push((sr.data as { stage_id: string }).stage_id);
+      }
+
+      // Trigger processing with staged IDs
+      setLoadingMsg("AI วิเคราะห์เฟรม + render...");
+      const fd = new FormData();
+      fd.append("style_prompt", prompt.trim());
+      fd.append("resolution", resolution);
+      fd.append("render_engine", renderEngine);
+      stageIds.forEach(id => fd.append("stage_ids", id));
+
       const res = await api.post("/video-edit", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
@@ -123,6 +138,7 @@ export default function EditPage() {
       setError(msg);
     } finally {
       setLoading(false);
+      setLoadingMsg("");
     }
   }
 
@@ -368,7 +384,7 @@ export default function EditPage() {
         {loading ? (
           <>
             <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
-            AI กำลังตัดต่อวิดีโอ...
+            {loadingMsg || "AI กำลังตัดต่อวิดีโอ..."}
           </>
         ) : (
           <>
@@ -380,9 +396,11 @@ export default function EditPage() {
 
       {loading && (
         <p style={{ textAlign: "center", color: "var(--dim)", fontSize: 12.5, marginTop: 10 }}>
-          {renderEngine === "ffmpeg"
-            ? "อาจใช้เวลา 1–3 นาที · Gemini วิเคราะห์เฟรม → FFmpeg render (zoom + color grade)"
-            : "อาจใช้เวลา 3–6 นาที · Gemini วิเคราะห์เฟรม → JSON2Video cloud render"}
+          {loadingMsg.startsWith("อัปโหลด")
+            ? "อัปโหลดทีละไฟล์เพื่อข้ามลิมิต 100MB · รอแป๊บนึง..."
+            : renderEngine === "ffmpeg"
+              ? "Gemini วิเคราะห์เฟรม → FFmpeg render · อาจใช้เวลา 2–5 นาที"
+              : "Gemini วิเคราะห์เฟรม → JSON2Video cloud · อาจใช้เวลา 3–6 นาที"}
         </p>
       )}
 
