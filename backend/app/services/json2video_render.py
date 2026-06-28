@@ -77,6 +77,7 @@ def build_movie_spec(plan: dict, public_urls: list[str], resolution: str = "port
             "seek":     seek_t,
             "duration": dur,
             "volume":   0,
+            "resize":   "cover",   # fill frame, no black bars
         }
 
         if zoom != 0:
