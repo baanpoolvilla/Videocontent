@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     ELEVENLABS_API_KEY: str = ""
     KLING_API_KEY: str = ""
     FAL_KEY: str = ""
+    JSON2VIDEO_API_KEY: str = ""
+    PUBLIC_API_BASE_URL: str = "http://localhost:8000"
     API_BASE_URL: str = "http://localhost:8000"
     # Internal URL the backend uses to load images for Gemini Vision (self-reference via Docker network)
     API_INTERNAL_URL: str = "http://backend:8000"

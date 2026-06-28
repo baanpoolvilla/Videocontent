@@ -1,0 +1,419 @@
+"use client";
+
+import { useCallback, useRef, useState } from "react";
+import { api } from "@/lib/api";
+import {
+  Upload, X, Loader2, Film, CheckCircle2, ChevronDown, ChevronUp,
+} from "lucide-react";
+
+/* ── Types ─────────────────────────────────────────────────────────── */
+interface ClipPlan {
+  source_index: number;
+  trim_start: number;
+  trim_end: number;
+  zoom: number;
+  pan: string | null;
+  transition: string;
+  duration_sec: number;
+}
+
+interface EditResult {
+  video_url: string;
+  source_count: number;
+  clips_used: number;
+  plan: ClipPlan[];
+  resolution: string;
+}
+
+type Resolution = "portrait" | "landscape" | "square";
+
+const PRESETS = [
+  { label: "🎉 สนุก มีชีวิตชีวา", value: "Fun and energetic, upbeat, vibrant colors, fast cuts, punchy transitions, pool villa party atmosphere" },
+  { label: "✨ หรู สงบ ซีเนมาติก", value: "Elegant and calm, luxury pool villa, cinematic slow dissolves, warm golden tones, sophisticated atmosphere" },
+  { label: "🏡 ทัวร์รีวิวบ้าน", value: "Property tour style review, showcasing every room and feature, smooth pans, clear wide shots, welcoming and informative" },
+];
+
+const RESOLUTION_OPTS: { value: Resolution; label: string; sub: string }[] = [
+  { value: "portrait",  label: "แนวตั้ง  9:16", sub: "TikTok / Reel" },
+  { value: "landscape", label: "แนวนอน 16:9",   sub: "YouTube / Facebook" },
+  { value: "square",    label: "สี่เหลี่ยม 1:1", sub: "Instagram" },
+];
+
+/* ── Helpers ─────────────────────────────────────────────────────────*/
+function fmtSec(s: number) {
+  const m = Math.floor(s / 60);
+  const sec = Math.round(s % 60);
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+}
+
+function zoomLabel(z: number) {
+  if (z > 0) return `+${z} (ซูมเข้า)`;
+  if (z < 0) return `${z} (ซูมออก)`;
+  return "0 (ปกติ)";
+}
+
+/* ═══════════════════════════════════════════════════════════════════ */
+export default function EditPage() {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropRef  = useRef<HTMLDivElement>(null);
+
+  const [files,      setFiles]      = useState<File[]>([]);
+  const [dragging,   setDragging]   = useState(false);
+  const [prompt,     setPrompt]     = useState("");
+  const [resolution, setResolution] = useState<Resolution>("portrait");
+  const [loading,    setLoading]    = useState(false);
+  const [result,     setResult]     = useState<EditResult | null>(null);
+  const [error,      setError]      = useState("");
+  const [showPlan,   setShowPlan]   = useState(false);
+
+  /* ── Drag & drop ────────────────────────────────────────────────── */
+  const addFiles = useCallback((incoming: FileList | File[]) => {
+    const arr = Array.from(incoming).filter(f =>
+      /\.(mp4|mov|avi|mkv|m4v)$/i.test(f.name)
+    );
+    setFiles(prev => {
+      const merged = [...prev, ...arr];
+      if (merged.length > 10) merged.splice(10);
+      return merged;
+    });
+  }, []);
+
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    if (e.dataTransfer.files) addFiles(e.dataTransfer.files);
+  }, [addFiles]);
+
+  const removeFile = (i: number) =>
+    setFiles(prev => prev.filter((_, idx) => idx !== i));
+
+  /* ── Submit ─────────────────────────────────────────────────────── */
+  async function handleGenerate() {
+    if (!files.length) { setError("กรุณาอัปโหลดคลิปอย่างน้อย 1 ไฟล์"); return; }
+    if (!prompt.trim()) { setError("กรุณาระบุ style prompt"); return; }
+
+    setError("");
+    setResult(null);
+    setLoading(true);
+    setShowPlan(false);
+
+    const fd = new FormData();
+    fd.append("style_prompt", prompt.trim());
+    fd.append("resolution", resolution);
+    files.forEach(f => fd.append("files", f));
+
+    try {
+      const res = await api.post("/video-edit", fd);
+      setResult(res.data as EditResult);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        || "เกิดข้อผิดพลาด กรุณาลองใหม่";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /* ── UI ─────────────────────────────────────────────────────────── */
+  return (
+    <div style={{ maxWidth: 840, margin: "0 auto", padding: "28px 20px 60px" }}>
+
+      {/* Header */}
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "var(--text)" }}>
+          <Film size={20} style={{ marginRight: 8, verticalAlign: "middle" }} />
+          ตัดต่อวิดีโอ AI
+        </h1>
+        <p style={{ margin: "6px 0 0", color: "var(--dim)", fontSize: 13.5 }}>
+          อัปโหลดคลิปดิบ 1–10 ไฟล์ · AI วิเคราะห์เฟรมและตัดต่อให้ · ได้วิดีโอพร้อมใช้งาน
+        </p>
+      </div>
+
+      {/* Upload zone */}
+      <div
+        ref={dropRef}
+        onDragOver={e => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
+        onClick={() => files.length < 10 && inputRef.current?.click()}
+        style={{
+          border: `2px dashed ${dragging ? "var(--teal)" : "var(--gb)"}`,
+          borderRadius: 14,
+          padding: files.length ? "16px" : "40px 20px",
+          textAlign: "center",
+          cursor: files.length < 10 ? "pointer" : "default",
+          background: dragging ? "rgba(0,255,212,.05)" : "var(--glass)",
+          transition: "all .2s",
+          marginBottom: 18,
+        }}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          accept=".mp4,.mov,.avi,.mkv,.m4v"
+          style={{ display: "none" }}
+          onChange={e => e.target.files && addFiles(e.target.files)}
+        />
+
+        {files.length === 0 ? (
+          <>
+            <Upload size={36} style={{ color: "var(--teal)", marginBottom: 10 }} />
+            <p style={{ margin: 0, fontWeight: 700, color: "var(--text)", fontSize: 15 }}>
+              ลากวิดีโอมาวางที่นี่ หรือคลิกเพื่อเลือก
+            </p>
+            <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--dim)" }}>
+              MP4 · MOV · AVI · MKV · สูงสุด 10 ไฟล์
+            </p>
+          </>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {files.map((f, i) => (
+              <div key={i} style={{
+                display: "flex", alignItems: "center", gap: 6,
+                background: "var(--glass2)", borderRadius: 8,
+                padding: "5px 10px", fontSize: 12.5, color: "var(--text)",
+                border: "1px solid var(--gb)",
+              }}>
+                <Film size={12} style={{ color: "var(--teal)", flexShrink: 0 }} />
+                <span style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {f.name}
+                </span>
+                <span style={{ color: "var(--dim)", fontSize: 11 }}>
+                  {(f.size / 1_048_576).toFixed(1)}MB
+                </span>
+                <button
+                  onClick={e => { e.stopPropagation(); removeFile(i); }}
+                  style={{ border: "none", background: "none", cursor: "pointer", padding: 0, lineHeight: 1 }}
+                >
+                  <X size={13} style={{ color: "var(--dim)" }} />
+                </button>
+              </div>
+            ))}
+            {files.length < 10 && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 6,
+                background: "rgba(0,255,212,.08)", borderRadius: 8,
+                padding: "5px 12px", fontSize: 12.5, color: "var(--teal)",
+                border: "1px dashed var(--teal)", cursor: "pointer",
+              }}>
+                + เพิ่มคลิป
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Preset buttons */}
+      <div style={{ marginBottom: 14 }}>
+        <p style={{ margin: "0 0 8px", fontSize: 12.5, fontWeight: 700, color: "var(--dim)", textTransform: "uppercase", letterSpacing: ".05em" }}>
+          สไตล์ด่วน
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {PRESETS.map(p => (
+            <button
+              key={p.label}
+              onClick={() => setPrompt(p.value)}
+              style={{
+                padding: "7px 14px", borderRadius: 20, fontSize: 13, cursor: "pointer",
+                border: `1px solid ${prompt === p.value ? "var(--teal)" : "var(--gb)"}`,
+                background: prompt === p.value ? "rgba(0,255,212,.12)" : "var(--glass2)",
+                color: prompt === p.value ? "var(--teal)" : "var(--text)",
+                fontWeight: prompt === p.value ? 700 : 500,
+                transition: "all .15s",
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Style prompt */}
+      <div style={{ marginBottom: 16 }}>
+        <p style={{ margin: "0 0 6px", fontSize: 12.5, fontWeight: 700, color: "var(--dim)", textTransform: "uppercase", letterSpacing: ".05em" }}>
+          Style Prompt
+        </p>
+        <textarea
+          value={prompt}
+          onChange={e => setPrompt(e.target.value)}
+          placeholder="อธิบายสไตล์ที่ต้องการ เช่น: elegant pool villa tour, cinematic golden hour, smooth dissolves..."
+          rows={3}
+          style={{
+            width: "100%", boxSizing: "border-box",
+            background: "var(--glass)", border: "1px solid var(--gb)",
+            borderRadius: 10, padding: "12px 14px",
+            color: "var(--text)", fontSize: 14, resize: "vertical",
+            outline: "none", fontFamily: "inherit",
+          }}
+        />
+      </div>
+
+      {/* Resolution */}
+      <div style={{ marginBottom: 22 }}>
+        <p style={{ margin: "0 0 8px", fontSize: 12.5, fontWeight: 700, color: "var(--dim)", textTransform: "uppercase", letterSpacing: ".05em" }}>
+          ความละเอียด / อัตราส่วน
+        </p>
+        <div style={{ display: "flex", gap: 10 }}>
+          {RESOLUTION_OPTS.map(r => (
+            <button
+              key={r.value}
+              onClick={() => setResolution(r.value)}
+              style={{
+                flex: 1, padding: "10px 8px", borderRadius: 10, cursor: "pointer",
+                border: `1px solid ${resolution === r.value ? "var(--teal)" : "var(--gb)"}`,
+                background: resolution === r.value ? "rgba(0,255,212,.1)" : "var(--glass2)",
+                color: resolution === r.value ? "var(--teal)" : "var(--dim)",
+                textAlign: "center", transition: "all .15s",
+              }}
+            >
+              <div style={{ fontWeight: 700, fontSize: 13 }}>{r.label}</div>
+              <div style={{ fontSize: 11, marginTop: 2 }}>{r.sub}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div style={{
+          background: "rgba(255,80,80,.1)", border: "1px solid rgba(255,80,80,.3)",
+          borderRadius: 10, padding: "12px 16px", marginBottom: 18,
+          color: "#ff6b6b", fontSize: 13.5,
+        }}>
+          {error}
+        </div>
+      )}
+
+      {/* Generate button */}
+      <button
+        onClick={handleGenerate}
+        disabled={loading || !files.length || !prompt.trim()}
+        style={{
+          width: "100%", padding: "14px", borderRadius: 12, fontSize: 15,
+          fontWeight: 800, cursor: loading ? "wait" : "pointer",
+          border: "none",
+          background: loading || !files.length || !prompt.trim()
+            ? "var(--glass2)"
+            : "linear-gradient(135deg, #00ffd4, #0088ff)",
+          color: loading || !files.length || !prompt.trim() ? "var(--dim)" : "#000",
+          transition: "all .2s",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+        }}
+      >
+        {loading ? (
+          <>
+            <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
+            AI กำลังตัดต่อวิดีโอ...
+          </>
+        ) : (
+          <>
+            <Film size={18} />
+            ตัดต่อวิดีโออัตโนมัติ
+          </>
+        )}
+      </button>
+
+      {loading && (
+        <p style={{ textAlign: "center", color: "var(--dim)", fontSize: 12.5, marginTop: 10 }}>
+          อาจใช้เวลา 2–5 นาที · Gemini วิเคราะห์เฟรม → JSON2Video render
+        </p>
+      )}
+
+      {/* ── Result ─────────────────────────────────────────────────── */}
+      {result && (
+        <div style={{ marginTop: 32 }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10, marginBottom: 18,
+            background: "rgba(0,255,212,.08)", border: "1px solid rgba(0,255,212,.25)",
+            borderRadius: 12, padding: "12px 16px",
+          }}>
+            <CheckCircle2 size={18} style={{ color: "var(--teal)", flexShrink: 0 }} />
+            <span style={{ fontWeight: 700, color: "var(--text)" }}>
+              ตัดต่อสำเร็จ — {result.clips_used} คลิปจาก {result.source_count} ต้นฉบับ
+            </span>
+          </div>
+
+          {/* Video player */}
+          <div style={{ borderRadius: 14, overflow: "hidden", background: "#000", marginBottom: 20 }}>
+            <video
+              src={result.video_url}
+              controls
+              style={{ width: "100%", display: "block", maxHeight: 520 }}
+            />
+          </div>
+
+          {/* Download */}
+          <a
+            href={result.video_url}
+            download="edited_video.mp4"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "inline-block", padding: "10px 22px", borderRadius: 10,
+              background: "var(--teal)", color: "#000", fontWeight: 700, fontSize: 13.5,
+              textDecoration: "none", marginBottom: 24,
+            }}
+          >
+            ดาวน์โหลดวิดีโอ
+          </a>
+
+          {/* Plan breakdown toggle */}
+          <button
+            onClick={() => setShowPlan(v => !v)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, marginLeft: 12,
+              border: "1px solid var(--gb)", background: "var(--glass2)",
+              borderRadius: 8, padding: "8px 14px", cursor: "pointer",
+              color: "var(--dim)", fontSize: 13, fontWeight: 600,
+            }}
+          >
+            {showPlan ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            รายละเอียดการตัดต่อ ({result.plan.length} ช็อต)
+          </button>
+
+          {showPlan && (
+            <div style={{ marginTop: 14, overflowX: "auto" }}>
+              <table style={{
+                width: "100%", borderCollapse: "collapse",
+                fontSize: 12.5, color: "var(--text)",
+              }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--gb)", color: "var(--dim)" }}>
+                    {["#", "คลิปต้นฉบับ", "ตัดเริ่ม", "ตัดจบ", "ความยาว", "Zoom", "Pan", "Transition"].map(h => (
+                      <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, whiteSpace: "nowrap" }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.plan.map((c, i) => (
+                    <tr key={i} style={{
+                      borderBottom: "1px solid var(--gb)",
+                      background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,.02)",
+                    }}>
+                      <td style={{ padding: "8px 12px", color: "var(--teal)", fontWeight: 700 }}>{i + 1}</td>
+                      <td style={{ padding: "8px 12px" }}>คลิป {c.source_index + 1}</td>
+                      <td style={{ padding: "8px 12px" }}>{c.trim_start}s</td>
+                      <td style={{ padding: "8px 12px" }}>{c.trim_end}s</td>
+                      <td style={{ padding: "8px 12px" }}>{fmtSec(c.duration_sec)}</td>
+                      <td style={{ padding: "8px 12px" }}>{zoomLabel(c.zoom)}</td>
+                      <td style={{ padding: "8px 12px" }}>{c.pan || "—"}</td>
+                      <td style={{ padding: "8px 12px", textTransform: "capitalize" }}>{c.transition}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        textarea:focus { border-color: var(--teal) !important; box-shadow: 0 0 0 2px rgba(0,255,212,.15); }
+      `}</style>
+    </div>
+  );
+}
