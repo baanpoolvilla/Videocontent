@@ -33,6 +33,27 @@ def _ensure_bucket() -> None:
         logger.warning(f"[EDIT] bucket check/create: {e}")
 
 
+@router.get("")
+async def list_edits():
+    """List all rendered videos in the video-edits bucket, newest first."""
+    _ensure_bucket()
+    try:
+        objects = list(storage_service.client.list_objects(_BUCKET, recursive=True))
+        results = []
+        for obj in objects:
+            url = f"{settings.PUBLIC_API_BASE_URL}/api/v1/files/{_BUCKET}/{obj.object_name}"
+            results.append({
+                "url":     url,
+                "name":    obj.object_name,
+                "size_mb": round((obj.size or 0) / 1_048_576, 1),
+                "created": obj.last_modified.isoformat() if obj.last_modified else None,
+            })
+        results.sort(key=lambda x: x["created"] or "", reverse=True)
+        return {"videos": results}
+    except Exception:
+        return {"videos": []}
+
+
 @router.post("")
 async def auto_edit(
     style_prompt:  Annotated[str, Form(description="Style brief (Thai or English)")],

@@ -26,6 +26,7 @@ interface EditResult {
   render_engine: string;
 }
 
+
 type Resolution     = "portrait" | "landscape" | "square";
 type RenderEngine   = "ffmpeg" | "json2video";
 
