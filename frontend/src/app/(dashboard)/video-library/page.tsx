@@ -28,10 +28,19 @@ function VideoCard({ v, idx, onDelete }: { v: SavedVideo; idx: number; onDelete:
   const [hovered,   setHovered]   = useState(false);
   const [deleting,  setDeleting]  = useState(false);
 
-  const toggle = () => {
+  const toggle = async () => {
     if (!videoRef.current) return;
-    if (playing) { videoRef.current.pause(); setPlaying(false); }
-    else         { videoRef.current.play();  setPlaying(true);  }
+    if (playing) {
+      videoRef.current.pause();
+      setPlaying(false);
+    } else {
+      try {
+        await videoRef.current.play();
+        setPlaying(true);
+      } catch {
+        // AbortError: play interrupted — ignore
+      }
+    }
   };
 
   const handleDelete = async () => {

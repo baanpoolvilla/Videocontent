@@ -154,18 +154,56 @@ export default function EditPage() {
         stageIds.push(stageId);
       }
 
-      // Trigger processing with staged IDs
-      setLoadingMsg("AI วิเคราะห์เฟรม + render...");
+      // Start async render job — returns immediately with job_id
+      setLoadingMsg("กำลังส่งงานให้ AI...");
       const fd = new FormData();
       fd.append("style_prompt", prompt.trim());
       fd.append("resolution", resolution);
       fd.append("render_engine", renderEngine);
       stageIds.forEach(id => fd.append("stage_ids", id));
 
-      const res = await api.post("/video-edit", fd, {
+      const startRes = await api.post("/video-edit/start", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      setResult(res.data as EditResult);
+      const { job_id } = startRes.data as { job_id: string };
+
+      // Poll status every 3 seconds
+      const t0 = Date.now();
+      await new Promise<void>((resolve, reject) => {
+        const interval = setInterval(async () => {
+          try {
+            const elapsed = Math.floor((Date.now() - t0) / 1000);
+            const m = Math.floor(elapsed / 60);
+            const s = elapsed % 60;
+            const timeStr = m > 0 ? `${m}:${String(s).padStart(2, "0")}` : `${s}s`;
+            setLoadingMsg(`กำลัง render... (${timeStr})`);
+
+            const statusRes = await api.get(`/video-edit/job/${job_id}`);
+            const job = statusRes.data as {
+              status: string; video_url?: string; error?: string;
+              clips_used?: number; plan?: ClipPlan[]; resolution?: string; render_engine?: string;
+            };
+
+            if (job.status === "done") {
+              clearInterval(interval);
+              setResult({
+                video_url:     job.video_url!,
+                source_count:  files.length,
+                clips_used:    job.clips_used!,
+                plan:          job.plan!,
+                resolution:    job.resolution!,
+                render_engine: job.render_engine!,
+              });
+              resolve();
+            } else if (job.status === "failed") {
+              clearInterval(interval);
+              reject(new Error(job.error || "Render ล้มเหลว"));
+            }
+          } catch {
+            // polling error — keep retrying
+          }
+        }, 3000);
+      });
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
         || "เกิดข้อผิดพลาด กรุณาลองใหม่";

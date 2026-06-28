@@ -4,14 +4,18 @@ Supports two upload modes:
   1. Direct: send files in multipart (small clips only, Cloudflare 100MB limit)
   2. Staged: upload each clip via POST /stage first, then send stage_ids to process
      → bypasses Cloudflare limit, each clip is a separate request
+
+Async job pattern (POST /start → GET /job/{id}) solves Cloudflare 100s timeout.
 """
+import json
 import logging
 import os
 import shutil
 import tempfile
+import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from minio.error import S3Error
 
 from app.core.config import settings
@@ -27,6 +31,28 @@ _BUCKET         = "video-edits"
 _STAGING_BUCKET = "video-staging"
 _MAX_CLIPS      = 10
 _VALID_EXT      = {".mp4", ".mov", ".avi", ".mkv", ".m4v"}
+_JOB_DIR        = "/tmp/video_jobs"
+_CHUNK_DIR      = "/tmp/video_chunks"
+
+
+# ── Job state helpers ─────────────────────────────────────────────────
+
+def _job_path(job_id: str) -> str:
+    return os.path.join(_JOB_DIR, f"{job_id}.json")
+
+
+def _write_job(job_id: str, data: dict) -> None:
+    os.makedirs(_JOB_DIR, exist_ok=True)
+    with open(_job_path(job_id), "w") as f:
+        json.dump(data, f)
+
+
+def _read_job(job_id: str) -> dict | None:
+    try:
+        with open(_job_path(job_id)) as f:
+            return json.load(f)
+    except Exception:
+        return None
 
 
 def _ensure_buckets() -> None:
@@ -42,7 +68,6 @@ def _ensure_buckets() -> None:
 # ── List rendered videos ──────────────────────────────────────────────
 @router.get("")
 async def list_edits():
-    """List all rendered videos, newest first."""
     _ensure_buckets()
     try:
         objects = list(storage_service.client.list_objects(_BUCKET, recursive=True))
@@ -64,7 +89,6 @@ async def list_edits():
 # ── Delete a rendered video ───────────────────────────────────────────
 @router.delete("/{object_name}")
 async def delete_edit(object_name: str):
-    """Delete a rendered video from the video-edits bucket."""
     try:
         storage_service.client.remove_object(_BUCKET, object_name)
         logger.info(f"[EDIT] deleted {object_name}")
@@ -73,9 +97,7 @@ async def delete_edit(object_name: str):
         raise HTTPException(500, f"ลบไม่สำเร็จ: {exc}")
 
 
-# ── Chunked upload (for large files — bypasses Cloudflare 100MB limit) ───
-_CHUNK_DIR = "/tmp/video_chunks"
-
+# ── Chunked upload ────────────────────────────────────────────────────
 @router.post("/chunk")
 async def upload_chunk(
     upload_id:    Annotated[str, Form()],
@@ -84,7 +106,6 @@ async def upload_chunk(
     filename:     Annotated[str, Form()],
     chunk:        Annotated[UploadFile, File()],
 ):
-    """Receive one chunk of a large file. Call /assemble after all chunks arrive."""
     chunk_dir = os.path.join(_CHUNK_DIR, upload_id)
     os.makedirs(chunk_dir, exist_ok=True)
     data = await chunk.read()
@@ -101,12 +122,10 @@ async def assemble_chunks(
     total_chunks: Annotated[int, Form()],
     filename:     Annotated[str, Form()],
 ):
-    """Assemble all chunks into a staged file. Returns stage_id."""
     _ensure_buckets()
     chunk_dir = os.path.join(_CHUNK_DIR, upload_id)
     ext = os.path.splitext(filename)[1].lower() or ".mp4"
 
-    # Write chunks sequentially to a temp file then stream to MinIO
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
         tmp_path = tmp.name
         for i in range(total_chunks):
@@ -130,10 +149,9 @@ async def assemble_chunks(
         shutil.rmtree(chunk_dir, ignore_errors=True)
 
 
-# ── Stage a single clip (small files ≤ 80MB) ─────────────────────────
+# ── Stage a single clip ───────────────────────────────────────────────
 @router.post("/stage")
 async def stage_clip(file: Annotated[UploadFile, File(description="Single video clip")]):
-    """Upload ONE clip to staging. For large files use /chunk + /assemble instead."""
     _ensure_buckets()
     data = await file.read()
     if not data:
@@ -149,21 +167,128 @@ async def stage_clip(file: Annotated[UploadFile, File(description="Single video 
     return {"stage_id": minio_path, "filename": file.filename, "size_mb": round(len(data)/1_048_576, 1)}
 
 
-# ── Main edit endpoint ────────────────────────────────────────────────
+# ── Async job: start render ───────────────────────────────────────────
+@router.post("/start", status_code=202)
+async def start_edit(
+    background_tasks: BackgroundTasks,
+    style_prompt:  Annotated[str, Form()],
+    resolution:    Annotated[str, Form()] = "portrait",
+    render_engine: Annotated[str, Form()] = "ffmpeg",
+    stage_ids:     Annotated[list[str] | None, Form()] = None,
+):
+    """Start render as background job. Returns job_id immediately (no timeout risk)."""
+    if not style_prompt.strip():
+        raise HTTPException(400, "กรุณาระบุ style prompt")
+    if not stage_ids:
+        raise HTTPException(400, "กรุณาอัปโหลดคลิปอย่างน้อย 1 ไฟล์")
+    if resolution not in ("portrait", "landscape", "square"):
+        resolution = "portrait"
+    if render_engine not in ("ffmpeg", "json2video"):
+        render_engine = "ffmpeg"
+
+    job_id = str(uuid.uuid4())
+    _write_job(job_id, {"status": "pending"})
+    logger.info(f"[JOB] {job_id} queued | {len(stage_ids)} clips | engine={render_engine}")
+
+    background_tasks.add_task(
+        _render_job, job_id, list(stage_ids),
+        style_prompt.strip(), resolution, render_engine,
+    )
+    return {"job_id": job_id}
+
+
+# ── Async job: poll status ────────────────────────────────────────────
+@router.get("/job/{job_id}")
+async def get_job_status(job_id: str):
+    """Poll render job status. Returns: pending | processing | done | failed."""
+    job = _read_job(job_id)
+    if job is None:
+        raise HTTPException(404, "ไม่พบ job นี้")
+    return job
+
+
+# ── Background render task ────────────────────────────────────────────
+async def _render_job(
+    job_id: str,
+    stage_ids: list[str],
+    style_prompt: str,
+    resolution: str,
+    render_engine: str,
+) -> None:
+    _ensure_buckets()
+    _write_job(job_id, {"status": "processing"})
+    logger.info(f"[JOB] {job_id} processing | {len(stage_ids)} clips")
+
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            clip_paths: list[str] = []
+
+            for i, sid in enumerate(stage_ids):
+                ext = os.path.splitext(sid)[1] or ".mp4"
+                local = os.path.join(tmp, f"clip_{i:02d}{ext}")
+                data = storage_service.download_bytes(sid)
+                with open(local, "wb") as fp:
+                    fp.write(data)
+                clip_paths.append(local)
+                logger.info(f"[JOB] {job_id} clip {i} loaded ({len(data)//1024}KB)")
+                try:
+                    parts = sid.strip("/").split("/", 1)
+                    storage_service.client.remove_object(parts[0], parts[1])
+                except Exception:
+                    pass
+
+            logger.info(f"[JOB] {job_id} total clips: {len(clip_paths)}")
+
+            plan = await build_editorial_plan(clip_paths, style_prompt)
+
+            if render_engine == "ffmpeg":
+                final_path = await render_with_ffmpeg(
+                    plan, clip_paths, resolution, style_prompt, tmp
+                )
+                with open(final_path, "rb") as fp:
+                    out_bytes = fp.read()
+                minio_path = await storage_service.upload_bytes(
+                    data=out_bytes, filename="edited_output.mp4",
+                    content_type="video/mp4", bucket=_BUCKET,
+                )
+                video_url = f"{settings.PUBLIC_API_BASE_URL}/api/v1/files{minio_path}"
+            else:
+                public_urls: list[str] = []
+                for i, path in enumerate(clip_paths):
+                    with open(path, "rb") as fp:
+                        fdata = fp.read()
+                    ext = os.path.splitext(path)[1]
+                    mpath = await storage_service.upload_bytes(
+                        data=fdata, filename=f"clip_{i:02d}{ext}",
+                        content_type="video/mp4", bucket=_BUCKET,
+                    )
+                    public_urls.append(f"{settings.PUBLIC_API_BASE_URL}/api/v1/files{mpath}")
+                video_url = await render_movie(plan, public_urls, resolution)
+
+        _write_job(job_id, {
+            "status":       "done",
+            "video_url":    video_url,
+            "clips_used":   len(plan["clips"]),
+            "plan":         plan["clips"],
+            "resolution":   resolution,
+            "render_engine": render_engine,
+        })
+        logger.info(f"[JOB] {job_id} done → {video_url[:80]}")
+
+    except Exception as exc:
+        logger.error(f"[JOB] {job_id} failed: {exc}", exc_info=True)
+        _write_job(job_id, {"status": "failed", "error": str(exc)})
+
+
+# ── Legacy sync endpoint (kept for compatibility) ─────────────────────
 @router.post("")
 async def auto_edit(
     style_prompt:  Annotated[str, Form()],
     resolution:    Annotated[str, Form()] = "portrait",
     render_engine: Annotated[str, Form()] = "ffmpeg",
-    # Direct upload (small files)
     files:         Annotated[list[UploadFile] | None, File()] = None,
-    # Staged upload (each file uploaded individually via /stage first)
     stage_ids:     Annotated[list[str] | None, Form()] = None,
 ):
-    """
-    Process clips into an edited video.
-    Provide either 'files' (direct) or 'stage_ids' (pre-staged, recommended for multiple clips).
-    """
     if not style_prompt.strip():
         raise HTTPException(400, "กรุณาระบุ style prompt")
     if resolution not in ("portrait", "landscape", "square"):
@@ -173,7 +298,6 @@ async def auto_edit(
 
     has_files  = bool(files)
     has_staged = bool(stage_ids)
-
     if not has_files and not has_staged:
         raise HTTPException(400, "กรุณาอัปโหลดคลิปอย่างน้อย 1 ไฟล์")
 
@@ -182,30 +306,22 @@ async def auto_edit(
     with tempfile.TemporaryDirectory() as tmp:
         clip_paths: list[str] = []
 
-        # ── Load staged clips from MinIO ──────────────────────────────
         if has_staged:
             if len(stage_ids) > _MAX_CLIPS:
                 raise HTTPException(400, f"สูงสุด {_MAX_CLIPS} คลิป")
             for i, sid in enumerate(stage_ids):
                 ext = os.path.splitext(sid)[1] or ".mp4"
                 local = os.path.join(tmp, f"clip_{i:02d}{ext}")
-                try:
-                    data = storage_service.download_bytes(sid)
-                    with open(local, "wb") as fp:
-                        fp.write(data)
-                    clip_paths.append(local)
-                    logger.info(f"[EDIT] staged clip {i} loaded ({len(data)//1024}KB)")
-                except Exception as exc:
-                    raise HTTPException(400, f"โหลด staged clip {i} ไม่ได้: {exc}")
-                # Delete staging file after loading — free up storage immediately
+                data = storage_service.download_bytes(sid)
+                with open(local, "wb") as fp:
+                    fp.write(data)
+                clip_paths.append(local)
                 try:
                     parts = sid.strip("/").split("/", 1)
                     storage_service.client.remove_object(parts[0], parts[1])
-                    logger.info(f"[EDIT] staging deleted: {sid}")
                 except Exception:
-                    pass  # non-fatal
+                    pass
 
-        # ── Load direct-upload clips ──────────────────────────────────
         if has_files:
             offset = len(clip_paths)
             if offset + len(files) > _MAX_CLIPS:
@@ -221,26 +337,21 @@ async def auto_edit(
                 with open(local, "wb") as fp:
                     fp.write(data)
                 clip_paths.append(local)
-                logger.info(f"[EDIT] direct clip {i} saved ({len(data)//1024}KB)")
 
         total = len(clip_paths)
         logger.info(f"[EDIT] total clips: {total} | engine={render_engine}")
 
-        # ── Gemini editorial plan ─────────────────────────────────────
         try:
             plan = await build_editorial_plan(clip_paths, style_prompt.strip())
         except Exception as exc:
-            logger.error(f"[EDIT] Gemini failed: {exc}", exc_info=True)
             raise HTTPException(500, f"Gemini วิเคราะห์วิดีโอไม่สำเร็จ: {exc}")
 
-        # ── Render ────────────────────────────────────────────────────
         if render_engine == "ffmpeg":
             try:
                 final_path = await render_with_ffmpeg(
                     plan, clip_paths, resolution, style_prompt.strip(), tmp
                 )
             except Exception as exc:
-                logger.error(f"[EDIT] FFmpeg failed: {exc}", exc_info=True)
                 raise HTTPException(500, f"FFmpeg render ไม่สำเร็จ: {exc}")
 
             with open(final_path, "rb") as fp:
@@ -250,8 +361,6 @@ async def auto_edit(
                 content_type="video/mp4", bucket=_BUCKET,
             )
             video_url = f"{settings.PUBLIC_API_BASE_URL}/api/v1/files{minio_path}"
-            logger.info(f"[EDIT] uploaded → {video_url[:80]}")
-
         else:
             public_urls: list[str] = []
             for i, path in enumerate(clip_paths):
@@ -263,13 +372,11 @@ async def auto_edit(
                     content_type="video/mp4", bucket=_BUCKET,
                 )
                 public_urls.append(f"{settings.PUBLIC_API_BASE_URL}/api/v1/files{mpath}")
-
             try:
                 video_url = await render_movie(plan, public_urls, resolution)
             except TimeoutError as exc:
                 raise HTTPException(504, str(exc))
             except Exception as exc:
-                logger.error(f"[EDIT] JSON2Video failed: {exc}", exc_info=True)
                 raise HTTPException(500, f"JSON2Video render ไม่สำเร็จ: {exc}")
 
     return {
