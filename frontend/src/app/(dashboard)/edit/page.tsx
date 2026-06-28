@@ -23,9 +23,11 @@ interface EditResult {
   clips_used: number;
   plan: ClipPlan[];
   resolution: string;
+  render_engine: string;
 }
 
-type Resolution = "portrait" | "landscape" | "square";
+type Resolution     = "portrait" | "landscape" | "square";
+type RenderEngine   = "ffmpeg" | "json2video";
 
 const PRESETS = [
   { emoji: "🎉", label: "สนุก เฮฮา ปาร์ตี้",   value: "Fun, energetic and party vibe, upbeat fast cuts, vibrant colors, punchy transitions, friends having fun at pool villa" },
@@ -62,14 +64,15 @@ export default function EditPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const dropRef  = useRef<HTMLDivElement>(null);
 
-  const [files,      setFiles]      = useState<File[]>([]);
-  const [dragging,   setDragging]   = useState(false);
-  const [prompt,     setPrompt]     = useState("");
-  const [resolution, setResolution] = useState<Resolution>("portrait");
-  const [loading,    setLoading]    = useState(false);
-  const [result,     setResult]     = useState<EditResult | null>(null);
-  const [error,      setError]      = useState("");
-  const [showPlan,   setShowPlan]   = useState(false);
+  const [files,        setFiles]        = useState<File[]>([]);
+  const [dragging,     setDragging]     = useState(false);
+  const [prompt,       setPrompt]       = useState("");
+  const [resolution,   setResolution]   = useState<Resolution>("portrait");
+  const [renderEngine, setRenderEngine] = useState<RenderEngine>("ffmpeg");
+  const [loading,      setLoading]      = useState(false);
+  const [result,       setResult]       = useState<EditResult | null>(null);
+  const [error,        setError]        = useState("");
+  const [showPlan,     setShowPlan]     = useState(false);
 
   /* ── Drag & drop ────────────────────────────────────────────────── */
   const addFiles = useCallback((incoming: FileList | File[]) => {
@@ -105,6 +108,7 @@ export default function EditPage() {
     const fd = new FormData();
     fd.append("style_prompt", prompt.trim());
     fd.append("resolution", resolution);
+    fd.append("render_engine", renderEngine);
     files.forEach(f => fd.append("files", f));
 
     try {
@@ -292,6 +296,47 @@ export default function EditPage() {
         </div>
       </div>
 
+      {/* Render Engine */}
+      <div style={{ marginBottom: 22 }}>
+        <p style={{ margin: "0 0 8px", fontSize: 12.5, fontWeight: 700, color: "var(--dim)", textTransform: "uppercase", letterSpacing: ".05em" }}>
+          Render Engine
+        </p>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={() => setRenderEngine("ffmpeg")}
+            style={{
+              flex: 1, padding: "12px 10px", borderRadius: 10, cursor: "pointer",
+              border: `1px solid ${renderEngine === "ffmpeg" ? "var(--teal)" : "var(--gb)"}`,
+              background: renderEngine === "ffmpeg" ? "rgba(0,255,212,.1)" : "var(--glass2)",
+              color: renderEngine === "ffmpeg" ? "var(--teal)" : "var(--dim)",
+              textAlign: "left", transition: "all .15s",
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: 13 }}>🎬 FFmpeg</div>
+            <div style={{ fontSize: 11, marginTop: 3, lineHeight: 1.4 }}>
+              Zoom · Color Grade · Crossfade
+              <br />เร็ว · ไม่ต้องใช้ API · คุณภาพสูง
+            </div>
+          </button>
+          <button
+            onClick={() => setRenderEngine("json2video")}
+            style={{
+              flex: 1, padding: "12px 10px", borderRadius: 10, cursor: "pointer",
+              border: `1px solid ${renderEngine === "json2video" ? "#888" : "var(--gb)"}`,
+              background: renderEngine === "json2video" ? "rgba(255,255,255,.05)" : "var(--glass2)",
+              color: renderEngine === "json2video" ? "var(--text)" : "var(--dim)",
+              textAlign: "left", transition: "all .15s",
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: 13 }}>☁️ JSON2Video</div>
+            <div style={{ fontSize: 11, marginTop: 3, lineHeight: 1.4 }}>
+              Cloud render (เดิม)
+              <br />ช้ากว่า · ใช้ external API
+            </div>
+          </button>
+        </div>
+      </div>
+
       {/* Error */}
       {error && (
         <div style={{
@@ -334,7 +379,9 @@ export default function EditPage() {
 
       {loading && (
         <p style={{ textAlign: "center", color: "var(--dim)", fontSize: 12.5, marginTop: 10 }}>
-          อาจใช้เวลา 2–5 นาที · Gemini วิเคราะห์เฟรม → JSON2Video render
+          {renderEngine === "ffmpeg"
+            ? "อาจใช้เวลา 1–3 นาที · Gemini วิเคราะห์เฟรม → FFmpeg render (zoom + color grade)"
+            : "อาจใช้เวลา 3–6 นาที · Gemini วิเคราะห์เฟรม → JSON2Video cloud render"}
         </p>
       )}
 
@@ -349,6 +396,10 @@ export default function EditPage() {
             <CheckCircle2 size={18} style={{ color: "var(--teal)", flexShrink: 0 }} />
             <span style={{ fontWeight: 700, color: "var(--text)" }}>
               ตัดต่อสำเร็จ — {result.clips_used} คลิปจาก {result.source_count} ต้นฉบับ
+              {" "}
+              <span style={{ fontSize: 11.5, fontWeight: 500, color: "var(--dim)" }}>
+                [{result.render_engine === "ffmpeg" ? "🎬 FFmpeg" : "☁️ JSON2Video"}]
+              </span>
             </span>
           </div>
 

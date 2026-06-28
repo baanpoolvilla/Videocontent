@@ -70,8 +70,8 @@ RULES:
 1. Reorder clips to best match the style brief.
 2. trim_start and trim_end must be within 0 and the clip duration.
 3. Each clip segment must be at least 5 seconds (trim_end - trim_start >= 5).
-4. IMPORTANT: The uploaded clips are already pre-edited by the user. Use as much of each clip as possible. Only trim the very start/end if there is dead air or unwanted content. The total output duration should be close to the total input duration.
-5. Use each source clip fully. If one source clip is 60s, it is fine to use 50-60s of it. Split it into 3-5 scenes of 10-20s each for visual variety.
+4. {clip_mode_instruction}
+5. {clip_count_instruction}
 6. Transition mood guide:
    - energetic/fun → hard_cut, wipeleft, slidedown
    - elegant/calm  → fade, dissolve, circleopen
@@ -130,7 +130,7 @@ async def _extract_frames(path: str, n: int = 3) -> list[Image.Image]:
     return frames
 
 
-async def build_editorial_plan(clip_paths: list[str], style_prompt: str) -> dict:
+async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mode: str = "raw") -> dict:
     """
     clip_paths   : local temp paths to uploaded video clips
     style_prompt : free-text brief from the user (Thai or English)
@@ -145,11 +145,32 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str) -> dict
         durations.append(round(d, 2))
 
     transitions_str = ", ".join(sorted(ALLOWED_TRANSITIONS))
+
+    if clip_mode == "pre_edited":
+        clip_mode_instruction = (
+            "IMPORTANT: These clips are already pre-edited by the user. "
+            "Use as much of each clip as possible — only trim dead air at the very start/end. "
+            "Total output duration should be close to total input duration."
+        )
+        clip_count_instruction = (
+            "Split each source clip into 3-5 scenes of 10-20s each for visual variety."
+        )
+    else:
+        clip_mode_instruction = (
+            "These are raw clips. Select only the BEST moments. "
+            "Pick the most visually interesting sections that match the style brief."
+        )
+        clip_count_instruction = (
+            "Aim for 4-6 clips total (5-15s each). Cut boring/repetitive sections aggressively."
+        )
+
     prompt = _DIRECTOR_SYSTEM.format(
         n=len(clip_paths),
         style_prompt=style_prompt,
         durations=", ".join(f"clip{i}={d}s" for i, d in enumerate(durations)),
         transitions=transitions_str,
+        clip_mode_instruction=clip_mode_instruction,
+        clip_count_instruction=clip_count_instruction,
     )
 
     parts: list = [prompt]
