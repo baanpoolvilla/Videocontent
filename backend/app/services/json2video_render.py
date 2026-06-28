@@ -115,8 +115,8 @@ async def render_movie(
             raise RuntimeError(f"JSON2Video submit failed {resp.status_code}: {resp.text[:500]}")
 
         data = resp.json()
-        # Response shape: {"movie": "ID", ...} or {"id": "ID", ...}
-        movie_id = data.get("movie") or data.get("id") or ""
+        # Response shape: {"success": true, "project": "ID", ...}
+        movie_id = data.get("project") or data.get("movie") or data.get("id") or ""
         if not movie_id:
             raise RuntimeError(f"JSON2Video did not return a movie ID: {data}")
         logger.info(f"[J2V] movie_id={movie_id}")
@@ -126,25 +126,27 @@ async def render_movie(
             await asyncio.sleep(_POLL_INTERVAL)
             elapsed += _POLL_INTERVAL
 
-            poll = await client.get(f"{_BASE}?movie={movie_id}", headers=headers)
+            poll = await client.get(f"{_BASE}?project={movie_id}", headers=headers)
             if not poll.is_success:
                 logger.warning(f"[J2V] poll error {poll.status_code} — retrying")
                 continue
 
             pdata = poll.json()
+            logger.info(f"[J2V] poll raw: {str(pdata)[:300]}")
+
             # Response shape: {"movie": {"status": "...", "url": "..."}}
             movie_obj = pdata.get("movie") or {}
             if isinstance(movie_obj, str):
-                # Some versions return the ID as string — re-poll
                 continue
 
-            status = movie_obj.get("status", "")
+            # Flatten: some versions put status/url at top level
+            status = movie_obj.get("status") or pdata.get("status", "")
+            url_candidate = movie_obj.get("url") or pdata.get("url", "")
             logger.info(f"[J2V] elapsed={elapsed}s status={status}")
 
             if status == "done":
-                url = movie_obj.get("url", "")
-                if url:
-                    return url
+                if url_candidate:
+                    return url_candidate
                 raise RuntimeError("JSON2Video returned done but no URL in response")
 
             if status in ("error", "failed"):
