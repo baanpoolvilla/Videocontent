@@ -60,6 +60,18 @@ async def list_edits():
         return {"videos": []}
 
 
+# ── Delete a rendered video ───────────────────────────────────────────
+@router.delete("/{object_name}")
+async def delete_edit(object_name: str):
+    """Delete a rendered video from the video-edits bucket."""
+    try:
+        storage_service.client.remove_object(_BUCKET, object_name)
+        logger.info(f"[EDIT] deleted {object_name}")
+        return {"deleted": object_name}
+    except Exception as exc:
+        raise HTTPException(500, f"ลบไม่สำเร็จ: {exc}")
+
+
 # ── Stage a single clip ───────────────────────────────────────────────
 @router.post("/stage")
 async def stage_clip(file: Annotated[UploadFile, File(description="Single video clip")]):
@@ -140,6 +152,13 @@ async def auto_edit(
                     logger.info(f"[EDIT] staged clip {i} loaded ({len(data)//1024}KB)")
                 except Exception as exc:
                     raise HTTPException(400, f"โหลด staged clip {i} ไม่ได้: {exc}")
+                # Delete staging file after loading — free up storage immediately
+                try:
+                    parts = sid.strip("/").split("/", 1)
+                    storage_service.client.remove_object(parts[0], parts[1])
+                    logger.info(f"[EDIT] staging deleted: {sid}")
+                except Exception:
+                    pass  # non-fatal
 
         # ── Load direct-upload clips ──────────────────────────────────
         if has_files:

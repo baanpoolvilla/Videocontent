@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Download, RefreshCw, VideoIcon, Loader2, Play, Pause } from "lucide-react";
+import { Download, RefreshCw, VideoIcon, Loader2, Play, Pause, Trash2 } from "lucide-react";
 
 interface SavedVideo {
   url: string;
@@ -22,15 +22,28 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(h / 24)} วันที่แล้ว`;
 }
 
-function VideoCard({ v, idx }: { v: SavedVideo; idx: number }) {
+function VideoCard({ v, idx, onDelete }: { v: SavedVideo; idx: number; onDelete: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [hovered, setHovered] = useState(false);
+  const [playing,   setPlaying]   = useState(false);
+  const [hovered,   setHovered]   = useState(false);
+  const [deleting,  setDeleting]  = useState(false);
 
   const toggle = () => {
     if (!videoRef.current) return;
     if (playing) { videoRef.current.pause(); setPlaying(false); }
     else         { videoRef.current.play();  setPlaying(true);  }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("ลบวิดีโอนี้?")) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/video-edit/${v.name}`);
+      onDelete();
+    } catch {
+      alert("ลบไม่สำเร็จ");
+      setDeleting(false);
+    }
   };
 
   return (
@@ -92,22 +105,37 @@ function VideoCard({ v, idx }: { v: SavedVideo; idx: number }) {
           </span>
         </div>
 
-        <a
-          href={v.url}
-          download
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            width: "100%", padding: "7px 0", borderRadius: 8,
-            background: "rgba(0,255,212,.12)", border: "1px solid rgba(0,255,212,.25)",
-            color: "var(--teal)", fontSize: 12.5, fontWeight: 700,
-            textDecoration: "none", transition: "background .15s",
-          }}
-        >
-          <Download size={13} />
-          ดาวน์โหลด
-        </a>
+        <div style={{ display: "flex", gap: 6 }}>
+          <a
+            href={v.url}
+            download
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+              padding: "7px 0", borderRadius: 8,
+              background: "rgba(0,255,212,.12)", border: "1px solid rgba(0,255,212,.25)",
+              color: "var(--teal)", fontSize: 12.5, fontWeight: 700,
+              textDecoration: "none",
+            }}
+          >
+            <Download size={13} />
+            ดาวน์โหลด
+          </a>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            title="ลบวิดีโอ"
+            style={{
+              width: 34, borderRadius: 8, border: "1px solid rgba(255,80,80,.3)",
+              background: "rgba(255,80,80,.08)", color: "#ff6b6b",
+              cursor: deleting ? "wait" : "pointer", fontSize: 13,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            {deleting ? <Loader2 size={13} style={{ animation: "spin .8s linear infinite" }} /> : <Trash2 size={13} />}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -204,7 +232,10 @@ export default function VideoLibraryPage() {
             gap: 16,
           }}>
             {videos.map((v, i) => (
-              <VideoCard key={v.name} v={v} idx={i} />
+              <VideoCard
+                key={v.name} v={v} idx={i}
+                onDelete={() => setVideos(prev => prev.filter(x => x.name !== v.name))}
+              />
             ))}
           </div>
         </>
