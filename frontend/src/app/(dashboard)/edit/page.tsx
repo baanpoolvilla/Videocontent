@@ -77,10 +77,21 @@ export default function EditPage() {
   const [showPlan,     setShowPlan]     = useState(false);
 
   /* ── Drag & drop ────────────────────────────────────────────────── */
+  const MAX_FILE_MB = 90;
+
   const addFiles = useCallback((incoming: FileList | File[]) => {
-    const arr = Array.from(incoming).filter(f =>
-      /\.(mp4|mov|avi|mkv|m4v)$/i.test(f.name)
-    );
+    const oversized: string[] = [];
+    const arr = Array.from(incoming).filter(f => {
+      if (!/\.(mp4|mov|avi|mkv|m4v)$/i.test(f.name)) return false;
+      if (f.size > MAX_FILE_MB * 1_048_576) {
+        oversized.push(`${f.name} (${(f.size/1_048_576).toFixed(0)}MB)`);
+        return false;
+      }
+      return true;
+    });
+    if (oversized.length) {
+      setError(`ไฟล์ใหญ่เกิน ${MAX_FILE_MB}MB — ลดขนาดก่อนอัปโหลด:\n${oversized.join(", ")}`);
+    }
     setFiles(prev => {
       const merged = [...prev, ...arr];
       if (merged.length > 10) merged.splice(10);
@@ -207,7 +218,7 @@ export default function EditPage() {
                 <span style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {f.name}
                 </span>
-                <span style={{ color: "var(--dim)", fontSize: 11 }}>
+                <span style={{ fontSize: 11, color: f.size > MAX_FILE_MB * 1_048_576 ? "#ff6b6b" : "var(--dim)" }}>
                   {(f.size / 1_048_576).toFixed(1)}MB
                 </span>
                 <button
