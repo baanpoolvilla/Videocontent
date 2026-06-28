@@ -187,10 +187,21 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
     )
 
     raw = response.text.strip()
+    # Strip markdown fences
     raw = re.sub(r"^```[a-z]*\s*", "", raw, flags=re.IGNORECASE)
     raw = re.sub(r"\s*```$", "", raw)
+    # Extract first JSON object (in case Gemini adds text after)
+    m = re.search(r"\{.*\}", raw, re.DOTALL)
+    if m:
+        raw = m.group(0)
+    # Remove trailing commas before } or ] (common Gemini mistake)
+    raw = re.sub(r",\s*([}\]])", r"\1", raw)
 
-    plan = json.loads(raw)
+    try:
+        plan = json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.error(f"[EDITOR] Gemini JSON parse error: {e}\nRaw: {raw[:500]}")
+        raise RuntimeError(f"Gemini ส่ง JSON ไม่ถูกต้อง: {e}")
 
     # ── Validate clips ────────────────────────────────────────────────
     validated: list[dict] = []
