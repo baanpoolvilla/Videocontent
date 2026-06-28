@@ -1,6 +1,6 @@
 import uuid
-from fastapi import APIRouter, HTTPException, UploadFile, File
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File
+from fastapi.responses import Response, StreamingResponse
 from io import BytesIO
 
 from app.services.storage import storage_service
@@ -26,7 +26,7 @@ async def upload_audio(file: UploadFile = File(...)):
 
 
 @router.get("/{bucket}/{path:path}")
-async def get_file(bucket: str, path: str):
+async def get_file(bucket: str, path: str, request: Request):
     try:
         data = storage_service.download_bytes(f"/{bucket}/{path}")
     except Exception:
@@ -40,8 +40,38 @@ async def get_file(bucket: str, path: str):
         "mp3": "audio/mpeg", "pdf": "application/pdf",
     }
     content_type = content_types.get(ext, "application/octet-stream")
+    total = len(data)
 
-    return StreamingResponse(BytesIO(data), media_type=content_type, headers={
-        "Cache-Control": "public, max-age=86400",
-        "Content-Length": str(len(data)),
-    })
+    range_header = request.headers.get("range")
+    if range_header:
+        try:
+            range_val = range_header.replace("bytes=", "")
+            start_str, end_str = range_val.split("-")
+            start = int(start_str)
+            end = int(end_str) if end_str else total - 1
+            end = min(end, total - 1)
+        except Exception:
+            raise HTTPException(status_code=416, detail="Invalid Range header")
+
+        chunk = data[start : end + 1]
+        return Response(
+            content=chunk,
+            status_code=206,
+            media_type=content_type,
+            headers={
+                "Content-Range": f"bytes {start}-{end}/{total}",
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(len(chunk)),
+                "Cache-Control": "public, max-age=86400",
+            },
+        )
+
+    return StreamingResponse(
+        BytesIO(data),
+        media_type=content_type,
+        headers={
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(total),
+            "Cache-Control": "public, max-age=86400",
+        },
+    )
