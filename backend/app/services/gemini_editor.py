@@ -180,7 +180,7 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         parts.extend(frames)
 
     loop = asyncio.get_running_loop()
-    cfg  = genai.types.GenerationConfig(temperature=0.3, max_output_tokens=4096)
+    cfg  = genai.types.GenerationConfig(temperature=0.3, max_output_tokens=8192)
     response = await loop.run_in_executor(
         None,
         lambda: model.generate_content(parts, generation_config=cfg),
@@ -190,17 +190,20 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
     # Strip markdown fences
     raw = re.sub(r"^```[a-z]*\s*", "", raw, flags=re.IGNORECASE)
     raw = re.sub(r"\s*```$", "", raw)
-    # Extract first JSON object (in case Gemini adds text after)
+    # Remove JS-style comments (// and /* */) — Gemini sometimes adds these
+    raw = re.sub(r"//[^\n]*", "", raw)
+    raw = re.sub(r"/\*.*?\*/", "", raw, flags=re.DOTALL)
+    # Remove trailing commas before } or ]
+    raw = re.sub(r",\s*([}\]])", r"\1", raw)
+    # Extract first complete JSON object
     m = re.search(r"\{.*\}", raw, re.DOTALL)
     if m:
         raw = m.group(0)
-    # Remove trailing commas before } or ] (common Gemini mistake)
-    raw = re.sub(r",\s*([}\]])", r"\1", raw)
 
     try:
         plan = json.loads(raw)
     except json.JSONDecodeError as e:
-        logger.error(f"[EDITOR] Gemini JSON parse error: {e}\nRaw: {raw[:500]}")
+        logger.error(f"[EDITOR] Gemini JSON parse error: {e}\nRaw: {raw[:800]}")
         raise RuntimeError(f"Gemini ส่ง JSON ไม่ถูกต้อง: {e}")
 
     # ── Validate clips ────────────────────────────────────────────────
