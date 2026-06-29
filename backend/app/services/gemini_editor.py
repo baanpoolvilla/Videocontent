@@ -6,13 +6,17 @@ speed, color correction, fade-in/out, and optional title overlay).
 Uses google-generativeai (already in requirements.txt).
 """
 import asyncio
+import base64
 import json
 import logging
 import os
 import re
 import tempfile
+from io import BytesIO
 
 import google.generativeai as genai
+import google.api_core.exceptions
+import openai
 from PIL import Image
 
 from app.core.config import settings
@@ -137,6 +141,41 @@ async def _extract_frames(path: str, n: int = 3) -> list[Image.Image]:
     return frames
 
 
+async def _build_plan_openai(
+    prompt: str,
+    clip_paths: list[str],
+    durations: list[float],
+    all_frames: list[list[Image.Image]],
+    loop: asyncio.AbstractEventLoop,
+) -> str:
+    """OpenAI GPT-4o-mini fallback when Gemini quota is exceeded."""
+    client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+
+    content: list = [{"type": "text", "text": prompt}]
+    for i, frames in enumerate(all_frames):
+        content.append({"type": "text", "text": f"\n\n--- [Clip {i}] duration={durations[i]}s ---"})
+        for img in frames:
+            buf = BytesIO()
+            img.save(buf, format="JPEG", quality=75)
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{b64}", "detail": "low"},
+            })
+
+    response = await loop.run_in_executor(
+        None,
+        lambda: client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": content}],
+            temperature=0.3,
+            max_tokens=4096,
+            response_format={"type": "json_object"},
+        ),
+    )
+    return response.choices[0].message.content or "{}"
+
+
 async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mode: str = "raw") -> dict:
     """
     clip_paths   : local temp paths to uploaded video clips
@@ -195,20 +234,33 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         clip_count_instruction=clip_count_instruction,
     )
 
-    parts: list = [prompt]
-    for i, path in enumerate(clip_paths):
-        parts.append(f"\n\n--- [Clip {i}] duration={durations[i]}s ---")
+    # Extract frames once — used by both Gemini and OpenAI
+    all_frames: list[list[Image.Image]] = []
+    for path in clip_paths:
         frames = await _extract_frames(path, n=3)
+        all_frames.append(frames)
+
+    parts: list = [prompt]
+    for i, frames in enumerate(all_frames):
+        parts.append(f"\n\n--- [Clip {i}] duration={durations[i]}s ---")
         parts.extend(frames)
 
     loop = asyncio.get_running_loop()
-    cfg  = genai.types.GenerationConfig(temperature=0.3, max_output_tokens=8192)
-    response = await loop.run_in_executor(
-        None,
-        lambda: model.generate_content(parts, generation_config=cfg),
-    )
+    raw = ""
 
-    raw = response.text.strip()
+    # Try Gemini first, fall back to OpenAI on quota error
+    try:
+        cfg = genai.types.GenerationConfig(temperature=0.3, max_output_tokens=8192)
+        response = await loop.run_in_executor(
+            None,
+            lambda: model.generate_content(parts, generation_config=cfg),
+        )
+        raw = response.text.strip()
+        logger.info("[EDITOR] used Gemini")
+    except google.api_core.exceptions.ResourceExhausted:
+        logger.warning("[EDITOR] Gemini quota exceeded — falling back to OpenAI gpt-4o-mini")
+        raw = await _build_plan_openai(prompt, clip_paths, durations, all_frames, loop)
+        logger.info("[EDITOR] used OpenAI fallback")
     # Strip markdown fences
     raw = re.sub(r"^```[a-z]*\s*", "", raw, flags=re.IGNORECASE)
     raw = re.sub(r"\s*```$", "", raw)
