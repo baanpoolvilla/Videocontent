@@ -166,7 +166,7 @@ async def _build_plan_openai(
     response = await loop.run_in_executor(
         None,
         lambda: client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[{"role": "user", "content": content}],
             temperature=0.3,
             max_tokens=4096,
@@ -257,10 +257,12 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         )
         raw = response.text.strip()
         logger.info("[EDITOR] used Gemini")
+        ai_model = "gemini-2.5-flash"
     except google.api_core.exceptions.ResourceExhausted:
         logger.warning("[EDITOR] Gemini quota exceeded — falling back to OpenAI gpt-4o-mini")
         raw = await _build_plan_openai(prompt, clip_paths, durations, all_frames, loop)
         logger.info("[EDITOR] used OpenAI fallback")
+        ai_model = "gpt-4o"
     # Strip markdown fences
     raw = re.sub(r"^```[a-z]*\s*", "", raw, flags=re.IGNORECASE)
     raw = re.sub(r"\s*```$", "", raw)
@@ -361,5 +363,5 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
             "size":     max(20, min(80, int(raw_title.get("size", 40)))),
         }
 
-    logger.info(f"[EDITOR] plan: {len(validated)} clips from {len(clip_paths)} sources, title={title}")
-    return {"clips": validated, "durations": durations, "title": title}
+    logger.info(f"[EDITOR] plan: {len(validated)} clips from {len(clip_paths)} sources, title={title}, model={ai_model}")
+    return {"clips": validated, "durations": durations, "title": title, "ai_model": ai_model}
