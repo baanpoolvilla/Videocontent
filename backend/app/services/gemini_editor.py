@@ -233,33 +233,38 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
 
     # ── Validate clips ────────────────────────────────────────────────
     validated: list[dict] = []
-    source_uses: dict[int, int] = {}
-    max_uses_per_source = 1 if is_party else 3
+    source_ranges: dict[int, list[tuple[float, float]]] = {}  # track used segments per source
     min_seg = 2.0 if is_party else 4.0
     max_seg = 4.0 if is_party else 20.0
 
+    def _overlaps(ts: float, te: float, used: list[tuple[float, float]]) -> bool:
+        for s, e in used:
+            if ts < e and te > s:
+                return True
+        return False
+
     for item in plan.get("clips", []):
         idx = max(0, min(len(clip_paths) - 1, int(item.get("source_index", 0))))
-
-        # Enforce source diversity — skip if source used too many times
-        if source_uses.get(idx, 0) >= max_uses_per_source:
-            continue
-        source_uses[idx] = source_uses.get(idx, 0) + 1
 
         dur = durations[idx]
         ts  = max(0.0, float(item.get("trim_start", 0.0)))
         te  = min(dur, float(item.get("trim_end", dur)))
 
-        # Cap segment length (party: max 4s, others: up to 20s)
+        # Cap segment length
         if te - ts > max_seg:
-            te = ts + max_seg
-            te = min(dur, te)
+            te = min(dur, ts + max_seg)
 
         # Ensure minimum length
         if te - ts < min_seg:
             te = min(dur, ts + min_seg)
             if te - ts < min_seg:
-                continue  # clip too short to use
+                continue
+
+        # Skip if this time range overlaps with an already-used segment from same source
+        used = source_ranges.get(idx, [])
+        if _overlaps(ts, te, used):
+            continue
+        source_ranges.setdefault(idx, []).append((ts, te))
 
         zoom       = max(-10, min(10, int(item.get("zoom", 0))))
         pan        = item.get("pan") or None
