@@ -33,14 +33,38 @@ type Resolution     = "portrait" | "landscape" | "square";
 type RenderEngine   = "ffmpeg" | "json2video";
 
 const PRESETS = [
-  { emoji: "🎉", label: "สนุก เฮฮา ปาร์ตี้",   value: "Fun energetic party vibe — select only peak moments where people are genuinely laughing, celebrating, toasting, dancing, splashing or cheering. Each clip 5-10 seconds. Alternate zoom-in and zoom-out shots. White flash transitions. Vibrant warm punchy colors. Order from most exciting to least — last clip must be a strong moment. Reject setup, walking, or boring shots." },
-  { emoji: "✨", label: "หรู ซีเนมาติก",         value: "Luxury cinematic style — select wide establishing shots, beautiful details, elegant atmosphere, and striking visuals. Each clip 6-12 seconds. Slow gentle zoom-in on beauty shots, slow zoom-out on wide reveals. Smooth dissolve or fade transitions. Teal-orange color grade, warm tones. Speed 0.8x slow-motion feel. Order from most visually striking to supporting shots." },
-  { emoji: "🏡", label: "ทัวร์รีวิว",            value: "Review tour style — showcase every key feature and space clearly. Select well-composed shots of each area. Each clip 8-15 seconds. Gentle zoom-in toward key features. Slide transitions. Natural warm lighting preferred. Speed 1.0x. Cover all areas systematically." },
-  { emoji: "💑", label: "โรแมนติก",              value: "Romantic intimate mood — select soft natural light moments, warm atmosphere, gentle interactions, beautiful surroundings. Each clip 6-12 seconds. Slow zoom-in toward subjects. Soft dissolve transitions. Warm dreamy tones, slight desaturation. Speed 0.85x. Build from atmosphere to intimate moments." },
-  { emoji: "🌊", label: "ชิลล์ ผ่อนคลาย",       value: "Chill relaxing vacation mood — select calm peaceful scenes, beautiful surroundings, quiet moments. Each clip 7-12 seconds. Very slow zoom-out to reveal the environment. Soft fade transitions. Fresh cool tones. Speed 0.9x. Begin with close details and slowly reveal the full setting." },
-  { emoji: "👨‍👩‍👧", label: "ครอบครัว",              value: "Family happy moments — select genuine interactions, kids playing, group activities, smiling faces, shared experiences. Each clip 6-10 seconds. Mix zoom-in on faces and zoom-out for group shots. Bright cheerful colors. Speed 1.0x. Order from group activities to individual happy moments." },
-  { emoji: "📣", label: "โปรโมชัน ดึงดูด",       value: "Promotional marketing video — select the most impressive visuals, premium features, happy people, stunning moments. Each clip 5-8 seconds. Aggressive zoom-in on hero shots, zoom-out on establishing scenes. Dynamic flash transitions. Bold vibrant high-contrast colors. Speed 1.05x. Open and close with the strongest shots." },
-  { emoji: "🌅", label: "วิวธรรมชาติ",           value: "Nature and scenery — select golden hour, sunrise, sunset, sky reflections, dramatic landscapes, beautiful light. Each clip 8-15 seconds. Slow zoom-out to reveal the full scenic view. Gentle dissolve transitions. Warm golden tones. Speed 0.85x. Build toward the most dramatic moment." },
+  {
+    emoji: "🎉", label: "สนุก เฮฮา ปาร์ตี้",
+    value: "Fun energetic party vibe — select ONLY peak moments: people laughing, dancing, splashing, toasting, cheering, celebrating. Reject setup, walking, empty, or boring shots. Each clip 5-10 seconds. Start with most exciting shot, end with strong crowd moment. Zoom in aggressively (zoom 6-10) on action and close-up shots; zoom out (zoom -5 to -8) on wide crowd reactions — alternate every clip. Pan in direction of movement. White flash transitions (hard_cut). Speed 1.2x on action, 1.1x on crowd shots. Vibrant warm punchy saturated colors.",
+  },
+  {
+    emoji: "✨", label: "หรู ซีเนมาติก",
+    value: "Luxury cinematic style — select wide establishing shots, elegant architectural details, dramatic lighting, and visually striking moments. Each clip 7-12 seconds. Gentle zoom in (zoom 2-5) on details and beauty shots; slow zoom out (zoom -2 to -4) on wide establishing shots. Pan slowly and gracefully. Smooth dissolve transitions. Teal-orange cinematic color grade. Speed 0.8x slow-motion cinematic feel. Open with widest most impressive establishing shot. WIDE shots for grandeur, CLOSE-UP for fine details, end with most cinematic view.",
+  },
+  {
+    emoji: "🏡", label: "ทัวร์รีวิว",
+    value: "Property review tour — show every key space clearly and completely. Select well-lit, steady, well-composed shots of each area. Each clip 8-15 seconds. Gentle zoom in (zoom 2-4) toward key features; gentle zoom out (zoom -2 to -3) on room reveals. Slide transitions (slideright, slideleft) to flow through spaces. Warm natural colors. Speed 1.0x. Order: exterior establishing shot first, then interior spaces logically (entrance, living, kitchen, bedroom, bathroom, outdoor), end with the most impressive feature. WIDE shots for full rooms, MEDIUM for featured areas.",
+  },
+  {
+    emoji: "💑", label: "โรแมนติก",
+    value: "Romantic intimate mood — select soft natural light moments, warm golden atmosphere, gentle couple interactions, beautiful surroundings, tender emotional moments. Each clip 6-12 seconds. Slow gentle zoom in (zoom 2-4) toward subjects; very slow zoom out (zoom -2 to -3) on wide romantic scenes. Pan softly toward subjects. Soft dissolve transitions. Warm romantic soft golden tones. Speed 0.85x dreamy feel. Build from wide scenic atmosphere to close intimate moments — WIDE shots for setting mood, CLOSE-UP for emotion. End with the most tender intimate moment.",
+  },
+  {
+    emoji: "🌊", label: "ชิลล์ ผ่อนคลาย",
+    value: "Chill relaxing vacation mood — select calm peaceful scenes, serene water, beautiful surroundings, quiet relaxed moments. Each clip 7-12 seconds. Very slow zoom out (zoom -3 to -5) to reveal the environment; gentle zoom in (zoom 1-3) on peaceful close-up details. Pan very slowly to drift across the scene. Soft fade transitions. Fresh cool natural tones. Speed 0.9x relaxed pace. Start with close detail (water, leaves, texture) and slowly reveal the full peaceful setting — CLOSE-UP to WIDE progression. Reject busy, crowded, or energetic shots.",
+  },
+  {
+    emoji: "👨‍👩‍👧", label: "ครอบครัว",
+    value: "Family warm joyful moments — select genuine cheerful interactions: kids playing and laughing, family activities together, big warm smiles, group moments, hugs, shared fun. Each clip 6-10 seconds. Zoom in (zoom 3-6) on faces and happy close-up moments; zoom out (zoom -3 to -5) for wide group shots showing everyone together. Pan gently toward subjects and faces. Bright warm cheerful dissolve transitions. Bright warm cheerful vivid colors. Speed 1.0x natural pace. Start with wide group shot, move to individual happy moments, end with warm group or smile moment. Mix WIDE group shots with CLOSE-UP face moments.",
+  },
+  {
+    emoji: "📣", label: "โปรโมชัน ดึงดูด",
+    value: "Bold promotional marketing video — select only the most impressive aspirational visuals: premium spaces, happy satisfied people, hero features, dramatic lighting, wow moments. Each clip 4-8 seconds. Aggressive zoom in (zoom 6-9) on hero feature shots; strong zoom out (zoom -4 to -7) on wide impressive establishing shots. Fast sharp flash or wipe transitions. Bold saturated high-contrast colors. Speed 1.1x energetic pace. Open with the absolute strongest most impressive shot. Close with a strong impactful moment. Every clip must make the viewer want to experience it. Reject ordinary, boring, or empty shots.",
+  },
+  {
+    emoji: "🌅", label: "วิวธรรมชาติ",
+    value: "Golden hour nature scenery — select sunrise, sunset, golden light, dramatic skies, beautiful reflections, sweeping landscapes, magical warm natural light. Each clip 8-15 seconds. Slow zoom out (zoom -3 to -6) to dramatically reveal the full scenic view; gentle zoom in (zoom 1-3) on golden light details. Pan slowly across the horizon and landscape. Gentle dissolve transitions. Warm golden amber tones, rich enhanced golden hour colors. Speed 0.85x contemplative pace. Build from detail shots to the most dramatic wide scenic reveal at the end. WIDE landscape shots preferred. End with most dramatic golden sky or landscape moment.",
+  },
 ];
 
 const RESOLUTION_OPTS: { value: Resolution; label: string; sub: string }[] = [
@@ -495,7 +519,7 @@ export default function EditPage() {
               <span style={{ fontSize: 11.5, fontWeight: 500, color: "var(--dim)" }}>
                 [{result.render_engine === "ffmpeg" ? "🎬 FFmpeg" : "☁️ JSON2Video"}
                 {" · "}
-                {result.ai_model === "gpt-4o-mini" ? "🤖 GPT-4o mini" : "✨ Gemini 2.5 Flash"}]
+                {result.ai_model === "gemini-2.5-flash" ? "✨ Gemini 2.5 Flash" : "🤖 GPT-4o"}]
               </span>
             </span>
           </div>

@@ -241,7 +241,8 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
     transitions_str = ", ".join(sorted(ALLOWED_TRANSITIONS))
 
     is_party = any(w in style_prompt.lower() for w in [
-        "party", "เฮฮา", "สนุก", "energetic", "fun", "vibrant", "punchy", "ปาร์ตี้", "เฉลิมฉลอง"
+        "party", "เฮฮา", "สนุก", "energetic", "fun", "ปาร์ตี้", "เฉลิมฉลอง"
+        # "vibrant" and "punchy" removed — color words, not party indicators; promo uses these but isn't party
     ])
 
     if clip_mode == "pre_edited":

@@ -69,15 +69,15 @@ def detect_grade(style_prompt: str) -> str:
     s = style_prompt.lower()
     if any(w in s for w in ["teal", "orange", "cinematic", "ซีเนมา", "hollywood", "film"]):
         return "teal_orange"
-    if any(w in s for w in ["สนุก", "party", "เฮฮา", "energetic", "vibrant", "punchy", "bright", "โปรโมชัน"]):
+    if any(w in s for w in ["สนุก", "party", "เฮฮา", "energetic", "vibrant", "punchy", "bright", "โปรโมชัน", "promotional", "marketing", "cheerful"]):
         return "vibrant"
     if any(w in s for w in ["moody", "dark", "มืด", "dramatic", "emotional"]):
         return "moody"
     if any(w in s for w in ["โรแมนติก", "romantic", "soft", "นุ่ม"]):
         return "romantic"
-    if any(w in s for w in ["pool", "สระ", "ทะเล", "sea", "beach", "chill", "ชิลล์", "fresh", "สดชื่น", "nature"]):
+    if any(w in s for w in ["pool", "สระ", "ทะเล", "sea", "beach", "chill", "ชิลล์", "fresh", "สดชื่น"]):
         return "fresh"
-    return "warm"
+    return "warm"  # tour, family, nature/golden hour all fall here correctly
 
 
 async def _probe_duration(path: str) -> float:
