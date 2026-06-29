@@ -111,12 +111,41 @@ async def _get_duration(path: str) -> float:
         return 10.0
 
 
-async def _extract_frames(path: str, n: int = 3) -> list[Image.Image]:
+async def _extract_frames(path: str, n: int = 5) -> list[Image.Image]:
     duration = await _get_duration(path)
+    timestamps: list[float] = []
+
+    # Long clips (15s+): use scene detection to find action moments
+    if duration >= 15.0:
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-i", path,
+            "-vf", "select='gt(scene,0.25)',showinfo",
+            "-vsync", "vfr", "-f", "null", "-",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        for line in stderr.decode(errors="ignore").split("\n"):
+            if "pts_time:" in line:
+                try:
+                    t = float(line.split("pts_time:")[1].split()[0])
+                    if 0 < t < duration:
+                        timestamps.append(t)
+                except Exception:
+                    pass
+        timestamps.sort()
+        # Keep up to n evenly-spread scene timestamps
+        if len(timestamps) > n:
+            step = len(timestamps) / n
+            timestamps = [timestamps[int(i * step)] for i in range(n)]
+
+    # Fallback / short clips: equally-spaced
+    if len(timestamps) < 3:
+        timestamps = [duration * (i + 0.5) / n for i in range(n)]
+
     frames: list[Image.Image] = []
     with tempfile.TemporaryDirectory() as tmp:
-        for i in range(n):
-            t   = duration * (i + 0.5) / n
+        for i, t in enumerate(timestamps):
             out = os.path.join(tmp, f"f{i}.jpg")
             proc = await asyncio.create_subprocess_exec(
                 "ffmpeg", "-y",
