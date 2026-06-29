@@ -318,23 +318,11 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         parts.extend(frames)
 
     loop = asyncio.get_running_loop()
-    raw = ""
 
-    # Try Gemini first, fall back to OpenAI on quota error
-    try:
-        cfg = genai.types.GenerationConfig(temperature=0.3, max_output_tokens=8192)
-        response = await loop.run_in_executor(
-            None,
-            lambda: model.generate_content(parts, generation_config=cfg),
-        )
-        raw = response.text.strip()
-        logger.info("[EDITOR] used Gemini")
-        ai_model = "gemini-2.5-flash"
-    except google.api_core.exceptions.ResourceExhausted:
-        logger.warning("[EDITOR] Gemini quota exceeded — falling back to OpenAI gpt-4o")
-        raw = await _build_plan_openai(prompt, clip_paths, durations, all_frames, loop)
-        logger.info("[EDITOR] used OpenAI fallback")
-        ai_model = "gpt-4o"
+    # Use OpenAI GPT-4o directly
+    raw = await _build_plan_openai(prompt, clip_paths, durations, all_frames, loop)
+    logger.info("[EDITOR] used OpenAI gpt-4o")
+    ai_model = "gpt-4o"
     # Strip markdown fences
     raw = re.sub(r"^```[a-z]*\s*", "", raw, flags=re.IGNORECASE)
     raw = re.sub(r"\s*```$", "", raw)
