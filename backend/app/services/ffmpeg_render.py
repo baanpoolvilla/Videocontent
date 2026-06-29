@@ -27,10 +27,11 @@ COLOR_GRADES = {
         "eq=saturation=1.30:contrast=1.08,"
         "vignette=PI/5"
     ),
-    # vibrant: punchy saturation + strong vignette for drama
+    # vibrant: warm punch — slight orange tones + natural saturation
     "vibrant": (
-        "eq=saturation=1.65:contrast=1.18:brightness=0.02,"
-        "vignette=PI/4"
+        "colorbalance=rs=0.06:rm=0.04:rh=0.02:gs=0.02:gm=0.01:gh=0:bs=-0.06:bm=-0.04:bh=-0.01,"
+        "eq=saturation=1.45:contrast=1.15:brightness=0.03,"
+        "vignette=PI/5"
     ),
     "moody": (
         "colorbalance=rs=-0.03:rm=-0.02:rh=0:gs=-0.02:gm=-0.01:gh=0:bs=0.02:bm=0.02:bh=0,"

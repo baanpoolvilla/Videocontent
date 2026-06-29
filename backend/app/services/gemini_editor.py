@@ -172,15 +172,18 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         )
         if is_party:
             clip_count_instruction = (
-                "PARTY/ENERGETIC STYLE — SHORT RAPID CUTS ARE MANDATORY: "
-                "Aim for 8-12 clips of 2-4 seconds each. "
-                "NEVER use a clip longer than 5 seconds. "
-                "More clips = more energy. Ruthlessly cut anything static or boring. "
-                "Pick peak action moments: laughing, splashing, cheering, toasting."
+                "PARTY STYLE — STRICT RULES: "
+                "1) Each clip must be 2-4 seconds ONLY. NEVER longer. "
+                "2) Use EACH source clip at most ONCE — no repeating the same source. "
+                "3) Pick ONLY peak moments: people laughing, toasting, splashing, dancing, cheering. "
+                "4) Aim for 8-10 clips total from DIFFERENT source clips. "
+                "5) Skip any shot that is slow, static, people walking, or boring. "
+                "Diversity of shots = energy."
             )
         else:
             clip_count_instruction = (
-                "Aim for 4-8 clips total (5-12s each). Cut boring/repetitive sections aggressively."
+                "Aim for 4-8 clips total (5-12s each). "
+                "Use each source clip at most twice. Cut boring sections aggressively."
             )
 
     prompt = _DIRECTOR_SYSTEM.format(
@@ -230,13 +233,33 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
 
     # ── Validate clips ────────────────────────────────────────────────
     validated: list[dict] = []
+    source_uses: dict[int, int] = {}
+    max_uses_per_source = 1 if is_party else 3
+    min_seg = 2.0 if is_party else 4.0
+    max_seg = 4.0 if is_party else 20.0
+
     for item in plan.get("clips", []):
         idx = max(0, min(len(clip_paths) - 1, int(item.get("source_index", 0))))
+
+        # Enforce source diversity — skip if source used too many times
+        if source_uses.get(idx, 0) >= max_uses_per_source:
+            continue
+        source_uses[idx] = source_uses.get(idx, 0) + 1
+
         dur = durations[idx]
         ts  = max(0.0, float(item.get("trim_start", 0.0)))
         te  = min(dur, float(item.get("trim_end", dur)))
-        if te - ts < 5.0:
-            te = min(dur, ts + min(20.0, dur))
+
+        # Cap segment length (party: max 4s, others: up to 20s)
+        if te - ts > max_seg:
+            te = ts + max_seg
+            te = min(dur, te)
+
+        # Ensure minimum length
+        if te - ts < min_seg:
+            te = min(dur, ts + min_seg)
+            if te - ts < min_seg:
+                continue  # clip too short to use
 
         zoom       = max(-10, min(10, int(item.get("zoom", 0))))
         pan        = item.get("pan") or None
