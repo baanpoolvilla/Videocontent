@@ -290,8 +290,9 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
             )
         else:
             clip_count_instruction = (
-                "Aim for 4-8 clips (5-12s each). "
-                "One source CAN appear multiple times — but each selected segment must be a DIFFERENT shot (no overlapping time ranges). "
+                "Aim for 4-8 clips total. "
+                "Follow the CLIENT BRIEF exactly for clip duration — those instructions override this default. "
+                "One source CAN appear multiple times — but each segment must be a DIFFERENT shot (no overlapping time ranges). "
                 "QUALITY FIRST — reject blurry, dark, shaky, or empty shots. "
                 "Pick only sections with best lighting, composition, and visual interest."
             )
