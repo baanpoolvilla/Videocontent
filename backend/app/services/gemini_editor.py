@@ -71,33 +71,29 @@ Schema:
 RULES:
 1. Reorder clips to best match the style brief.
 2. trim_start and trim_end must be within 0 and the clip duration.
-3. Each clip segment must be at least 5 seconds (trim_end - trim_start >= 5).
+3. Clip length is defined by the style — follow rule 5 exactly for how long each clip should be.
 4. {clip_mode_instruction}
 5. {clip_count_instruction}
-6. Transition mood guide:
-   - energetic/fun → hard_cut, wipeleft, slidedown
+6. Transition guide:
+   - energetic/party → USE fadewhite (white flash) or hard_cut for 70%+ of transitions. Mix in wipeleft/wiperight/zoomin. White flash between clips creates ENERGY.
    - elegant/calm  → fade, dissolve, circleopen
    - tour/property → slideright, slideleft, fade
-6. Speed guide — DEFAULT 1.0 unless style clearly demands otherwise:
-   - luxury/cinematic/elegant → 0.8 (subtle slow motion looks beautiful)
+7. Speed guide — DEFAULT 1.0 unless style clearly demands otherwise:
+   - luxury/cinematic/elegant → 0.8 (subtle slow motion)
    - normal property tour → 1.0
-   - energetic/party → 1.0–1.1 (DO NOT exceed 1.2 — looks rushed)
-7. Correction guide (range -3 to 3 only):
+   - energetic/party → 1.0–1.1 (DO NOT exceed 1.2)
+8. Correction guide (range -3 to 3 only):
    - luxury/golden → brightness +1, contrast +2, saturation +2
    - fresh/vibrant  → saturation +3, contrast +1
    - moody/dramatic → contrast +3, saturation -1
    - neutral/pro    → brightness 0, contrast 0, saturation 0
-8. Fade rules: fade_in 0.5 on EVERY clip, fade_out 0.5 on EVERY clip.
-9. ZOOM & PAN rules — CRITICAL for visual excitement:
-   - energetic/party/fun → zoom MUST be 5–10 on EVERY SINGLE clip, pan MUST never be null. Alternate: right, left, top-right, bottom-left, top, bottom, top-left, bottom-right.
+9. Fade rules: fade_in 0.5 on EVERY clip, fade_out 0.5 on EVERY clip.
+10. ZOOM & PAN — CRITICAL for visual excitement:
+   - energetic/party/fun → zoom MUST be 5–10 on EVERY SINGLE clip. zoom=0 is FORBIDDEN.
+     pan MUST never be null. Alternate directions: right, left, top-right, bottom-left, top, bottom, top-left, bottom-right.
    - luxury/cinematic → zoom 2–4, slow pan
    - property tour → zoom 1–3, pan toward key features
    - romantic/chill → zoom 1–3, very slow pan
-   - zoom=0 and pan=null is FORBIDDEN for party style.
-10. Transition guide:
-   - energetic/party → USE fadewhite (white flash) or hard_cut for 70%+ of transitions. Mix in wipeleft/wiperight/zoomin. The white flash between clips creates ENERGY.
-   - elegant/calm  → fade, dissolve
-   - tour/property → slideright, slideleft, fade
 11. Title: add a short Thai or English title only for property tour / promotional styles.
 12. Return ONLY the JSON object."""
 
@@ -239,7 +235,7 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
     # Extract frames once — used by both Gemini and OpenAI
     all_frames: list[list[Image.Image]] = []
     for path in clip_paths:
-        frames = await _extract_frames(path, n=3)
+        frames = await _extract_frames(path, n=5)
         all_frames.append(frames)
 
     parts: list = [prompt]
