@@ -33,7 +33,7 @@ type Resolution     = "portrait" | "landscape" | "square";
 type RenderEngine   = "ffmpeg" | "json2video";
 
 const PRESETS = [
-  { emoji: "🎉", label: "สนุก เฮฮา ปาร์ตี้",   value: "Fun, energetic and party vibe, upbeat fast cuts, vibrant colors, punchy transitions, friends having fun at pool villa" },
+  { emoji: "🎉", label: "สนุก เฮฮา ปาร์ตี้",   value: "Fun, energetic and party vibe at luxury pool villa Pattaya — fast cuts 2-4 seconds each, vibrant warm colors, white flash transitions, zoom in on every shot, friends laughing toasting splashing dancing cheering, punchy TikTok style, peak moments only, 8-10 clips, upbeat energy" },
   { emoji: "✨", label: "หรู ซีเนมาติก",         value: "Luxury cinematic, slow elegant dissolves, golden hour tones, teal-orange grade, sophisticated pool villa atmosphere, 0.8x speed" },
   { emoji: "🏡", label: "ทัวร์รีวิวบ้าน",        value: "Property tour review style, showcase every room and feature clearly, smooth slide transitions, welcoming and informative" },
   { emoji: "💑", label: "โรแมนติก คู่รัก",       value: "Romantic couple getaway, soft warm tones, dreamy slow motion, gentle dissolves, intimate pool villa moments" },
