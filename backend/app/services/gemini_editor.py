@@ -245,18 +245,19 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
             clip_count_instruction = (
                 "PARTY STYLE RULES: "
                 "1) Each clip must be 5-10 seconds. "
-                "2) Each source_index AT MOST ONCE — never repeat the same source. "
+                "2) One source clip CAN appear multiple times — but NEVER the same time range twice. Each selected segment must be a DIFFERENT shot within that clip. "
                 "3) zoom MUST be 5-10 on EVERY clip. zoom=0 is FORBIDDEN. "
                 "4) pan MUST never be null. Rotate: right, left, top-right, bottom-left, top, bottom. "
-                "5) Pick the single best-looking peak moment per source: laughing, toasting, splashing, dancing. "
-                "6) Aim for 6-8 clips from DIFFERENT sources. "
+                "5) Pick only peak moments with best quality: laughing, toasting, splashing, dancing. "
+                "6) Aim for 6-10 clips total — mix sources freely, vary shots within sources. "
                 "7) QUALITY FIRST — a beautiful 8-second shot beats a blurry 3-second cut."
             )
         else:
             clip_count_instruction = (
-                "Aim for 4-8 clips (5-12s each). Each source at most twice. "
+                "Aim for 4-8 clips (5-12s each). "
+                "One source CAN appear multiple times — but each selected segment must be a DIFFERENT shot (no overlapping time ranges). "
                 "QUALITY FIRST — reject blurry, dark, shaky, or empty shots. "
-                "Pick only the sections with best lighting, composition, and visual interest."
+                "Pick only sections with best lighting, composition, and visual interest."
             )
 
     prompt = _DIRECTOR_SYSTEM.format(
