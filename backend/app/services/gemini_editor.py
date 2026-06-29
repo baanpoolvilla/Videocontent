@@ -113,8 +113,9 @@ RULES:
 9. FADE: fade_in 0.3 and fade_out 0.3 for party/energetic. Others: 0.5.
    Only the very first clip needs fade_in and last clip needs fade_out — middle clips leave at 0.
 
-10. ZOOM & PAN for energetic/party style: zoom 5–10 every clip (0 forbidden), pan never null.
-    Alternate zoom direction and pan direction across clips for variety.
+10. ZOOM & PAN for energetic/party style: zoom MUST be non-zero on every clip (zoom=0 forbidden).
+    Use zoom 6–10 (IN) for ACTION and CLOSE-UP shots. Use zoom -5 to -8 (OUT) for WIDE shots.
+    Alternate zoom direction every clip (in→out→in→out). Pan must never be null.
 
 11. TITLE: Add only for tour or promotional styles, null otherwise.
 
@@ -272,16 +273,20 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         if is_party:
             clip_count_instruction = (
                 "PARTY STYLE RULES: "
-                "1) Each clip MUST be 5-10 seconds — NEVER shorter than 5 seconds. Stretch or extend trim to reach minimum 5s. "
+                "1) Each clip MUST be 5-10 seconds — NEVER shorter than 5 seconds. "
                 "2) One source clip CAN appear multiple times — but NEVER the same time range twice. "
-                "3) zoom MUST be 5-10 on EVERY clip. zoom=0 is FORBIDDEN. "
-                "4) pan MUST never be null. Rotate: right, left, top-right, bottom-left, top, bottom. "
+                "3) zoom MUST be non-zero on EVERY clip. zoom=0 is FORBIDDEN. "
+                "   Use zoom 6-10 (IN) for ACTION shots and CLOSE-UP moments. "
+                "   Use zoom -5 to -8 (OUT) for WIDE crowd shots and establishing shots. "
+                "   ALTERNATE zoom direction every clip: in, out, in, out — never 3 same direction in a row. "
+                "4) pan MUST never be null. Pan in the direction of movement or toward subjects. "
+                "   Rotate through: right, left, top-right, bottom-left, top, bottom. "
                 "5) PRIORITIZE GENUINE FUN MOMENTS above all else: people laughing, splashing, dancing, cheering, toasting. "
                 "   Motion blur on action shots is ACCEPTABLE — energy matters more than sharpness. "
                 "   A blurry laughing shot beats a sharp boring shot EVERY TIME. "
                 "6) Aim for 8-12 clips total — mix sources freely to fill the video. "
-                "7) Do NOT skip a shot just because it has movement blur or imperfect framing — if it feels fun and alive, USE IT. "
-                "8) If the CLIENT BRIEF already specifies timing (e.g. '5-10 seconds'), that overrides everything — follow it exactly."
+                "7) Do NOT skip a shot because of motion blur or imperfect framing — if it feels fun and alive, USE IT. "
+                "8) Follow CLIENT BRIEF timing and zoom instructions exactly — they override defaults."
             )
         else:
             clip_count_instruction = (
