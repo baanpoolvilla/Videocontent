@@ -269,15 +269,16 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         if is_party:
             clip_count_instruction = (
                 "PARTY STYLE RULES: "
-                "1) Each clip must be 3-10 seconds. "
+                "1) Each clip MUST be 5-10 seconds — NEVER shorter than 5 seconds. Stretch or extend trim to reach minimum 5s. "
                 "2) One source clip CAN appear multiple times — but NEVER the same time range twice. "
                 "3) zoom MUST be 5-10 on EVERY clip. zoom=0 is FORBIDDEN. "
                 "4) pan MUST never be null. Rotate: right, left, top-right, bottom-left, top, bottom. "
                 "5) PRIORITIZE GENUINE FUN MOMENTS above all else: people laughing, splashing, dancing, cheering, toasting. "
                 "   Motion blur on action shots is ACCEPTABLE — energy matters more than sharpness. "
                 "   A blurry laughing shot beats a sharp boring shot EVERY TIME. "
-                "6) Aim for 6-10 clips total — mix sources freely. "
-                "7) Do NOT skip a shot just because it has movement blur or imperfect framing — if it feels fun and alive, USE IT."
+                "6) Aim for 8-12 clips total — mix sources freely to fill the video. "
+                "7) Do NOT skip a shot just because it has movement blur or imperfect framing — if it feels fun and alive, USE IT. "
+                "8) If the CLIENT BRIEF already specifies timing (e.g. '5-10 seconds'), that overrides everything — follow it exactly."
             )
         else:
             clip_count_instruction = (
@@ -349,7 +350,7 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
     # ── Validate clips ────────────────────────────────────────────────
     validated: list[dict] = []
     source_ranges: dict[int, list[tuple[float, float]]] = {}
-    min_seg = 3.0 if is_party else 4.0
+    min_seg = 5.0 if is_party else 4.0
     max_seg = 10.0 if is_party else 20.0
 
     _PANS = ["right", "left", "top", "bottom", "top-right", "bottom-left", "top-left", "bottom-right"]
