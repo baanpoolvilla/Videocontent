@@ -266,12 +266,13 @@ async def _render_job(
                 video_url = await render_movie(plan, public_urls, resolution)
 
         _write_job(job_id, {
-            "status":       "done",
-            "video_url":    video_url,
-            "clips_used":   len(plan["clips"]),
-            "plan":         plan["clips"],
-            "resolution":   resolution,
+            "status":        "done",
+            "video_url":     video_url,
+            "clips_used":    len(plan["clips"]),
+            "plan":          plan["clips"],
+            "resolution":    resolution,
             "render_engine": render_engine,
+            "ai_model":      plan.get("ai_model", "gemini-2.5-flash"),
         })
         logger.info(f"[JOB] {job_id} done → {video_url[:80]}")
 

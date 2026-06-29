@@ -24,6 +24,7 @@ interface EditResult {
   plan: ClipPlan[];
   resolution: string;
   render_engine: string;
+  ai_model: string;
 }
 
 
@@ -181,7 +182,7 @@ export default function EditPage() {
             const statusRes = await api.get(`/video-edit/job/${job_id}`);
             const job = statusRes.data as {
               status: string; video_url?: string; error?: string;
-              clips_used?: number; plan?: ClipPlan[]; resolution?: string; render_engine?: string;
+              clips_used?: number; plan?: ClipPlan[]; resolution?: string; render_engine?: string; ai_model?: string;
             };
 
             if (job.status === "done") {
@@ -193,6 +194,7 @@ export default function EditPage() {
                 plan:          job.plan!,
                 resolution:    job.resolution!,
                 render_engine: job.render_engine!,
+                ai_model:      job.ai_model ?? "gemini-2.5-flash",
               });
               resolve();
             } else if (job.status === "failed") {
@@ -489,7 +491,9 @@ export default function EditPage() {
               ตัดต่อสำเร็จ — {result.clips_used} คลิปจาก {result.source_count} ต้นฉบับ
               {" "}
               <span style={{ fontSize: 11.5, fontWeight: 500, color: "var(--dim)" }}>
-                [{result.render_engine === "ffmpeg" ? "🎬 FFmpeg" : "☁️ JSON2Video"}]
+                [{result.render_engine === "ffmpeg" ? "🎬 FFmpeg" : "☁️ JSON2Video"}
+                {" · "}
+                {result.ai_model === "gpt-4o-mini" ? "🤖 GPT-4o mini" : "✨ Gemini 2.5 Flash"}]
               </span>
             </span>
           </div>
