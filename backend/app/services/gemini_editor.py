@@ -20,13 +20,11 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 ALLOWED_TRANSITIONS = {
-    # xfade styles supported by JSON2Video API
-    "fade", "dissolve",
+    "fade", "fadewhite", "dissolve",
     "wipeleft", "wiperight", "wipeup", "wipedown",
     "slideleft", "slideright", "slideup", "slidedown",
     "circleopen", "circleclose",
-    "pixelize",
-    # hard_cut = omit transition object entirely (instant cut)
+    "pixelize", "zoomin",
     "hard_cut",
 }
 
@@ -86,14 +84,14 @@ RULES:
    - moody/dramatic → contrast +3, saturation -1
    - neutral/pro    → brightness 0, contrast 0, saturation 0
 8. Fade rules: fade_in 0.5 on EVERY clip, fade_out 0.5 on EVERY clip.
-9. ZOOM & PAN rules — THIS IS CRITICAL for visual excitement:
-   - energetic/party/fun → zoom MUST be 4–8 on EVERY clip, pan MUST be set (never null). Alternate pan directions: right, left, top-right, bottom-left, top, bottom. NEVER use zoom=0 or pan=null for party style.
-   - luxury/cinematic → zoom 2–4, slow pan (right or left)
+9. ZOOM & PAN rules — CRITICAL for visual excitement:
+   - energetic/party/fun → zoom MUST be 5–10 on EVERY SINGLE clip, pan MUST never be null. Alternate: right, left, top-right, bottom-left, top, bottom, top-left, bottom-right.
+   - luxury/cinematic → zoom 2–4, slow pan
    - property tour → zoom 1–3, pan toward key features
    - romantic/chill → zoom 1–3, very slow pan
-   - NEVER leave ALL clips at zoom=0 — at least 80% of clips must have zoom > 0.
+   - zoom=0 and pan=null is FORBIDDEN for party style.
 10. Transition guide:
-   - energetic/party → MOSTLY hard_cut and wipeleft/wiperight (fast energy)
+   - energetic/party → USE fadewhite (white flash) or hard_cut for 70%+ of transitions. Mix in wipeleft/wiperight/zoomin. The white flash between clips creates ENERGY.
    - elegant/calm  → fade, dissolve
    - tour/property → slideright, slideleft, fade
 11. Title: add a short Thai or English title only for property tour / promotional styles.
@@ -155,11 +153,14 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
 
     transitions_str = ", ".join(sorted(ALLOWED_TRANSITIONS))
 
+    is_party = any(w in style_prompt.lower() for w in [
+        "party", "เฮฮา", "สนุก", "energetic", "fun", "vibrant", "punchy", "ปาร์ตี้", "เฉลิมฉลอง"
+    ])
+
     if clip_mode == "pre_edited":
         clip_mode_instruction = (
             "IMPORTANT: These clips are already pre-edited by the user. "
-            "Use as much of each clip as possible — only trim dead air at the very start/end. "
-            "Total output duration should be close to total input duration."
+            "Use as much of each clip as possible — only trim dead air at the very start/end."
         )
         clip_count_instruction = (
             "Split each source clip into 3-5 scenes of 10-20s each for visual variety."
@@ -167,11 +168,20 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
     else:
         clip_mode_instruction = (
             "These are raw clips. Select only the BEST moments. "
-            "Pick the most visually interesting sections that match the style brief."
+            "Pick the most visually interesting, action-filled sections."
         )
-        clip_count_instruction = (
-            "Aim for 4-6 clips total (5-15s each). Cut boring/repetitive sections aggressively."
-        )
+        if is_party:
+            clip_count_instruction = (
+                "PARTY/ENERGETIC STYLE — SHORT RAPID CUTS ARE MANDATORY: "
+                "Aim for 8-12 clips of 2-4 seconds each. "
+                "NEVER use a clip longer than 5 seconds. "
+                "More clips = more energy. Ruthlessly cut anything static or boring. "
+                "Pick peak action moments: laughing, splashing, cheering, toasting."
+            )
+        else:
+            clip_count_instruction = (
+                "Aim for 4-8 clips total (5-12s each). Cut boring/repetitive sections aggressively."
+            )
 
     prompt = _DIRECTOR_SYSTEM.format(
         n=len(clip_paths),

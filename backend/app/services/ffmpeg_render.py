@@ -19,35 +19,45 @@ RESOLUTIONS = {
 COLOR_GRADES = {
     "warm": (
         "colorbalance=rs=0.08:rm=0.05:rh=0.02:gs=0:gm=0:gh=0:bs=-0.10:bm=-0.06:bh=-0.02,"
-        "eq=saturation=1.20:contrast=1.05:brightness=0.01"
+        "eq=saturation=1.20:contrast=1.05:brightness=0.01,"
+        "vignette=PI/5"
     ),
     "teal_orange": (
         "colorbalance=rs=0.12:rm=0.10:rh=0.05:gs=-0.02:gm=-0.02:gh=0:bs=-0.08:bm=-0.04:bh=0.06,"
-        "eq=saturation=1.30:contrast=1.08"
+        "eq=saturation=1.30:contrast=1.08,"
+        "vignette=PI/5"
     ),
-    "vibrant": "eq=saturation=1.55:contrast=1.12:brightness=0.02",
+    # vibrant: punchy saturation + strong vignette for drama
+    "vibrant": (
+        "eq=saturation=1.65:contrast=1.18:brightness=0.02,"
+        "vignette=PI/4"
+    ),
     "moody": (
         "colorbalance=rs=-0.03:rm=-0.02:rh=0:gs=-0.02:gm=-0.01:gh=0:bs=0.02:bm=0.02:bh=0,"
-        "eq=saturation=0.80:contrast=1.28:brightness=-0.04"
+        "eq=saturation=0.80:contrast=1.28:brightness=-0.04,"
+        "vignette=PI/3.5"
     ),
     "fresh": (
         "colorbalance=rs=-0.02:rm=0:rh=0:gs=0.02:gm=0.02:gh=0:bs=0.08:bm=0.06:bh=0.04,"
-        "eq=saturation=1.30:contrast=1.05:brightness=0.02"
+        "eq=saturation=1.30:contrast=1.05:brightness=0.02,"
+        "vignette=PI/5"
     ),
     "romantic": (
         "colorbalance=rs=0.06:rm=0.04:rh=0.02:gs=0:gm=0:gh=0:bs=-0.08:bm=-0.05:bh=-0.02,"
-        "eq=saturation=1.10:contrast=1.03:brightness=0.03"
+        "eq=saturation=1.10:contrast=1.03:brightness=0.03,"
+        "vignette=PI/6"
     ),
 }
 
 XFADE_MAP = {
-    "fade": "fade", "dissolve": "dissolve",
+    "fade": "fade", "fadewhite": "fadewhite", "dissolve": "dissolve",
     "wipeleft": "wipeleft", "wiperight": "wiperight",
     "wipeup": "wipeup", "wipedown": "wipedown",
     "slideleft": "slideleft", "slideright": "slideright",
     "slideup": "slideup", "slidedown": "slidedown",
     "circleopen": "circleopen", "circleclose": "circleclose",
-    "pixelize": "pixelize", "hard_cut": "fade",
+    "pixelize": "pixelize", "zoomin": "zoomin",
+    "hard_cut": "fadewhite",  # party hard_cut → white flash instead of instant cut
 }
 
 # Default drift directions for clips without pan (alternated by index)
@@ -83,28 +93,26 @@ async def _probe_duration(path: str) -> float:
 
 def _animated_crop_expr(out_w: int, out_h: int, pan: str, total_n: int) -> tuple[str, str]:
     """
-    Return FFmpeg crop x/y expressions that animate over total_n frames (Ken Burns pan).
-    Uses n (frame number) and iw/ih (actual scaled dimensions) so it works
-    regardless of input aspect ratio.
-    Start from center, drift toward the pan direction.
+    Full-range Ken Burns: sweep edge-to-edge across the zoomed frame.
+    Uses n (frame number) and iw/ih so it works for any input aspect ratio.
     """
-    t = f"n/{total_n}"  # normalized time 0→1
+    n = str(total_n)
 
-    # Horizontal: default center
+    # Horizontal — full range sweep
     if "right" in pan:
-        cx = f"(iw-{out_w})/2*(1+{t})"   # center → right
+        cx = f"n*(iw-{out_w})/{n}"            # left edge → right edge
     elif "left" in pan:
-        cx = f"(iw-{out_w})/2*(1-{t})"   # center → left
+        cx = f"(iw-{out_w})-n*(iw-{out_w})/{n}"  # right edge → left edge
     else:
-        cx = f"(iw-{out_w})/2"
+        cx = f"(iw-{out_w})/2"                # center (static horizontal)
 
-    # Vertical: default center
+    # Vertical — full range sweep
     if "bottom" in pan:
-        cy = f"(ih-{out_h})/2*(1+{t})"   # center → bottom
+        cy = f"n*(ih-{out_h})/{n}"            # top edge → bottom edge
     elif "top" in pan:
-        cy = f"(ih-{out_h})/2*(1-{t})"   # center → top
+        cy = f"(ih-{out_h})-n*(ih-{out_h})/{n}"  # bottom edge → top edge
     else:
-        cy = f"(ih-{out_h})/2"
+        cy = f"(ih-{out_h})/2"                # center (static vertical)
 
     return cx, cy
 
@@ -127,9 +135,9 @@ async def _process_clip(
     adj_dur  = dur / speed
     total_n  = max(1, int(dur * 30))  # frame count at 30fps
 
-    # Scale factor — party/vibrant gets a bigger minimum for more impact.
-    # vibrant grade: min 1.20x, others: min 1.10x
-    min_scale = 1.20 if grade == "vibrant" else 1.10
+    # Scale factor — party/vibrant gets aggressive zoom for maximum impact.
+    # vibrant: min 1.30x, others: min 1.10x; zoom from Gemini adds on top
+    min_scale = 1.30 if grade == "vibrant" else 1.10
     scale_f = max(min_scale, 1.0 + zoom * 0.06)
     sw = int(out_w * scale_f)
     sh = int(out_h * scale_f)
