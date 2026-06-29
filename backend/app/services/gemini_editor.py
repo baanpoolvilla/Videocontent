@@ -72,30 +72,34 @@ RULES:
 1. Reorder clips to best match the style brief.
 2. trim_start and trim_end must be within 0 and the clip duration.
 3. Clip length is defined by the style — follow rule 5 exactly for how long each clip should be.
-4. {clip_mode_instruction}
-5. {clip_count_instruction}
-6. Transition guide:
+4. SHOT QUALITY — Before selecting any section, visually assess the frames:
+   REJECT if: blurry, shaky cam, too dark, overexposed, subject cut off, or visually empty (floor/sky/wall only).
+   ACCEPT only: sharp focus, good exposure, complete composition, interesting subject or action.
+   A beautiful 8-second shot is always better than a poor-quality 3-second one.
+5. {clip_mode_instruction}
+6. {clip_count_instruction}
+7. Transition guide:
    - energetic/party → USE fadewhite (white flash) or hard_cut for 70%+ of transitions. Mix in wipeleft/wiperight/zoomin. White flash between clips creates ENERGY.
    - elegant/calm  → fade, dissolve, circleopen
    - tour/property → slideright, slideleft, fade
-7. Speed guide — DEFAULT 1.0 unless style clearly demands otherwise:
+8. Speed guide — DEFAULT 1.0 unless style clearly demands otherwise:
    - luxury/cinematic/elegant → 0.8 (subtle slow motion)
    - normal property tour → 1.0
    - energetic/party → 1.0–1.1 (DO NOT exceed 1.2)
-8. Correction guide (range -3 to 3 only):
+9. Correction guide (range -3 to 3 only):
    - luxury/golden → brightness +1, contrast +2, saturation +2
    - fresh/vibrant  → saturation +3, contrast +1
    - moody/dramatic → contrast +3, saturation -1
    - neutral/pro    → brightness 0, contrast 0, saturation 0
-9. Fade rules: fade_in 0.5 on EVERY clip, fade_out 0.5 on EVERY clip.
-10. ZOOM & PAN — CRITICAL for visual excitement:
+10. Fade rules: fade_in 0.5 on EVERY clip, fade_out 0.5 on EVERY clip.
+11. ZOOM & PAN — CRITICAL for visual excitement:
    - energetic/party/fun → zoom MUST be 5–10 on EVERY SINGLE clip. zoom=0 is FORBIDDEN.
      pan MUST never be null. Alternate directions: right, left, top-right, bottom-left, top, bottom, top-left, bottom-right.
    - luxury/cinematic → zoom 2–4, slow pan
    - property tour → zoom 1–3, pan toward key features
    - romantic/chill → zoom 1–3, very slow pan
-11. Title: add a short Thai or English title only for property tour / promotional styles.
-12. Return ONLY the JSON object."""
+12. Title: add a short Thai or English title only for property tour / promotional styles.
+13. Return ONLY the JSON object."""
 
 
 async def _get_duration(path: str) -> float:
@@ -231,25 +235,28 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         )
     else:
         clip_mode_instruction = (
-            "These are raw clips. Select only the BEST moments. "
-            "Pick the most visually interesting, action-filled sections."
+            "These are raw clips. Apply STRICT shot quality filtering — REJECT any section where: "
+            "the image is blurry, shaky, too dark, overexposed, the subject is cut off, "
+            "or there is nothing visually interesting (empty sky, floor, walls). "
+            "SELECT ONLY sections with: good lighting, sharp focus, complete subject in frame, "
+            "interesting action or atmosphere."
         )
         if is_party:
             clip_count_instruction = (
-                "PARTY STYLE — NON-NEGOTIABLE RULES: "
-                "1) Each clip MUST be 2-4 seconds ONLY. Absolutely NEVER longer than 4 seconds. "
-                "2) Each source_index MUST appear AT MOST ONCE. NEVER repeat the same source_index. "
-                "3) zoom MUST be 5-10 on EVERY single clip. zoom=0 is STRICTLY FORBIDDEN. "
-                "4) pan MUST never be null. Rotate: right, left, top, bottom, top-right, bottom-left, top-left, bottom-right. "
-                "5) Pick ONLY the single best peak moment per source: laughing, toasting, splashing, dancing, cheering. "
-                "6) Aim for 8-10 clips total, each from a DIFFERENT source. "
-                "7) Skip any shot that is slow, static, walking, or boring. "
-                "DIVERSITY + ZOOM + PAN on every clip = ENERGY."
+                "PARTY STYLE RULES: "
+                "1) Each clip must be 5-10 seconds. "
+                "2) Each source_index AT MOST ONCE — never repeat the same source. "
+                "3) zoom MUST be 5-10 on EVERY clip. zoom=0 is FORBIDDEN. "
+                "4) pan MUST never be null. Rotate: right, left, top-right, bottom-left, top, bottom. "
+                "5) Pick the single best-looking peak moment per source: laughing, toasting, splashing, dancing. "
+                "6) Aim for 6-8 clips from DIFFERENT sources. "
+                "7) QUALITY FIRST — a beautiful 8-second shot beats a blurry 3-second cut."
             )
         else:
             clip_count_instruction = (
-                "Aim for 4-8 clips total (5-12s each). "
-                "Use each source clip at most twice. Cut boring sections aggressively."
+                "Aim for 4-8 clips (5-12s each). Each source at most twice. "
+                "QUALITY FIRST — reject blurry, dark, shaky, or empty shots. "
+                "Pick only the sections with best lighting, composition, and visual interest."
             )
 
     prompt = _DIRECTOR_SYSTEM.format(
@@ -315,8 +322,8 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
     # ── Validate clips ────────────────────────────────────────────────
     validated: list[dict] = []
     source_ranges: dict[int, list[tuple[float, float]]] = {}  # track used segments per source
-    min_seg = 2.0 if is_party else 4.0
-    max_seg = 4.0 if is_party else 20.0
+    min_seg = 5.0 if is_party else 4.0
+    max_seg = 10.0 if is_party else 20.0
 
     _PANS = ["right", "left", "top", "bottom", "top-right", "bottom-left", "top-left", "bottom-right"]
 
