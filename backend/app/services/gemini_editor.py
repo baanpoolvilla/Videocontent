@@ -269,13 +269,15 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         if is_party:
             clip_count_instruction = (
                 "PARTY STYLE RULES: "
-                "1) Each clip must be 5-10 seconds. "
-                "2) One source clip CAN appear multiple times — but NEVER the same time range twice. Each selected segment must be a DIFFERENT shot within that clip. "
+                "1) Each clip must be 3-10 seconds. "
+                "2) One source clip CAN appear multiple times — but NEVER the same time range twice. "
                 "3) zoom MUST be 5-10 on EVERY clip. zoom=0 is FORBIDDEN. "
                 "4) pan MUST never be null. Rotate: right, left, top-right, bottom-left, top, bottom. "
-                "5) Pick only peak moments with best quality: laughing, toasting, splashing, dancing. "
-                "6) Aim for 6-10 clips total — mix sources freely, vary shots within sources. "
-                "7) QUALITY FIRST — a beautiful 8-second shot beats a blurry 3-second cut."
+                "5) PRIORITIZE GENUINE FUN MOMENTS above all else: people laughing, splashing, dancing, cheering, toasting. "
+                "   Motion blur on action shots is ACCEPTABLE — energy matters more than sharpness. "
+                "   A blurry laughing shot beats a sharp boring shot EVERY TIME. "
+                "6) Aim for 6-10 clips total — mix sources freely. "
+                "7) Do NOT skip a shot just because it has movement blur or imperfect framing — if it feels fun and alive, USE IT."
             )
         else:
             clip_count_instruction = (
@@ -347,7 +349,7 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
     # ── Validate clips ────────────────────────────────────────────────
     validated: list[dict] = []
     source_ranges: dict[int, list[tuple[float, float]]] = {}
-    min_seg = 5.0 if is_party else 4.0
+    min_seg = 3.0 if is_party else 4.0
     max_seg = 10.0 if is_party else 20.0
 
     _PANS = ["right", "left", "top", "bottom", "top-right", "bottom-left", "top-left", "bottom-right"]
