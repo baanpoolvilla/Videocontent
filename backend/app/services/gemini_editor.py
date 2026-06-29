@@ -101,15 +101,17 @@ RULES:
    - elegant/calm → fade, dissolve, circleopen
    - tour/property → slideright, slideleft, fade
 
-7. SPEED: Default 1.0. Luxury/cinematic → 0.8. Party/energetic → 1.0–1.1 max.
+7. SPEED: Default 1.0. Luxury/cinematic → 0.8. Party/energetic → 1.1–1.3 (faster = more energy).
+   ACTION clips (dancing, splashing, running) can go up to 1.5.
 
 8. CORRECTION (range -3 to 3):
    - luxury/golden → brightness +1, contrast +2, saturation +2
-   - vibrant/party → saturation +3, contrast +1
+   - vibrant/party → saturation +3, contrast +2, brightness +1
    - moody/dramatic → contrast +3, saturation -1
    - neutral/pro → all 0
 
-9. FADE: fade_in 0.5 and fade_out 0.5 on every clip.
+9. FADE: fade_in 0.3 and fade_out 0.3 for party/energetic. Others: 0.5.
+   Only the very first clip needs fade_in and last clip needs fade_out — middle clips leave at 0.
 
 10. ZOOM & PAN for energetic/party style: zoom 5–10 every clip (0 forbidden), pan never null.
     Alternate zoom direction and pan direction across clips for variety.

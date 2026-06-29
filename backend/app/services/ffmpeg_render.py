@@ -217,7 +217,7 @@ async def _process_clip(
     return dest
 
 
-async def _concat(segs: list[str], clips: list[dict], tmp: str) -> str:
+async def _concat(segs: list[str], clips: list[dict], tmp: str, grade: str = "warm") -> str:
     """Concatenate processed segments with xfade transitions."""
     dest = os.path.join(tmp, "output.mp4")
 
@@ -227,9 +227,12 @@ async def _concat(segs: list[str], clips: list[dict], tmp: str) -> str:
 
     durs = [await _probe_duration(s) for s in segs]
 
-    # Transition duration: 40% of shortest clip, clamp 0.5–1.2s
+    # Party/vibrant: short punchy flash 0.2-0.4s. Others: 0.5-1.2s.
     min_dur = min(durs)
-    td = round(min(1.2, max(0.5, min_dur * 0.40)), 2)
+    if grade == "vibrant":
+        td = round(min(0.4, max(0.2, min_dur * 0.08)), 2)
+    else:
+        td = round(min(1.2, max(0.5, min_dur * 0.40)), 2)
 
     inputs: list[str] = []
     for s in segs:
@@ -302,6 +305,6 @@ async def render_with_ffmpeg(
         )
         segs.append(seg)
 
-    final = await _concat(segs, clips, tmp_dir)
+    final = await _concat(segs, clips, tmp_dir, grade)
     logger.info(f"[FFR] complete → {final}")
     return final
