@@ -343,6 +343,9 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
     raw = re.sub(r"/\*.*?\*/", "", raw, flags=re.DOTALL)
     # Fix: Gemini sometimes forgets the closing } of a clip object
     raw = re.sub(r"\}\s*\n(\s*),", r"}\n\1},", raw)
+    # Fix: Gemini sometimes forgets the opening { of a clip object
+    # Pattern: comma+newline+indent+"source_index" with no { before it
+    raw = re.sub(r'(,\s*\n)(\s+)("source_index"\s*:)', r'\1\2{\n\2\3', raw)
     # Remove trailing commas before } or ]
     raw = re.sub(r",\s*([}\]])", r"\1", raw)
     # Extract first complete JSON object
