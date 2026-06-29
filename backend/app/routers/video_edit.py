@@ -92,6 +92,8 @@ def _ensure_buckets() -> None:
 
 
 # ── List rendered videos ──────────────────────────────────────────────
+_VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".m4v"}
+
 @router.get("")
 async def list_edits():
     _ensure_buckets()
@@ -99,6 +101,9 @@ async def list_edits():
         objects = list(storage_service.client.list_objects(_BUCKET, recursive=True))
         results = []
         for obj in objects:
+            ext = os.path.splitext(obj.object_name)[1].lower()
+            if ext not in _VIDEO_EXTS:
+                continue
             url = f"{settings.PUBLIC_API_BASE_URL}/api/v1/files/{_BUCKET}/{obj.object_name}"
             results.append({
                 "url":     url,

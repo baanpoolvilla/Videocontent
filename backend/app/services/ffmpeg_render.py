@@ -94,23 +94,25 @@ async def _probe_duration(path: str) -> float:
 
 def _animated_crop_expr(out_w: int, out_h: int, pan: str, total_n: int, zoom_out: bool = False) -> tuple[str, str]:
     """
-    Ken Burns via animated crop. zoom_out=True reverses sweep direction (pull-back feel).
-    Uses n (frame counter) for smooth edge-to-edge movement.
+    Ken Burns via animated crop with smoothstep easing.
+    zoom_out=True reverses sweep direction (pull-back feel).
+    Smoothstep S-curve: p=n/N, ease=p²(3-2p) gives 0→1 with soft acceleration and deceleration.
     """
-    n = str(total_n)
+    N = str(total_n)
+    # S-curve easing expressions: 0→1 and 1→0
+    ease     = f"(n/{N})*(n/{N})*(3-2*(n/{N}))"
+    ease_rev = f"(1-(n/{N})*(n/{N})*(3-2*(n/{N})))"
 
     if zoom_out:
-        # Reverse sweep: end → start (pull-back / zoom-out feel)
-        cx_right  = f"(iw-{out_w})-n*(iw-{out_w})/{n}"
-        cx_left   = f"n*(iw-{out_w})/{n}"
-        cy_bottom = f"(ih-{out_h})-n*(ih-{out_h})/{n}"
-        cy_top    = f"n*(ih-{out_h})/{n}"
+        cx_right  = f"{ease_rev}*(iw-{out_w})"
+        cx_left   = f"{ease}*(iw-{out_w})"
+        cy_bottom = f"{ease_rev}*(ih-{out_h})"
+        cy_top    = f"{ease}*(ih-{out_h})"
     else:
-        # Normal sweep: start → end (push-in / zoom-in feel)
-        cx_right  = f"n*(iw-{out_w})/{n}"
-        cx_left   = f"(iw-{out_w})-n*(iw-{out_w})/{n}"
-        cy_bottom = f"n*(ih-{out_h})/{n}"
-        cy_top    = f"(ih-{out_h})-n*(ih-{out_h})/{n}"
+        cx_right  = f"{ease}*(iw-{out_w})"
+        cx_left   = f"{ease_rev}*(iw-{out_w})"
+        cy_bottom = f"{ease}*(ih-{out_h})"
+        cy_top    = f"{ease_rev}*(ih-{out_h})"
 
     if "right" in pan:
         cx = cx_right
@@ -255,7 +257,7 @@ async def _concat(segs: list[str], clips: list[dict], tmp: str) -> str:
         *inputs,
         "-filter_complex", fc,
         "-map", "[vout]",
-        "-c:v", "libx264", "-preset", "medium", "-crf", "26",
+        "-c:v", "libx264", "-preset", "medium", "-crf", "22",
         "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
         "-an",
@@ -286,6 +288,9 @@ async def render_with_ffmpeg(
     n      = len(clips)
 
     logger.info(f"[FFR] {n} clips | {out_w}x{out_h} | grade={grade}")
+
+    if n == 0:
+        raise RuntimeError("AI ไม่ได้เลือกคลิปใดเลย — ลองใหม่หรือปรับ style prompt")
 
     segs = []
     for i, clip in enumerate(clips):
