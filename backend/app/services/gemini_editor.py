@@ -236,16 +236,19 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         )
     else:
         clip_mode_instruction = (
-            "These are raw clips. Apply STRICT shot quality filtering.\n"
-            "REJECT any section where:\n"
-            "- image is blurry, shaky, too dark, or overexposed\n"
-            "- subject is cut off or out of frame\n"
-            "- nothing visually interesting (empty sky, floor, wall only)\n"
-            "- people are setting up / arranging furniture / preparing the venue\n"
-            "- someone is walking away, back to camera, or transitioning between spots\n"
-            "- shot looks staged, static, or like a before-party setup\n"
-            "SELECT ONLY sections with: good lighting, sharp focus, complete composition, "
-            "and genuine action or atmosphere — guests enjoying, laughing, swimming, celebrating."
+            "These are raw clips. Apply shot quality filtering.\n"
+            "REJECT only if the shot is technically unusable:\n"
+            "- severely blurry or shaky (subject unrecognizable)\n"
+            "- so dark you cannot see the subject at all\n"
+            "- completely blown-out / no detail\n"
+            "- subject fully cut off or out of frame\n"
+            "- visually empty with no subject (blank wall, floor, sky with nothing)\n"
+            "- people setting up / arranging / preparing venue before the event\n"
+            "- someone walking away or back fully to camera with nothing else interesting\n"
+            "DO NOT reject for: dim/moody lighting, dramatic shadows, slightly warm or cool tones, "
+            "or imperfect exposure — these can look beautiful and cinematic.\n"
+            "SELECT sections with interesting subjects, genuine moments, or striking visuals — "
+            "even if lighting is not perfect, composition and content matter more."
         )
         if is_party:
             clip_count_instruction = (
