@@ -92,30 +92,44 @@ async def _probe_duration(path: str) -> float:
         return 10.0
 
 
-def _animated_crop_expr(out_w: int, out_h: int, pan: str, total_n: int) -> tuple[str, str]:
+def _build_ken_burns(out_w: int, out_h: int, pan: str, zoom: int, dur: float, sw: int, sh: int) -> str:
     """
-    Full-range Ken Burns: sweep edge-to-edge across the zoomed frame.
-    Uses n (frame number) and iw/ih so it works for any input aspect ratio.
+    True Ken Burns via zoompan: zoom-IN (zoom>0) or zoom-OUT (zoom<0) + pan.
+    Input must already be scaled to sw×sh (scale-to-cover). Output is out_w×out_h.
     """
-    n = str(total_n)
+    n = max(2, int(dur * 30))
+    extra = max(1.0, 1.0 + abs(zoom) * 0.04)
+    step = (extra - 1.0) / max(n - 1, 1)
+    travel = max(n - 1, 1)
 
-    # Horizontal — full range sweep
+    if zoom >= 0:   # zoom IN: 1.0 → extra
+        z = f"min(zoom+{step:.8f},{extra:.5f})"
+    else:           # zoom OUT: extra → 1.0
+        z = f"if(eq(on,1),{extra:.5f},max(zoom-{step:.8f},1.001))"
+
+    max_tx = max(1.0, (sw - out_w) / 2)
+    max_ty = max(1.0, (sh - out_h) / 2)
+    bx = f"({sw}/2-{out_w}/zoom/2)"
+    by = f"({sh}/2-{out_h}/zoom/2)"
+
     if "right" in pan:
-        cx = f"n*(iw-{out_w})/{n}"            # left edge → right edge
+        px = f"-{max_tx:.1f}+on*{max_tx*2/travel:.5f}"
     elif "left" in pan:
-        cx = f"(iw-{out_w})-n*(iw-{out_w})/{n}"  # right edge → left edge
+        px = f"{max_tx:.1f}-on*{max_tx*2/travel:.5f}"
     else:
-        cx = f"(iw-{out_w})/2"                # center (static horizontal)
+        px = "0"
 
-    # Vertical — full range sweep
     if "bottom" in pan:
-        cy = f"n*(ih-{out_h})/{n}"            # top edge → bottom edge
+        py = f"-{max_ty:.1f}+on*{max_ty*2/travel:.5f}"
     elif "top" in pan:
-        cy = f"(ih-{out_h})-n*(ih-{out_h})/{n}"  # bottom edge → top edge
+        py = f"{max_ty:.1f}-on*{max_ty*2/travel:.5f}"
     else:
-        cy = f"(ih-{out_h})/2"                # center (static vertical)
+        py = "0"
 
-    return cx, cy
+    x = f"max(0,min({sw}-{out_w}/zoom,{bx}+({px})))"
+    y = f"max(0,min({sh}-{out_h}/zoom,{by}+({py})))"
+
+    return f"zoompan=z='{z}':x='{x}':y='{y}':d={n}:s={out_w}x{out_h}:fps=30"
 
 
 async def _process_clip(
@@ -130,37 +144,32 @@ async def _process_clip(
     te    = float(clip["trim_end"])
     dur   = te - ts
     speed = max(0.5, min(2.0, float(clip.get("speed", 1.0))))
-    zoom  = max(0, min(10, int(clip.get("zoom", 0))))
+    zoom  = max(-10, min(10, int(clip.get("zoom", 0))))
     pan   = clip.get("pan") or None
 
-    adj_dur  = dur / speed
-    total_n  = max(1, int(dur * 30))  # frame count at 30fps
+    adj_dur = dur / speed
 
-    # Scale factor — party/vibrant gets aggressive zoom for maximum impact.
-    # vibrant: min 1.30x, others: min 1.10x; zoom from Gemini adds on top
-    min_scale = 1.30 if grade == "vibrant" else 1.10
-    scale_f = max(min_scale, 1.0 + zoom * 0.06)
+    # Scale to cover — extra headroom for zoompan to work within
+    min_scale = 1.40 if grade == "vibrant" else 1.20
+    scale_f = max(min_scale, 1.0 + abs(zoom) * 0.06)
     sw = int(out_w * scale_f)
     sh = int(out_h * scale_f)
     sw += sw % 2
     sh += sh % 2
 
-    # If Gemini gave no pan, use a default direction (alternated per clip index)
     effective_pan = pan or _DEFAULT_PANS[idx % len(_DEFAULT_PANS)]
-
-    cx_expr, cy_expr = _animated_crop_expr(out_w, out_h, effective_pan, total_n)
 
     vf: list[str] = []
 
-    # 1. Scale to cover the zoomed target frame
-    vf.append(f"scale={sw}:{sh}:force_original_aspect_ratio=increase")
-
-    # 2. Animated Ken Burns crop
-    vf.append(f"crop={out_w}:{out_h}:{cx_expr}:{cy_expr}")
-
-    # 3. Speed change
+    # 1. Speed change first (so zoompan sees correct frame count)
     if abs(speed - 1.0) > 0.05:
         vf.append(f"setpts={1.0/speed:.4f}*PTS")
+
+    # 2. Scale to cover (provides headroom for zoompan)
+    vf.append(f"scale={sw}:{sh}:force_original_aspect_ratio=increase,pad={sw}:{sh}:(ow-iw)/2:(oh-ih)/2")
+
+    # 3. True Ken Burns: animated zoom-in or zoom-out + pan
+    vf.append(_build_ken_burns(out_w, out_h, effective_pan, zoom, adj_dur, sw, sh))
 
     # 4. Fade — ONLY on first clip (fade-in) and last clip (fade-out).
     #    Intermediate clips rely on xfade transitions — per-clip fades

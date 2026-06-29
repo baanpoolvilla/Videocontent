@@ -69,9 +69,10 @@ Schema:
 }}
 
 RULES:
-1. Reorder clips to best match the style brief.
+1. Reorder clips to best match the style brief. Order by visual excitement: most dynamic and engaging clips first and last — NEVER end with a boring, static, or setup shot. The final clip must be one of the strongest.
 2. trim_start and trim_end must be within 0 and the clip duration.
-3. Clip length is defined by the style — follow rule 5 exactly for how long each clip should be.
+3. Clip length is defined by the style — follow rule 6 exactly for how long each clip should be.
+   For zoom direction: use POSITIVE zoom (5-10) for zoom-IN shots, NEGATIVE zoom (-5 to -10) for zoom-OUT shots. Alternate between them across clips for visual variety.
 4. SHOT QUALITY — Before selecting any section, visually assess the frames:
    REJECT if: blurry, shaky cam, too dark, overexposed, subject cut off, or visually empty (floor/sky/wall only).
    ACCEPT only: sharp focus, good exposure, complete composition, interesting subject or action.
