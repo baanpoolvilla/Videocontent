@@ -19,6 +19,7 @@ interface ClipPlan {
 
 interface EditResult {
   video_url: string;
+  thumbnail_url: string | null;
   source_count: number;
   clips_used: number;
   plan: ClipPlan[];
@@ -181,7 +182,7 @@ export default function EditPage() {
 
             const statusRes = await api.get(`/video-edit/job/${job_id}`);
             const job = statusRes.data as {
-              status: string; video_url?: string; error?: string;
+              status: string; video_url?: string; thumbnail_url?: string | null; error?: string;
               clips_used?: number; plan?: ClipPlan[]; resolution?: string; render_engine?: string; ai_model?: string;
             };
 
@@ -189,6 +190,7 @@ export default function EditPage() {
               clearInterval(interval);
               setResult({
                 video_url:     job.video_url!,
+                thumbnail_url: job.thumbnail_url ?? null,
                 source_count:  files.length,
                 clips_used:    job.clips_used!,
                 plan:          job.plan!,
@@ -507,20 +509,39 @@ export default function EditPage() {
             />
           </div>
 
-          {/* Download */}
-          <a
-            href={result.video_url}
-            download="edited_video.mp4"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: "inline-block", padding: "10px 22px", borderRadius: 10,
-              background: "var(--teal)", color: "#000", fontWeight: 700, fontSize: 13.5,
-              textDecoration: "none", marginBottom: 24,
-            }}
-          >
-            ดาวน์โหลดวิดีโอ
-          </a>
+          {/* Download + Thumbnail */}
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
+            <a
+              href={result.video_url}
+              download="edited_video.mp4"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "inline-block", padding: "10px 22px", borderRadius: 10,
+                background: "var(--teal)", color: "#000", fontWeight: 700, fontSize: 13.5,
+                textDecoration: "none",
+              }}
+            >
+              ดาวน์โหลดวิดีโอ
+            </a>
+            {result.thumbnail_url && (
+              <a
+                href={result.thumbnail_url}
+                download="thumbnail.jpg"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="คลิกดาวน์โหลด Thumbnail"
+                style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}
+              >
+                <img
+                  src={result.thumbnail_url}
+                  alt="thumbnail"
+                  style={{ height: 56, borderRadius: 8, border: "1px solid var(--gb)", objectFit: "cover" }}
+                />
+                <span style={{ fontSize: 12, color: "var(--dim)" }}>📷 Thumbnail</span>
+              </a>
+            )}
+          </div>
 
           {/* Plan breakdown toggle */}
           <button

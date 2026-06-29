@@ -7,6 +7,7 @@ Supports two upload modes:
 
 Async job pattern (POST /start → GET /job/{id}) solves Cloudflare 100s timeout.
 """
+import asyncio
 import json
 import logging
 import os
@@ -53,6 +54,31 @@ def _read_job(job_id: str) -> dict | None:
             return json.load(f)
     except Exception:
         return None
+
+
+async def _extract_thumbnail(video_path: str, tmp: str) -> str:
+    """Extract a JPEG thumbnail from ~1/3 into the video. Returns local path or ''."""
+    thumb = os.path.join(tmp, "thumbnail.jpg")
+    proc = await asyncio.create_subprocess_exec(
+        "ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", video_path,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    out, _ = await proc.communicate()
+    try:
+        dur = float(json.loads(out.decode())["format"]["duration"])
+    except Exception:
+        dur = 5.0
+
+    t = dur * 0.33
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg", "-y",
+        "-ss", f"{t:.3f}", "-i", video_path,
+        "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "3",
+        thumb,
+        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+    )
+    await proc.communicate()
+    return thumb if os.path.exists(thumb) else ""
 
 
 def _ensure_buckets() -> None:
@@ -240,6 +266,7 @@ async def _render_job(
             logger.info(f"[JOB] {job_id} total clips: {len(clip_paths)}")
 
             plan = await build_editorial_plan(clip_paths, style_prompt)
+            thumbnail_url = None
 
             if render_engine == "ffmpeg":
                 final_path = await render_with_ffmpeg(
@@ -252,6 +279,20 @@ async def _render_job(
                     content_type="video/mp4", bucket=_BUCKET,
                 )
                 video_url = f"{settings.PUBLIC_API_BASE_URL}/api/v1/files{minio_path}"
+
+                # Generate thumbnail
+                thumb_local = await _extract_thumbnail(final_path, tmp)
+                thumbnail_url = None
+                if thumb_local:
+                    with open(thumb_local, "rb") as fp:
+                        thumb_bytes = fp.read()
+                    thumb_name = os.path.splitext(os.path.basename(minio_path))[0] + "_thumb.jpg"
+                    thumb_minio = await storage_service.upload_bytes(
+                        data=thumb_bytes, filename=thumb_name,
+                        content_type="image/jpeg", bucket=_BUCKET,
+                    )
+                    thumbnail_url = f"{settings.PUBLIC_API_BASE_URL}/api/v1/files{thumb_minio}"
+                    logger.info(f"[JOB] {job_id} thumbnail → {thumbnail_url[:80]}")
             else:
                 public_urls: list[str] = []
                 for i, path in enumerate(clip_paths):
@@ -268,6 +309,7 @@ async def _render_job(
         _write_job(job_id, {
             "status":        "done",
             "video_url":     video_url,
+            "thumbnail_url": thumbnail_url,
             "clips_used":    len(plan["clips"]),
             "plan":          plan["clips"],
             "resolution":    resolution,
