@@ -165,8 +165,8 @@ async def _process_clip(
     if abs(speed - 1.0) > 0.05:
         vf.append(f"setpts={1.0/speed:.4f}*PTS")
 
-    # 2. Scale to cover (provides headroom for zoompan)
-    vf.append(f"scale={sw}:{sh}:force_original_aspect_ratio=increase,pad={sw}:{sh}:(ow-iw)/2:(oh-ih)/2")
+    # 2. Scale to cover then crop to exact sw×sh (pad fails when scale overshoots)
+    vf.append(f"scale={sw}:{sh}:force_original_aspect_ratio=increase,crop={sw}:{sh}")
 
     # 3. True Ken Burns: animated zoom-in or zoom-out + pan
     vf.append(_build_ken_burns(out_w, out_h, effective_pan, zoom, adj_dur, sw, sh))
