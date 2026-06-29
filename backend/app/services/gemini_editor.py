@@ -211,13 +211,15 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         )
         if is_party:
             clip_count_instruction = (
-                "PARTY STYLE — STRICT RULES: "
-                "1) Each clip must be 2-4 seconds ONLY. NEVER longer. "
-                "2) Use EACH source clip at most ONCE — no repeating the same source. "
-                "3) Pick ONLY peak moments: people laughing, toasting, splashing, dancing, cheering. "
-                "4) Aim for 8-10 clips total from DIFFERENT source clips. "
-                "5) Skip any shot that is slow, static, people walking, or boring. "
-                "Diversity of shots = energy."
+                "PARTY STYLE — NON-NEGOTIABLE RULES: "
+                "1) Each clip MUST be 2-4 seconds ONLY. Absolutely NEVER longer than 4 seconds. "
+                "2) Each source_index MUST appear AT MOST ONCE. NEVER repeat the same source_index. "
+                "3) zoom MUST be 5-10 on EVERY single clip. zoom=0 is STRICTLY FORBIDDEN. "
+                "4) pan MUST never be null. Rotate: right, left, top, bottom, top-right, bottom-left, top-left, bottom-right. "
+                "5) Pick ONLY the single best peak moment per source: laughing, toasting, splashing, dancing, cheering. "
+                "6) Aim for 8-10 clips total, each from a DIFFERENT source. "
+                "7) Skip any shot that is slow, static, walking, or boring. "
+                "DIVERSITY + ZOOM + PAN on every clip = ENERGY."
             )
         else:
             clip_count_instruction = (
@@ -288,10 +290,8 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
     # ── Validate clips ────────────────────────────────────────────────
     validated: list[dict] = []
     source_ranges: dict[int, list[tuple[float, float]]] = {}  # track used segments per source
-    source_count:  dict[int, int] = {}                        # how many times each source used
     min_seg = 2.0 if is_party else 4.0
     max_seg = 4.0 if is_party else 20.0
-    max_per_source = 1 if is_party else 3  # party: each source used at most once
 
     _PANS = ["right", "left", "top", "bottom", "top-right", "bottom-left", "top-left", "bottom-right"]
 
@@ -303,10 +303,6 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
 
     for item in plan.get("clips", []):
         idx = max(0, min(len(clip_paths) - 1, int(item.get("source_index", 0))))
-
-        # Party: skip if this source already used max times
-        if source_count.get(idx, 0) >= max_per_source:
-            continue
 
         dur = durations[idx]
         ts  = max(0.0, float(item.get("trim_start", 0.0)))
@@ -327,17 +323,9 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         if _overlaps(ts, te, used):
             continue
         source_ranges.setdefault(idx, []).append((ts, te))
-        source_count[idx] = source_count.get(idx, 0) + 1
 
         zoom = max(-10, min(10, int(item.get("zoom", 0))))
-        pan  = item.get("pan") or None
-
-        # Party: force minimum zoom 5 and always have pan (override AI)
-        if is_party:
-            if zoom < 5:
-                zoom = 5
-            if pan is None:
-                pan = _PANS[len(validated) % len(_PANS)]
+        pan  = item.get("pan") or _PANS[len(validated) % len(_PANS)]
 
         transition = item.get("transition", "fade")
         if transition not in ALLOWED_TRANSITIONS:
