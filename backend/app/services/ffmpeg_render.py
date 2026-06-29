@@ -92,44 +92,41 @@ async def _probe_duration(path: str) -> float:
         return 10.0
 
 
-def _build_ken_burns(out_w: int, out_h: int, pan: str, zoom: int, dur: float, sw: int, sh: int) -> str:
+def _animated_crop_expr(out_w: int, out_h: int, pan: str, total_n: int, zoom_out: bool = False) -> tuple[str, str]:
     """
-    True Ken Burns via zoompan: zoom-IN (zoom>0) or zoom-OUT (zoom<0) + pan.
-    Input must already be scaled to sw×sh (scale-to-cover). Output is out_w×out_h.
+    Ken Burns via animated crop. zoom_out=True reverses sweep direction (pull-back feel).
+    Uses n (frame counter) for smooth edge-to-edge movement.
     """
-    n = max(2, int(dur * 30))
-    extra = max(1.0, 1.0 + abs(zoom) * 0.04)
-    step = (extra - 1.0) / max(n - 1, 1)
-    travel = max(n - 1, 1)
+    n = str(total_n)
 
-    if zoom >= 0:   # zoom IN: 1.0 → extra
-        z = f"min(zoom+{step:.8f},{extra:.5f})"
-    else:           # zoom OUT: extra → 1.0
-        z = f"if(eq(on,1),{extra:.5f},max(zoom-{step:.8f},1.001))"
-
-    max_tx = max(1.0, (sw - out_w) / 2)
-    max_ty = max(1.0, (sh - out_h) / 2)
-    bx = f"({sw}/2-{out_w}/zoom/2)"
-    by = f"({sh}/2-{out_h}/zoom/2)"
+    if zoom_out:
+        # Reverse sweep: end → start (pull-back / zoom-out feel)
+        cx_right  = f"(iw-{out_w})-n*(iw-{out_w})/{n}"
+        cx_left   = f"n*(iw-{out_w})/{n}"
+        cy_bottom = f"(ih-{out_h})-n*(ih-{out_h})/{n}"
+        cy_top    = f"n*(ih-{out_h})/{n}"
+    else:
+        # Normal sweep: start → end (push-in / zoom-in feel)
+        cx_right  = f"n*(iw-{out_w})/{n}"
+        cx_left   = f"(iw-{out_w})-n*(iw-{out_w})/{n}"
+        cy_bottom = f"n*(ih-{out_h})/{n}"
+        cy_top    = f"(ih-{out_h})-n*(ih-{out_h})/{n}"
 
     if "right" in pan:
-        px = f"-{max_tx:.1f}+on*{max_tx*2/travel:.5f}"
+        cx = cx_right
     elif "left" in pan:
-        px = f"{max_tx:.1f}-on*{max_tx*2/travel:.5f}"
+        cx = cx_left
     else:
-        px = "0"
+        cx = f"(iw-{out_w})/2"
 
     if "bottom" in pan:
-        py = f"-{max_ty:.1f}+on*{max_ty*2/travel:.5f}"
+        cy = cy_bottom
     elif "top" in pan:
-        py = f"{max_ty:.1f}-on*{max_ty*2/travel:.5f}"
+        cy = cy_top
     else:
-        py = "0"
+        cy = f"(ih-{out_h})/2"
 
-    x = f"max(0,min({sw}-{out_w}/zoom,{bx}+({px})))"
-    y = f"max(0,min({sh}-{out_h}/zoom,{by}+({py})))"
-
-    return f"zoompan=z='{z}':x='{x}':y='{y}':d={n}:s={out_w}x{out_h}:fps=30"
+    return cx, cy
 
 
 async def _process_clip(
@@ -144,32 +141,34 @@ async def _process_clip(
     te    = float(clip["trim_end"])
     dur   = te - ts
     speed = max(0.5, min(2.0, float(clip.get("speed", 1.0))))
-    zoom  = max(-10, min(10, int(clip.get("zoom", 0))))
-    pan   = clip.get("pan") or None
+    zoom     = max(-10, min(10, int(clip.get("zoom", 0))))
+    pan      = clip.get("pan") or None
+    zoom_out = zoom < 0
 
     adj_dur = dur / speed
+    total_n = max(1, int(adj_dur * 30))
 
-    # Scale to cover — extra headroom for zoompan to work within
-    min_scale = 1.40 if grade == "vibrant" else 1.20
-    scale_f = max(min_scale, 1.0 + abs(zoom) * 0.06)
+    min_scale = 1.30 if grade == "vibrant" else 1.10
+    scale_f   = max(min_scale, 1.0 + abs(zoom) * 0.06)
     sw = int(out_w * scale_f)
     sh = int(out_h * scale_f)
     sw += sw % 2
     sh += sh % 2
 
     effective_pan = pan or _DEFAULT_PANS[idx % len(_DEFAULT_PANS)]
+    cx_expr, cy_expr = _animated_crop_expr(out_w, out_h, effective_pan, total_n, zoom_out)
 
     vf: list[str] = []
 
-    # 1. Speed change first (so zoompan sees correct frame count)
+    # 1. Scale to cover
+    vf.append(f"scale={sw}:{sh}:force_original_aspect_ratio=increase")
+
+    # 2. Animated Ken Burns crop (zoom_out reverses sweep direction)
+    vf.append(f"crop={out_w}:{out_h}:{cx_expr}:{cy_expr}")
+
+    # 3. Speed change
     if abs(speed - 1.0) > 0.05:
         vf.append(f"setpts={1.0/speed:.4f}*PTS")
-
-    # 2. Scale to cover then crop to exact sw×sh (pad fails when scale overshoots)
-    vf.append(f"scale={sw}:{sh}:force_original_aspect_ratio=increase,crop={sw}:{sh}")
-
-    # 3. True Ken Burns: animated zoom-in or zoom-out + pan
-    vf.append(_build_ken_burns(out_w, out_h, effective_pan, zoom, adj_dur, sw, sh))
 
     # 4. Fade — ONLY on first clip (fade-in) and last clip (fade-out).
     #    Intermediate clips rely on xfade transitions — per-clip fades
