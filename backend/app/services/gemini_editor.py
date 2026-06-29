@@ -48,59 +48,75 @@ Schema:
       "source_index":  <int 0-based>,
       "trim_start":    <float seconds>,
       "trim_end":      <float seconds>,
-      "zoom":          <int -10 to 10; 0=none, positive=zoom-in, negative=zoom-out>,
+      "zoom":          <int -10 to 10; positive=zoom-in, negative=zoom-out, 0=none>,
       "pan":           <string or null: "left","right","top","bottom","top-left","top-right","bottom-left","bottom-right">,
       "transition":    <string: one of {transitions}>,
-      "speed":         <float 0.5-2.0; 1.0=normal, 0.5=half-speed slow-mo, 2.0=double-speed>,
-      "fade_in":       <float 0-2.0 seconds; 0=no fade>,
-      "fade_out":      <float 0-2.0 seconds; 0=no fade>,
+      "speed":         <float 0.5-2.0>,
+      "fade_in":       <float 0-2.0>,
+      "fade_out":      <float 0-2.0>,
       "correction": {{
-        "brightness":  <int -3 to 3; 0=unchanged>,
-        "contrast":    <int -3 to 3; 0=unchanged>,
-        "saturation":  <int -3 to 3; 0=unchanged>
+        "brightness":  <int -3 to 3>,
+        "contrast":    <int -3 to 3>,
+        "saturation":  <int -3 to 3>
       }}
     }}
   ],
   "title": {{
-    "text":     <string or null — short 1-5 word title overlay, or null if not needed>,
+    "text":     <string or null>,
     "position": <"top" | "bottom">,
-    "size":     <int 20-80 font size>
+    "size":     <int 20-80>
   }}
 }}
 
 RULES:
-1. Reorder clips to best match the style brief. Order by visual excitement: most dynamic and engaging clips first and last — NEVER end with a boring, static, or setup shot. The final clip must be one of the strongest.
-2. trim_start and trim_end must be within 0 and the clip duration.
-3. Clip length is defined by the style — follow rule 6 exactly for how long each clip should be.
-   For zoom direction: use POSITIVE zoom (5-10) for zoom-IN shots, NEGATIVE zoom (-5 to -10) for zoom-OUT shots. Alternate between them across clips for visual variety.
-4. SHOT QUALITY — Before selecting any section, visually assess the frames:
-   REJECT if: blurry, shaky cam, too dark, overexposed, subject cut off, or visually empty (floor/sky/wall only).
-   ACCEPT only: sharp focus, good exposure, complete composition, interesting subject or action.
-   A beautiful 8-second shot is always better than a poor-quality 3-second one.
-5. {clip_mode_instruction}
-6. {clip_count_instruction}
-7. Transition guide:
-   - energetic/party → USE fadewhite (white flash) or hard_cut for 70%+ of transitions. Mix in wipeleft/wiperight/zoomin. White flash between clips creates ENERGY.
-   - elegant/calm  → fade, dissolve, circleopen
+
+1. SHOT TYPE — Identify each clip from the frames, apply matching camera rule:
+   - WIDE/ESTABLISHING (full scene, small subjects, landscape/room overview):
+     zoom IN (+4 to +8), pan slowly across scene. Opens the video well.
+   - MEDIUM (subjects waist-up, 2-3 people, half-body):
+     gentle zoom IN (+2 to +5), pan toward dominant subject or motion direction.
+   - CLOSE-UP (face fills frame, hands, food detail, object detail):
+     zoom OUT (-3 to -6) to breathe, subtle pan. Never zoom IN on already-tight shot.
+   - ACTION (fast movement, dancing, splashing, sport, running):
+     zoom IN aggressively (+6 to +10), pan in the direction of motion.
+   Pan TOWARD where subjects face or move — never pan against eye flow.
+
+2. SHOT SEQUENCING — Alternate shot types, never same type 3+ in a row.
+   Ideal: wide → medium → close-up → action → medium → wide
+   Open with establishing shot. End with strongest emotional or action moment.
+   NEVER end with setup, static, empty, or boring shot.
+
+3. SHOT QUALITY — Reject only technically unusable shots:
+   completely blurry/unrecognizable, fully black, totally blown-out,
+   subject fully out of frame, people setting up/arranging venue,
+   someone walking away with full back to camera and nothing else interesting.
+   Keep moody, dramatic, backlit, or imperfect-exposure shots — content matters more than perfect light.
+
+4. {clip_mode_instruction}
+
+5. {clip_count_instruction}
+
+6. TRANSITIONS:
+   - energetic/party → fadewhite or hard_cut 70%+ of transitions. Mix in wipeleft/wiperight/zoomin.
+   - elegant/calm → fade, dissolve, circleopen
    - tour/property → slideright, slideleft, fade
-8. Speed guide — DEFAULT 1.0 unless style clearly demands otherwise:
-   - luxury/cinematic/elegant → 0.8 (subtle slow motion)
-   - normal property tour → 1.0
-   - energetic/party → 1.0–1.1 (DO NOT exceed 1.2)
-9. Correction guide (range -3 to 3 only):
+
+7. SPEED: Default 1.0. Luxury/cinematic → 0.8. Party/energetic → 1.0–1.1 max.
+
+8. CORRECTION (range -3 to 3):
    - luxury/golden → brightness +1, contrast +2, saturation +2
-   - fresh/vibrant  → saturation +3, contrast +1
+   - vibrant/party → saturation +3, contrast +1
    - moody/dramatic → contrast +3, saturation -1
-   - neutral/pro    → brightness 0, contrast 0, saturation 0
-10. Fade rules: fade_in 0.5 on EVERY clip, fade_out 0.5 on EVERY clip.
-11. ZOOM & PAN — CRITICAL for visual excitement:
-   - energetic/party/fun → zoom MUST be 5–10 on EVERY SINGLE clip. zoom=0 is FORBIDDEN.
-     pan MUST never be null. Alternate directions: right, left, top-right, bottom-left, top, bottom, top-left, bottom-right.
-   - luxury/cinematic → zoom 2–4, slow pan
-   - property tour → zoom 1–3, pan toward key features
-   - romantic/chill → zoom 1–3, very slow pan
-12. Title: add a short Thai or English title only for property tour / promotional styles.
-13. Return ONLY the JSON object."""
+   - neutral/pro → all 0
+
+9. FADE: fade_in 0.5 and fade_out 0.5 on every clip.
+
+10. ZOOM & PAN for energetic/party style: zoom 5–10 every clip (0 forbidden), pan never null.
+    Alternate zoom direction and pan direction across clips for variety.
+
+11. TITLE: Add only for tour or promotional styles, null otherwise.
+
+12. Return ONLY the JSON object."""
 
 
 async def _get_duration(path: str) -> float:
@@ -178,7 +194,7 @@ async def _build_plan_openai(
     all_frames: list[list[Image.Image]],
     loop: asyncio.AbstractEventLoop,
 ) -> str:
-    """OpenAI GPT-4o-mini fallback when Gemini quota is exceeded."""
+    """OpenAI GPT-4o fallback when Gemini quota is exceeded."""
     client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
 
     content: list = [{"type": "text", "text": prompt}]
@@ -303,7 +319,7 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         logger.info("[EDITOR] used Gemini")
         ai_model = "gemini-2.5-flash"
     except google.api_core.exceptions.ResourceExhausted:
-        logger.warning("[EDITOR] Gemini quota exceeded — falling back to OpenAI gpt-4o-mini")
+        logger.warning("[EDITOR] Gemini quota exceeded — falling back to OpenAI gpt-4o")
         raw = await _build_plan_openai(prompt, clip_paths, durations, all_frames, loop)
         logger.info("[EDITOR] used OpenAI fallback")
         ai_model = "gpt-4o"
@@ -314,7 +330,6 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
     raw = re.sub(r"//[^\n]*", "", raw)
     raw = re.sub(r"/\*.*?\*/", "", raw, flags=re.DOTALL)
     # Fix: Gemini sometimes forgets the closing } of a clip object
-    # Pattern: }\n    , → }\n    }, (insert missing closing brace)
     raw = re.sub(r"\}\s*\n(\s*),", r"}\n\1},", raw)
     # Remove trailing commas before } or ]
     raw = re.sub(r",\s*([}\]])", r"\1", raw)
@@ -326,12 +341,12 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
     try:
         plan = json.loads(raw)
     except json.JSONDecodeError as e:
-        logger.error(f"[EDITOR] Gemini JSON parse error: {e}\nRaw: {raw[:800]}")
-        raise RuntimeError(f"Gemini ส่ง JSON ไม่ถูกต้อง: {e}")
+        logger.error(f"[EDITOR] JSON parse error: {e}\nRaw: {raw[:800]}")
+        raise RuntimeError(f"AI ส่ง JSON ไม่ถูกต้อง: {e}")
 
     # ── Validate clips ────────────────────────────────────────────────
     validated: list[dict] = []
-    source_ranges: dict[int, list[tuple[float, float]]] = {}  # track used segments per source
+    source_ranges: dict[int, list[tuple[float, float]]] = {}
     min_seg = 5.0 if is_party else 4.0
     max_seg = 10.0 if is_party else 20.0
 
@@ -350,17 +365,13 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         ts  = max(0.0, float(item.get("trim_start", 0.0)))
         te  = min(dur, float(item.get("trim_end", dur)))
 
-        # Cap segment length
         if te - ts > max_seg:
             te = min(dur, ts + max_seg)
-
-        # Ensure minimum length
         if te - ts < min_seg:
             te = min(dur, ts + min_seg)
             if te - ts < min_seg:
                 continue
 
-        # Skip if this time range overlaps with an already-used segment from same source
         used = source_ranges.get(idx, [])
         if _overlaps(ts, te, used):
             continue
@@ -373,9 +384,7 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         if transition not in ALLOWED_TRANSITIONS:
             transition = "fade"
 
-        speed = float(item.get("speed", 1.0))
-        speed = max(0.5, min(2.0, speed))
-
+        speed = max(0.5, min(2.0, float(item.get("speed", 1.0))))
         fade_in  = max(0.0, min(2.0, float(item.get("fade_in",  0.0))))
         fade_out = max(0.0, min(2.0, float(item.get("fade_out", 0.0))))
 
