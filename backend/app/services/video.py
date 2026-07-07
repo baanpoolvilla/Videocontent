@@ -310,7 +310,7 @@ class VideoService:
 
             if image_urls:
                 image_paths = []
-                for i, img_url in enumerate(image_urls[:5]):
+                for i, img_url in enumerate(image_urls[:10]):
                     ext = os.path.splitext(img_url.split("?")[0])[1].lower() or ".jpg"
                     img_path = os.path.join(tmpdir, f"img_{i}{ext}")
                     await self._download_file(img_url, img_path)

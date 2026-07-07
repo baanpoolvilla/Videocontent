@@ -9,8 +9,8 @@ const VOICE_STYLES = [
   { id: "ชาย (ไทย)",  label: "ชาย",  sublabel: "Niwat · มืออาชีพ",  emoji: "👔" },
 ];
 
-const DURATIONS = [10, 15, 20, 30];
-const MAX_IMAGES = 5; // matches video_service.render_video's image_urls[:5] cap
+const DURATIONS = [10, 15, 20, 30, 45, 60];
+const MAX_IMAGES = 10; // matches video_service.render_video's image_urls[:10] cap
 
 const STYLES = [
   { id: "warm", label: "Ken Burns", sublabel: "สีสันสดใส เหมาะทั่วไป" },
@@ -339,10 +339,10 @@ export default function QuickAdPage() {
             <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: ".06em" }}>
               ความยาว
             </p>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
               {DURATIONS.map((d) => (
                 <button key={d} onClick={() => setDurationSec(d)} style={{
-                  padding: "8px 16px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
+                  padding: "8px 0", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
                   background: durationSec === d ? "rgba(255,176,46,.12)" : "rgba(255,255,255,.04)",
                   border: `1px solid ${durationSec === d ? "#FFB02E" : "rgba(255,255,255,.08)"}`,
                   color: durationSec === d ? "#FFB02E" : "#9ca3af",
