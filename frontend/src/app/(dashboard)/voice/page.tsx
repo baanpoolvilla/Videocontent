@@ -15,9 +15,8 @@ function toAudioUrl(path: string) {
 }
 
 const VOICE_STYLES = [
-  { id: "หญิง (ไทย)",   label: "หญิง",   sublabel: "Premwadee · นุ่มนวล", emoji: "👩" },
-  { id: "ชาย (ไทย)",    label: "ชาย",    sublabel: "Niwat · มืออาชีพ",   emoji: "👔" },
-  { id: "หญิง 2 (ไทย)", label: "หญิง 2", sublabel: "Achara · สดใส",       emoji: "✨" },
+  { id: "หญิง (ไทย)", label: "หญิง", sublabel: "Premwadee · นุ่มนวล", emoji: "👩" },
+  { id: "ชาย (ไทย)",  label: "ชาย",  sublabel: "Niwat · มืออาชีพ",  emoji: "👔" },
 ];
 
 const SAMPLE_TEXTS = [
@@ -273,7 +272,7 @@ export default function VoicePage() {
               </div>
             </div>
             <p style={{ margin: "10px 0 0", fontSize: 11, color: "#4b5563", lineHeight: 1.6 }}>
-              เสียงไทย native — Premwadee / Niwat / Achara
+              เสียงไทย native — Premwadee / Niwat
             </p>
           </div>
 
