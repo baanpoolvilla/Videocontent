@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Sparkles, Upload, Loader2, Download, Copy, Check, ImageIcon } from "lucide-react";
+import { Sparkles, Upload, Loader2, Download, Copy, Check, ImageIcon, X, Plus } from "lucide-react";
 import { api, fileUrl } from "@/lib/api";
 
 const VOICE_STYLES = [
@@ -10,8 +10,10 @@ const VOICE_STYLES = [
 ];
 
 const DURATIONS = [10, 15, 20, 30];
+const MAX_IMAGES = 5; // matches video_service.render_video's image_urls[:5] cap
 
 type QuickAdResult = { video_url: string; script: string; voice_style: string; provider: string };
+type PickedImage = { file: File; preview: string };
 
 export default function QuickAdPage() {
   const [productName, setProductName] = useState("");
@@ -19,10 +21,10 @@ export default function QuickAdPage() {
   const [voiceStyle, setVoiceStyle] = useState(VOICE_STYLES[0].id);
   const [durationSec, setDurationSec] = useState(15);
 
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string>("");
+  const [images, setImages] = useState<PickedImage[]>([]);
 
   const [step, setStep] = useState<"" | "uploading" | "generating">("");
+  const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
   const [error, setError] = useState("");
   const [result, setResult] = useState<QuickAdResult | null>(null);
   const [copied, setCopied] = useState(false);
@@ -30,31 +32,44 @@ export default function QuickAdPage() {
 
   const loading = step !== "";
 
-  function pickImage(file: File | undefined) {
-    if (!file) return;
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+  function pickImages(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const room = MAX_IMAGES - images.length;
+    const picked = Array.from(files).slice(0, room).map((file) => ({ file, preview: URL.createObjectURL(file) }));
+    setImages((prev) => [...prev, ...picked]);
+  }
+
+  function removeImage(i: number) {
+    setImages((prev) => {
+      URL.revokeObjectURL(prev[i].preview);
+      return prev.filter((_, idx) => idx !== i);
+    });
   }
 
   async function generate() {
-    if (!imageFile || !productName.trim()) return;
+    if (images.length === 0 || !productName.trim()) return;
     setError("");
     setResult(null);
     try {
       setStep("uploading");
-      const fd = new FormData();
-      fd.append("file", imageFile);
-      fd.append("asset_type", "image");
-      const upRes = await api.post("/assets/upload", fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      const imageUrl = fileUrl(upRes.data.url);
+      setUploadProgress({ done: 0, total: images.length });
+      const imageUrls: string[] = [];
+      for (const img of images) {
+        const fd = new FormData();
+        fd.append("file", img.file);
+        fd.append("asset_type", "image");
+        const upRes = await api.post("/assets/upload", fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        imageUrls.push(fileUrl(upRes.data.url));
+        setUploadProgress((p) => ({ ...p, done: p.done + 1 }));
+      }
 
       setStep("generating");
       const res = await api.post("/quick-ad/generate", {
         product_name: productName.trim(),
         description: description.trim(),
-        image_urls: [imageUrl],
+        image_urls: imageUrls,
         voice_style: voiceStyle,
         duration_sec: durationSec,
       });
@@ -76,7 +91,10 @@ export default function QuickAdPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  const stepLabel = step === "uploading" ? "กำลังอัปโหลดรูป..." : step === "generating" ? "กำลังสร้างวิดีโอ (เขียนสคริปต์ + พากย์เสียง + เรนเดอร์)..." : "";
+  const stepLabel =
+    step === "uploading" ? `กำลังอัปโหลดรูป... (${uploadProgress.done}/${uploadProgress.total})`
+    : step === "generating" ? "กำลังสร้างวิดีโอ (เขียนสคริปต์ + พากย์เสียง + เรนเดอร์)..."
+    : "";
 
   return (
     <div style={{ minHeight: "100vh", background: "#0d0d14", padding: "32px 40px", color: "#e2e4ef" }}>
@@ -93,7 +111,7 @@ export default function QuickAdPage() {
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#fff" }}>Quick Ad</h1>
         </div>
         <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
-          รูปเดียว กดครั้งเดียว ได้วิดีโอโฆษณาพร้อมเสียงพากย์และซับ — ไม่ต้องรอ AI สร้างวิดีโอ ต้นทุนแทบ 0 บาท
+          อัปโหลดรูปได้สูงสุด {MAX_IMAGES} รูป กดครั้งเดียว ได้วิดีโอโฆษณาพร้อมเสียงพากย์และซับ — ไม่ต้องรอ AI สร้างวิดีโอ ต้นทุนแทบ 0 บาท
         </p>
       </div>
 
@@ -105,36 +123,22 @@ export default function QuickAdPage() {
             background: "#111116", border: "1px solid rgba(255,255,255,.07)",
             borderRadius: 14, padding: "18px 20px",
           }}>
-            <p style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: ".06em" }}>
-              รูปสินค้า
-            </p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: ".06em" }}>
+                รูปสินค้า
+              </p>
+              <span style={{ fontSize: 11, color: "#4b5563" }}>{images.length}/{MAX_IMAGES}</span>
+            </div>
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              onChange={(e) => pickImage(e.target.files?.[0])}
+              multiple
+              onChange={(e) => { pickImages(e.target.files); e.target.value = ""; }}
               style={{ display: "none" }}
             />
-            {imagePreview ? (
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="qa-preview-wrap"
-                style={{
-                  cursor: "pointer", borderRadius: 10, overflow: "hidden",
-                  border: "1px solid rgba(255,255,255,.1)", position: "relative",
-                }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={imagePreview} alt="preview" style={{ width: "100%", maxHeight: 320, objectFit: "cover", display: "block" }} />
-                <div style={{
-                  position: "absolute", inset: 0, background: "rgba(0,0,0,.35)", opacity: 0,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  transition: "opacity .15s", color: "#fff", fontSize: 13, fontWeight: 700,
-                }} className="qa-hover-overlay">
-                  เปลี่ยนรูป
-                </div>
-              </div>
-            ) : (
+
+            {images.length === 0 ? (
               <div
                 onClick={() => fileInputRef.current?.click()}
                 style={{
@@ -143,7 +147,47 @@ export default function QuickAdPage() {
                 }}
               >
                 <Upload size={28} color="#4b5563" style={{ marginBottom: 8 }} />
-                <p style={{ margin: 0, fontSize: 13, color: "#9ca3af" }}>คลิกเพื่อเลือกรูปสินค้า</p>
+                <p style={{ margin: 0, fontSize: 13, color: "#9ca3af" }}>คลิกเพื่อเลือกรูปสินค้า (เลือกได้หลายรูป)</p>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                {images.map((img, i) => (
+                  <div key={img.preview} className="qa-preview-wrap" style={{
+                    position: "relative", borderRadius: 10, overflow: "hidden",
+                    border: "1px solid rgba(255,255,255,.1)", aspectRatio: "1",
+                  }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.preview} alt={`รูป ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeImage(i); }}
+                      style={{
+                        position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: "50%",
+                        background: "rgba(0,0,0,.6)", border: "none", cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center", color: "#fff",
+                      }}
+                    >
+                      <X size={12} />
+                    </button>
+                    <span style={{
+                      position: "absolute", bottom: 4, left: 4, fontSize: 9, fontWeight: 700,
+                      padding: "2px 6px", borderRadius: 5, background: "rgba(0,0,0,.6)", color: "#fff",
+                    }}>
+                      {i + 1}
+                    </span>
+                  </div>
+                ))}
+                {images.length < MAX_IMAGES && (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      cursor: "pointer", borderRadius: 10, aspectRatio: "1",
+                      border: "1.5px dashed rgba(255,255,255,.15)", background: "rgba(255,255,255,.02)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}
+                  >
+                    <Plus size={20} color="#4b5563" />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -228,14 +272,14 @@ export default function QuickAdPage() {
           {/* Generate button */}
           <button
             onClick={generate}
-            disabled={loading || !imageFile || !productName.trim()}
+            disabled={loading || images.length === 0 || !productName.trim()}
             style={{
               padding: "14px 24px", borderRadius: 12, fontSize: 15, fontWeight: 800,
-              background: loading || !imageFile || !productName.trim()
+              background: loading || images.length === 0 || !productName.trim()
                 ? "rgba(255,255,255,.06)"
                 : "linear-gradient(135deg, #FFB02E, #FF6FB7)",
-              border: "none", color: loading || !imageFile || !productName.trim() ? "#4b5563" : "#0d0d14",
-              cursor: loading || !imageFile || !productName.trim() ? "not-allowed" : "pointer",
+              border: "none", color: loading || images.length === 0 || !productName.trim() ? "#4b5563" : "#0d0d14",
+              cursor: loading || images.length === 0 || !productName.trim() ? "not-allowed" : "pointer",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             }}
           >
