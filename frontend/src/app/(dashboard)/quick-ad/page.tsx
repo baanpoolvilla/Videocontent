@@ -18,7 +18,7 @@ const STYLES = [
 ];
 
 type QuickAdResult = { video_url: string; script: string; voice_style: string; provider: string };
-type PickedImage = { file: File; preview: string };
+type PickedImage = { file: File; preview: string; kind: "image" | "video" };
 
 export default function QuickAdPage() {
   const [productName, setProductName] = useState("");
@@ -26,6 +26,7 @@ export default function QuickAdPage() {
   const [voiceStyle, setVoiceStyle] = useState(VOICE_STYLES[0].id);
   const [durationSec, setDurationSec] = useState(15);
   const [style, setStyle] = useState(STYLES[0].id);
+  const [burnCaptions, setBurnCaptions] = useState(true);
 
   const [images, setImages] = useState<PickedImage[]>([]);
 
@@ -41,7 +42,11 @@ export default function QuickAdPage() {
   function pickImages(files: FileList | null) {
     if (!files || files.length === 0) return;
     const room = MAX_IMAGES - images.length;
-    const picked = Array.from(files).slice(0, room).map((file) => ({ file, preview: URL.createObjectURL(file) }));
+    const picked = Array.from(files).slice(0, room).map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
+      kind: file.type.startsWith("video/") ? ("video" as const) : ("image" as const),
+    }));
     setImages((prev) => [...prev, ...picked]);
   }
 
@@ -63,7 +68,7 @@ export default function QuickAdPage() {
       for (const img of images) {
         const fd = new FormData();
         fd.append("file", img.file);
-        fd.append("asset_type", "image");
+        fd.append("asset_type", img.kind);
         const upRes = await api.post("/assets/upload", fd, {
           headers: { "Content-Type": "multipart/form-data" },
         });
@@ -79,6 +84,7 @@ export default function QuickAdPage() {
         voice_style: voiceStyle,
         duration_sec: durationSec,
         style,
+        burn_captions: burnCaptions,
       });
       const jobId = startRes.data.job_id;
 
@@ -140,7 +146,7 @@ export default function QuickAdPage() {
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#fff" }}>Quick Ad</h1>
         </div>
         <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
-          อัปโหลดรูปได้สูงสุด {MAX_IMAGES} รูป กดครั้งเดียว ได้วิดีโอโฆษณาพร้อมเสียงพากย์และซับ — ไม่ต้องรอ AI สร้างวิดีโอ ต้นทุนแทบ 0 บาท
+          อัปโหลดรูปหรือวิดีโอสั้นๆ ได้สูงสุด {MAX_IMAGES} ไฟล์ กดครั้งเดียว ได้วิดีโอโฆษณาพร้อมเสียงพากย์และซับ — ไม่ต้องรอ AI สร้างวิดีโอ ต้นทุนแทบ 0 บาท
         </p>
       </div>
 
@@ -154,14 +160,14 @@ export default function QuickAdPage() {
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
               <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: ".06em" }}>
-                รูปสินค้า
+                รูป / วิดีโอสั้นๆ
               </p>
               <span style={{ fontSize: 11, color: "#4b5563" }}>{images.length}/{MAX_IMAGES}</span>
             </div>
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,video/*"
               multiple
               onChange={(e) => { pickImages(e.target.files); e.target.value = ""; }}
               style={{ display: "none" }}
@@ -176,7 +182,7 @@ export default function QuickAdPage() {
                 }}
               >
                 <Upload size={28} color="#4b5563" style={{ marginBottom: 8 }} />
-                <p style={{ margin: 0, fontSize: 13, color: "#9ca3af" }}>คลิกเพื่อเลือกรูปสินค้า (เลือกได้หลายรูป)</p>
+                <p style={{ margin: 0, fontSize: 13, color: "#9ca3af" }}>คลิกเพื่อเลือกรูปหรือวิดีโอสินค้า (เลือกได้หลายไฟล์)</p>
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
@@ -185,8 +191,12 @@ export default function QuickAdPage() {
                     position: "relative", borderRadius: 10, overflow: "hidden",
                     border: "1px solid rgba(255,255,255,.1)", aspectRatio: "1",
                   }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img.preview} alt={`รูป ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    {img.kind === "video" ? (
+                      <video src={img.preview} muted loop autoPlay playsInline style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={img.preview} alt={`รูป ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    )}
                     <button
                       onClick={(e) => { e.stopPropagation(); removeImage(i); }}
                       style={{
@@ -201,7 +211,7 @@ export default function QuickAdPage() {
                       position: "absolute", bottom: 4, left: 4, fontSize: 9, fontWeight: 700,
                       padding: "2px 6px", borderRadius: 5, background: "rgba(0,0,0,.6)", color: "#fff",
                     }}>
-                      {i + 1}
+                      {i + 1}{img.kind === "video" ? " 🎬" : ""}
                     </span>
                   </div>
                 ))}
@@ -276,6 +286,26 @@ export default function QuickAdPage() {
                 );
               })}
             </div>
+
+            <button
+              onClick={() => setBurnCaptions((v) => !v)}
+              style={{
+                marginTop: 14, width: "100%", padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+              }}
+            >
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#e2e4ef" }}>เบิร์นซับลงวิดีโอ</span>
+              <span style={{
+                position: "relative", width: 36, height: 20, borderRadius: 10, flexShrink: 0,
+                background: burnCaptions ? "#FFB02E" : "rgba(255,255,255,.15)", transition: "background .15s",
+              }}>
+                <span style={{
+                  position: "absolute", top: 2, left: burnCaptions ? 18 : 2, width: 16, height: 16, borderRadius: "50%",
+                  background: "#fff", transition: "left .15s",
+                }} />
+              </span>
+            </button>
           </div>
 
           {/* Voice + duration */}

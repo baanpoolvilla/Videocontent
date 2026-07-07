@@ -61,6 +61,7 @@ class QuickAdRequest(BaseModel):
     voice_style: str = "หญิง (ไทย)"
     duration_sec: int = 20
     style: str = "warm"  # "warm" (Ken Burns, no title card) or "editorial" (moody grade + serif title card)
+    burn_captions: bool = True
 
 
 @router.post("/start", status_code=202)
@@ -99,7 +100,7 @@ async def start_quick_ad(
 
     background_tasks.add_task(
         _run_quick_ad_job, job_id, product_name, description, image_urls,
-        req.voice_style, req.duration_sec, req.style,
+        req.voice_style, req.duration_sec, req.style, req.burn_captions,
     )
     return {"job_id": job_id}
 
@@ -121,6 +122,7 @@ async def _run_quick_ad_job(
     voice_style: str,
     duration_sec: int,
     style: str,
+    burn_captions: bool = True,
 ) -> None:
     _write_job(job_id, {"status": "processing"})
     try:
@@ -140,7 +142,7 @@ async def _run_quick_ad_job(
             voiceover_url=voice_result["url"],
             image_urls=image_urls,
             duration_sec=duration_sec,
-            captions=voice_result.get("captions", []),
+            captions=voice_result.get("captions", []) if burn_captions else None,
             style=style,
             headline=product_name,
             subtitle=hook,

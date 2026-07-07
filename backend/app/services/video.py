@@ -118,6 +118,22 @@ def _kb_pan_right(d: int, grade: str = "warm") -> str:
     )
 
 
+_VIDEO_EXTS = {".mp4", ".mov", ".webm", ".m4v", ".avi", ".mkv"}
+
+
+def _is_video_file(path: str) -> bool:
+    return os.path.splitext(path)[1].lower() in _VIDEO_EXTS
+
+
+def _video_segment_filter(grade: str = "warm") -> str:
+    """Cover-crop + color grade for an already-moving video clip — no Ken Burns zoompan needed."""
+    return (
+        f"scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=increase,"
+        f"crop={OUT_W}:{OUT_H},"
+        f"{_GRADES.get(grade, _COLOR_GRADE)}"
+    )
+
+
 class VideoService:
     async def compose_from_clips(
         self,
@@ -295,7 +311,8 @@ class VideoService:
             if image_urls:
                 image_paths = []
                 for i, img_url in enumerate(image_urls[:5]):
-                    img_path = os.path.join(tmpdir, f"img_{i}.jpg")
+                    ext = os.path.splitext(img_url.split("?")[0])[1].lower() or ".jpg"
+                    img_path = os.path.join(tmpdir, f"img_{i}{ext}")
                     await self._download_file(img_url, img_path)
                     image_paths.append(img_path)
                 video_path = await self._images_to_video(
@@ -491,15 +508,27 @@ class VideoService:
         clip_paths = []
         for i, img_path in enumerate(image_paths):
             clip_path = os.path.join(tmpdir, f"clip_{i}.mp4")
-            vf = kb_builders[i % len(kb_builders)](d, style)
-            await self._run_ffmpeg([
-                "ffmpeg", "-y",
-                "-loop", "1", "-i", img_path,
-                "-vf", vf,
-                "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
-                "-t", str(per_image),
-                clip_path,
-            ])
+            if _is_video_file(img_path):
+                # Already-moving footage — cover-crop + grade only, no Ken Burns zoompan.
+                # -stream_loop -1 covers clips shorter than their allotted slot.
+                await self._run_ffmpeg([
+                    "ffmpeg", "-y",
+                    "-stream_loop", "-1", "-i", img_path,
+                    "-vf", _video_segment_filter(style),
+                    "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
+                    "-t", str(per_image), "-an",
+                    clip_path,
+                ])
+            else:
+                vf = kb_builders[i % len(kb_builders)](d, style)
+                await self._run_ffmpeg([
+                    "ffmpeg", "-y",
+                    "-loop", "1", "-i", img_path,
+                    "-vf", vf,
+                    "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
+                    "-t", str(per_image),
+                    clip_path,
+                ])
             clip_paths.append(clip_path)
 
         # Crossfade between Ken Burns clips too
