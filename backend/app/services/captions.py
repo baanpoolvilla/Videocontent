@@ -39,12 +39,15 @@ def build_ass_file(captions: list[dict], out_path: str) -> str | None:
     if not captions:
         return None
     lines = [_ASS_HEADER.format(font=FONT_NAME)]
+    # Pop-in: each caption starts at 55% scale and snaps to 100% over its first 120ms —
+    # a quick punch instead of just appearing flat, closer to typical short-form ad captions.
+    pop_in = r"{\fscx55\fscy55\t(0,120,\fscx100\fscy100)}"
     for c in captions:
         start, end = float(c["start"]), float(c["end"])
         if end <= start:
             continue
         lines.append(
-            f"Dialogue: 0,{_ts(start)},{_ts(end)},Caption,,0,0,0,,{_escape(c['text'])}"
+            f"Dialogue: 0,{_ts(start)},{_ts(end)},Caption,,0,0,0,,{pop_in}{_escape(c['text'])}"
         )
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))

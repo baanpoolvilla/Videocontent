@@ -39,7 +39,8 @@ def _kb_zoom_in(d: int) -> str:
         f"{_SCALE_CROP},"
         f"zoompan=z='min(1+0.3*on/{d},1.3)':"
         f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
-        f"d={d}:s={OUT_W}x{OUT_H}:fps=25"
+        f"d={d}:s={OUT_W}x{OUT_H}:fps=25,"
+        f"{_COLOR_GRADE}"
     )
 
 def _kb_zoom_out(d: int) -> str:
@@ -48,7 +49,8 @@ def _kb_zoom_out(d: int) -> str:
         f"{_SCALE_CROP},"
         f"zoompan=z='max(1.3-0.3*on/{d},1.0)':"
         f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
-        f"d={d}:s={OUT_W}x{OUT_H}:fps=25"
+        f"d={d}:s={OUT_W}x{OUT_H}:fps=25,"
+        f"{_COLOR_GRADE}"
     )
 
 def _kb_pan_left(d: int) -> str:
@@ -60,7 +62,8 @@ def _kb_pan_left(d: int) -> str:
         f"zoompan=z={z}:"
         f"x='min(on*{max_x}/{d},{max_x})':"
         f"y='ih/2-(ih/{z}/2)':"
-        f"d={d}:s={OUT_W}x{OUT_H}:fps=25"
+        f"d={d}:s={OUT_W}x{OUT_H}:fps=25,"
+        f"{_COLOR_GRADE}"
     )
 
 def _kb_pan_right(d: int) -> str:
@@ -72,7 +75,8 @@ def _kb_pan_right(d: int) -> str:
         f"zoompan=z={z}:"
         f"x='max({max_x}-on*{max_x}/{d},0)':"
         f"y='ih/2-(ih/{z}/2)':"
-        f"d={d}:s={OUT_W}x{OUT_H}:fps=25"
+        f"d={d}:s={OUT_W}x{OUT_H}:fps=25,"
+        f"{_COLOR_GRADE}"
     )
 
 
