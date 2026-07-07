@@ -1,16 +1,21 @@
 """
-quick_ad.py — POST /api/v1/quick-ad/generate
+quick_ad.py — POST /api/v1/quick-ad/start + GET /api/v1/quick-ad/job/{job_id}
 
 "Quick Ad" mode: one image/product in, one ad video out — no AI video-generation call,
 no manual steps. Reuses existing pieces (script writer, TTS + word-timed captions, Ken Burns
 render) behind a single dedicated endpoint so it reads as its own product, not a buried option
 inside System 1.
+
+Async job pattern (POST /start → GET /job/{id}), same as video_edit.py — script generation +
+TTS + FFmpeg rendering easily exceeds a synchronous request/reverse-proxy timeout window.
 """
+import json
 import logging
+import os
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +32,26 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/quick-ad", tags=["quick-ad"])
 
+_JOB_DIR = "/tmp/quick_ad_jobs"
+
+
+def _job_path(job_id: str) -> str:
+    return os.path.join(_JOB_DIR, f"{job_id}.json")
+
+
+def _write_job(job_id: str, data: dict) -> None:
+    os.makedirs(_JOB_DIR, exist_ok=True)
+    with open(_job_path(job_id), "w") as f:
+        json.dump(data, f)
+
+
+def _read_job(job_id: str) -> dict | None:
+    try:
+        with open(_job_path(job_id)) as f:
+            return json.load(f)
+    except Exception:
+        return None
+
 
 class QuickAdRequest(BaseModel):
     product_id: str | None = None
@@ -38,19 +63,14 @@ class QuickAdRequest(BaseModel):
     style: str = "warm"  # "warm" (Ken Burns, no title card) or "editorial" (moody grade + serif title card)
 
 
-class QuickAdResponse(BaseModel):
-    video_url: str
-    script: str
-    voice_style: str
-    provider: str
-
-
-@router.post("/generate", response_model=QuickAdResponse)
-async def generate_quick_ad(
+@router.post("/start", status_code=202)
+async def start_quick_ad(
     req: QuickAdRequest,
     current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
+    background_tasks: BackgroundTasks,
 ):
+    """Start Quick Ad generation as a background job. Returns job_id immediately (no timeout risk)."""
     product_name = req.product_name
     description = req.description
     image_urls = list(req.image_urls)
@@ -74,34 +94,66 @@ async def generate_quick_ad(
         raise HTTPException(status_code=400, detail="ต้องระบุชื่อสินค้า")
 
     job_id = str(uuid.uuid4())
-    logger.info(f"[QUICK-AD] job={job_id} product={product_name} images={len(image_urls)}")
+    _write_job(job_id, {"status": "pending"})
+    logger.info(f"[QUICK-AD] job={job_id} queued product={product_name} images={len(image_urls)}")
 
-    analysis_result = await ai_service.analyze_product(product_name, description)
-    script_result = await ai_service.generate_script(
-        product_name, analysis_result["analysis"], duration_sec=req.duration_sec,
+    background_tasks.add_task(
+        _run_quick_ad_job, job_id, product_name, description, image_urls,
+        req.voice_style, req.duration_sec, req.style,
     )
-    full_script = script_result["script"]["full_script"]
-    hook = script_result["script"]["hook"]
+    return {"job_id": job_id}
 
-    voice_result = await tts_service.generate_voiceover(
-        text=full_script, job_id=job_id, voice_style=req.voice_style,
-    )
 
-    render_result = await video_service.render_video(
-        job_id=job_id,
-        voiceover_url=voice_result["url"],
-        image_urls=image_urls,
-        duration_sec=req.duration_sec,
-        captions=voice_result.get("captions", []),
-        style=req.style,
-        headline=product_name,
-        subtitle=hook,
-    )
+@router.get("/job/{job_id}")
+async def get_quick_ad_job(job_id: str):
+    """Poll Quick Ad job status. Returns: pending | processing | done | failed."""
+    job = _read_job(job_id)
+    if job is None:
+        raise HTTPException(404, "ไม่พบ job นี้")
+    return job
 
-    logger.info(f"[QUICK-AD] job={job_id} done → {render_result['url'][:80]}")
-    return QuickAdResponse(
-        video_url=render_result["url"],
-        script=full_script,
-        voice_style=req.voice_style,
-        provider=voice_result.get("model_id", "edge-tts"),
-    )
+
+async def _run_quick_ad_job(
+    job_id: str,
+    product_name: str,
+    description: str,
+    image_urls: list[str],
+    voice_style: str,
+    duration_sec: int,
+    style: str,
+) -> None:
+    _write_job(job_id, {"status": "processing"})
+    try:
+        analysis_result = await ai_service.analyze_product(product_name, description)
+        script_result = await ai_service.generate_script(
+            product_name, analysis_result["analysis"], duration_sec=duration_sec,
+        )
+        full_script = script_result["script"]["full_script"]
+        hook = script_result["script"]["hook"]
+
+        voice_result = await tts_service.generate_voiceover(
+            text=full_script, job_id=job_id, voice_style=voice_style,
+        )
+
+        render_result = await video_service.render_video(
+            job_id=job_id,
+            voiceover_url=voice_result["url"],
+            image_urls=image_urls,
+            duration_sec=duration_sec,
+            captions=voice_result.get("captions", []),
+            style=style,
+            headline=product_name,
+            subtitle=hook,
+        )
+
+        logger.info(f"[QUICK-AD] job={job_id} done → {render_result['url'][:80]}")
+        _write_job(job_id, {
+            "status": "done",
+            "video_url": render_result["url"],
+            "script": full_script,
+            "voice_style": voice_style,
+            "provider": voice_result.get("model_id", "edge-tts"),
+        })
+    except Exception as exc:
+        logger.error(f"[QUICK-AD] job={job_id} failed: {exc}")
+        _write_job(job_id, {"status": "failed", "error": str(exc)})

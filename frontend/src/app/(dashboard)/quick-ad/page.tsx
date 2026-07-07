@@ -72,7 +72,7 @@ export default function QuickAdPage() {
       }
 
       setStep("generating");
-      const res = await api.post("/quick-ad/generate", {
+      const startRes = await api.post("/quick-ad/start", {
         product_name: productName.trim(),
         description: description.trim(),
         image_urls: imageUrls,
@@ -80,7 +80,29 @@ export default function QuickAdPage() {
         duration_sec: durationSec,
         style,
       });
-      setResult(res.data);
+      const jobId = startRes.data.job_id;
+
+      // Script + TTS + FFmpeg render can take well over a minute — poll instead of
+      // one long blocking request (avoids reverse-proxy/CDN timeout limits).
+      const MAX_ATTEMPTS = 120; // ~4 minutes at 2s intervals
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const jobRes = await api.get(`/quick-ad/job/${jobId}`);
+        const job = jobRes.data;
+        if (job.status === "done") {
+          setResult({
+            video_url: job.video_url,
+            script: job.script,
+            voice_style: job.voice_style,
+            provider: job.provider,
+          });
+          return;
+        }
+        if (job.status === "failed") {
+          throw new Error(job.error || "สร้างวิดีโอไม่สำเร็จ");
+        }
+      }
+      throw new Error("สร้างวิดีโอนานเกินไป ลองใหม่อีกครั้ง");
     } catch (e: unknown) {
       const msg =
         (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
