@@ -9,7 +9,7 @@ logging.getLogger("app").setLevel(logging.INFO)
 
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.routers import assets, audio_assets, auth, billing, brand_profiles, content_jobs, dashboard, files, image_to_video, products, prompts, schedule, voice, video_edit
+from app.routers import assets, audio_assets, auth, billing, brand_profiles, content_jobs, dashboard, files, image_to_video, products, prompts, quick_ad, schedule, voice, video_edit
 import app.models  # noqa: F401 — ensure all models are registered before create_all
 
 
@@ -56,6 +56,7 @@ app.include_router(voice.router, prefix=settings.API_PREFIX)
 app.include_router(audio_assets.router, prefix=settings.API_PREFIX)
 app.include_router(billing.router, prefix=settings.API_PREFIX)
 app.include_router(video_edit.router, prefix=settings.API_PREFIX)
+app.include_router(quick_ad.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/health")

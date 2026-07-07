@@ -4,6 +4,7 @@ import logging
 import os
 import tempfile
 import httpx
+from app.services.captions import build_ass_file, subtitles_filter
 from app.services.storage import storage_service
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,7 @@ class VideoService:
         duration_sec: int = 30,
         logo_url: str = "",
         labels: list[str] = [],
+        captions: list[dict] | None = None,
     ) -> dict:
         """Compose AI-generated clips into final video with crossfade transitions and optional text labels."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -187,17 +189,29 @@ class VideoService:
 
             # 5. Mix voiceover
             output_path = os.path.join(tmpdir, "output.mp4")
+            ass_path = build_ass_file(captions, os.path.join(tmpdir, "captions.ass")) if captions else None
             if voiceover_url:
                 audio_path = os.path.join(tmpdir, "audio.mp3")
                 await self._download_file(voiceover_url, audio_path)
-                await self._run_ffmpeg([
-                    "ffmpeg", "-y",
-                    "-i", base, "-i", audio_path,
-                    "-c:v", "copy", "-c:a", "aac",
-                    "-t", str(duration_sec),
-                    "-shortest", "-movflags", "+faststart",
-                    output_path,
-                ])
+                if ass_path:
+                    await self._run_ffmpeg([
+                        "ffmpeg", "-y",
+                        "-i", base, "-i", audio_path,
+                        "-vf", subtitles_filter(ass_path),
+                        "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p",
+                        "-c:a", "aac", "-t", str(duration_sec),
+                        "-shortest", "-movflags", "+faststart",
+                        output_path,
+                    ])
+                else:
+                    await self._run_ffmpeg([
+                        "ffmpeg", "-y",
+                        "-i", base, "-i", audio_path,
+                        "-c:v", "copy", "-c:a", "aac",
+                        "-t", str(duration_sec),
+                        "-shortest", "-movflags", "+faststart",
+                        output_path,
+                    ])
             else:
                 await self._run_ffmpeg([
                     "ffmpeg", "-y", "-i", base,
@@ -225,6 +239,7 @@ class VideoService:
         voiceover_url: str,
         image_urls: list[str],
         duration_sec: int = 30,
+        captions: list[dict] | None = None,
     ) -> dict:
         with tempfile.TemporaryDirectory() as tmpdir:
             audio_path = None
@@ -238,7 +253,7 @@ class VideoService:
                     img_path = os.path.join(tmpdir, f"img_{i}.jpg")
                     await self._download_file(img_url, img_path)
                     image_paths.append(img_path)
-                video_path = await self._images_to_video(image_paths, audio_path, tmpdir, duration_sec)
+                video_path = await self._images_to_video(image_paths, audio_path, tmpdir, duration_sec, captions)
             else:
                 video_path = await self._text_to_video(audio_path, tmpdir, duration_sec)
 
@@ -414,7 +429,8 @@ class VideoService:
                     f.write(resp.content)
 
     async def _images_to_video(
-        self, image_paths: list[str], audio_path: str | None, tmpdir: str, duration_sec: int
+        self, image_paths: list[str], audio_path: str | None, tmpdir: str, duration_sec: int,
+        captions: list[dict] | None = None,
     ) -> str:
         output_path = os.path.join(tmpdir, "output.mp4")
         n = len(image_paths)
@@ -462,16 +478,30 @@ class VideoService:
         except Exception as e:
             logger.warning(f"[VIDEO] kb fade-ends failed — skipping: {e}")
 
+        ass_path = build_ass_file(captions, os.path.join(tmpdir, "captions.ass")) if captions else None
+
         if audio_path and os.path.exists(audio_path):
-            await self._run_ffmpeg([
-                "ffmpeg", "-y",
-                "-i", merged, "-i", audio_path,
-                "-map", "0:v:0", "-map", "1:a:0",
-                "-c:v", "copy", "-c:a", "aac",
-                "-t", str(duration_sec),
-                "-movflags", "+faststart",
-                output_path,
-            ])
+            if ass_path:
+                await self._run_ffmpeg([
+                    "ffmpeg", "-y",
+                    "-i", merged, "-i", audio_path,
+                    "-map", "0:v:0", "-map", "1:a:0",
+                    "-vf", subtitles_filter(ass_path),
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
+                    "-c:a", "aac", "-t", str(duration_sec),
+                    "-movflags", "+faststart",
+                    output_path,
+                ])
+            else:
+                await self._run_ffmpeg([
+                    "ffmpeg", "-y",
+                    "-i", merged, "-i", audio_path,
+                    "-map", "0:v:0", "-map", "1:a:0",
+                    "-c:v", "copy", "-c:a", "aac",
+                    "-t", str(duration_sec),
+                    "-movflags", "+faststart",
+                    output_path,
+                ])
         else:
             await self._run_ffmpeg([
                 "ffmpeg", "-y", "-i", merged,

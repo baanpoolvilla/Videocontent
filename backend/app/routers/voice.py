@@ -24,6 +24,7 @@ class VoiceGenerateResponse(BaseModel):
     characters_used: int
     voice_style: str
     provider: str
+    captions: list[dict] = []
 
 
 @router.get("/voices")
@@ -52,4 +53,5 @@ async def generate_voice(req: VoiceGenerateRequest):
         characters_used=result.get("characters_used", len(req.text)),
         voice_style=req.voice_style,
         provider=provider,
+        captions=result.get("captions", []),
     )

@@ -1,3 +1,4 @@
+import base64
 import io
 import logging
 import tempfile
@@ -8,6 +9,56 @@ from app.services.storage import storage_service
 
 logger = logging.getLogger(__name__)
 
+# Max words grouped into one on-screen caption chunk (OpusClip-style short bursts)
+_CAPTION_CHUNK_WORDS = 4
+
+
+def _group_words_into_captions(words: list[dict], chunk_size: int = _CAPTION_CHUNK_WORDS) -> list[dict]:
+    """Group [{text, start, end}, ...] word timings into readable multi-word caption chunks."""
+    captions = []
+    for i in range(0, len(words), chunk_size):
+        group = words[i:i + chunk_size]
+        if not group:
+            continue
+        captions.append({
+            "text": " ".join(w["text"] for w in group),
+            "start": group[0]["start"],
+            "end": group[-1]["end"],
+        })
+    return captions
+
+
+async def _probe_audio_duration(path: str) -> float:
+    """Get audio duration in seconds via ffprobe (used for the proportional-timing fallback)."""
+    import asyncio
+    import json as _json
+    proc = await asyncio.create_subprocess_exec(
+        "ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", path,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    out, _ = await proc.communicate()
+    try:
+        return float(_json.loads(out.decode())["format"]["duration"])
+    except Exception:
+        return 0.0
+
+
+def _proportional_captions(text: str, total_duration: float, chunk_size: int = _CAPTION_CHUNK_WORDS) -> list[dict]:
+    """Fallback timing when no native timestamp API is available (e.g. gTTS):
+    distribute caption chunks across total_duration proportional to character count."""
+    words = text.split()
+    if not words or total_duration <= 0:
+        return []
+    chunks = [" ".join(words[i:i + chunk_size]) for i in range(0, len(words), chunk_size)]
+    total_chars = sum(len(c) for c in chunks) or 1
+    captions = []
+    t = 0.0
+    for c in chunks:
+        dur = total_duration * (len(c) / total_chars)
+        captions.append({"text": c, "start": round(t, 3), "end": round(t + dur, 3)})
+        t += dur
+    return captions
+
 # ElevenLabs voice IDs (multilingual v2 — supports Thai)
 ELEVENLABS_VOICE_MAP = {
     "เป็นกันเอง (หญิง)": "21m00Tcm4TlvDq8ikWAM",  # Rachel
@@ -17,21 +68,21 @@ ELEVENLABS_VOICE_MAP = {
 }
 
 # Edge TTS — Microsoft neural voices, free, Thai-native
+# NOTE: th-TH-AcharaNeural (former "second female" option) no longer exists on Microsoft's
+# service — confirmed via edge_tts.list_voices(), which now returns only these two Thai voices.
 EDGE_VOICE_MAP = {
     "หญิง (ไทย)":   "th-TH-PremwadeeNeural",   # natural, warm female
     "ชาย (ไทย)":    "th-TH-NiwatNeural",        # clear, professional male
-    "หญิง 2 (ไทย)": "th-TH-AcharaNeural",       # second female option
 }
 
 # Default voices per style key (used when caller passes ElevenLabs-style names)
 EDGE_STYLE_TO_VOICE = {
     "เป็นกันเอง (หญิง)": "th-TH-PremwadeeNeural",
     "มืออาชีพ (ชาย)":    "th-TH-NiwatNeural",
-    "สดใส (หญิง)":       "th-TH-AcharaNeural",
+    "สดใส (หญิง)":       "th-TH-PremwadeeNeural",
     "หนักแน่น (ชาย)":    "th-TH-NiwatNeural",
     "หญิง (ไทย)":        "th-TH-PremwadeeNeural",
     "ชาย (ไทย)":         "th-TH-NiwatNeural",
-    "หญิง 2 (ไทย)":      "th-TH-AcharaNeural",
 }
 
 
@@ -71,22 +122,50 @@ class TTSService:
         voice = EDGE_STYLE_TO_VOICE.get(voice_style, "th-TH-PremwadeeNeural")
         logger.info(f"[TTS] Edge TTS voice={voice} chars={len(text)}")
 
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-            tmp_path = tmp.name
-
+        # boundary="WordBoundary" must be requested explicitly — the library defaults to
+        # SentenceBoundary. Confirmed by live testing that some voices (e.g. th-TH-AcharaNeural)
+        # reject WordBoundary mode outright (NoAudioReceived) even though the voice works fine
+        # otherwise — so this must retry without it rather than fail the whole request.
+        audio_chunks: list[bytes] = []
+        words: list[dict] = []
         try:
+            communicate = edge_tts.Communicate(text, voice, boundary="WordBoundary")
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    audio_chunks.append(chunk["data"])
+                elif chunk["type"] == "WordBoundary":
+                    # offset/duration are in 100-nanosecond units — convert to seconds
+                    start = chunk["offset"] / 1e7
+                    dur = chunk["duration"] / 1e7
+                    words.append({"text": chunk["text"], "start": round(start, 3), "end": round(start + dur, 3)})
+        except Exception as e:
+            logger.warning(f"[TTS] Edge TTS WordBoundary mode failed for voice={voice} ({e}) — retrying without it")
+            audio_chunks, words = [], []
             communicate = edge_tts.Communicate(text, voice)
-            await communicate.save(tmp_path)
-            with open(tmp_path, "rb") as f:
-                audio_bytes = f.read()
-        finally:
-            try:
-                os.unlink(tmp_path)
-            except Exception:
-                pass
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    audio_chunks.append(chunk["data"])
 
+        audio_bytes = b"".join(audio_chunks)
         if not audio_bytes:
             raise RuntimeError("Edge TTS returned empty audio")
+
+        if words:
+            captions = _group_words_into_captions(words)
+        else:
+            # Defensive fallback — some Edge TTS voices/inputs don't emit WordBoundary events
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+                tmp.write(audio_bytes)
+                tmp_path = tmp.name
+            try:
+                duration = await _probe_audio_duration(tmp_path)
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+            captions = _proportional_captions(text, duration)
+            logger.warning(f"[TTS] Edge TTS emitted no WordBoundary events — using proportional fallback ({len(captions)} chunks)")
 
         url = await storage_service.upload_bytes(
             data=audio_bytes,
@@ -95,14 +174,17 @@ class TTSService:
             bucket="assets",
             prefix=f"voiceovers/{job_id}",
         )
-        logger.info(f"[TTS] Edge TTS done size={len(audio_bytes)} url={url[:60]}")
-        return {"url": url, "characters_used": len(text), "voice_id": voice, "model_id": "edge-tts"}
+        logger.info(f"[TTS] Edge TTS done size={len(audio_bytes)} url={url[:60]} words={len(words)} captions={len(captions)}")
+        return {
+            "url": url, "characters_used": len(text), "voice_id": voice, "model_id": "edge-tts",
+            "captions": captions,
+        }
 
     async def _elevenlabs(self, text: str, job_id: str, voice_style: str) -> dict:
         voice_id = ELEVENLABS_VOICE_MAP.get(voice_style, "21m00Tcm4TlvDq8ikWAM")
         async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.post(
-                f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+                f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps",
                 headers={"xi-api-key": settings.ELEVENLABS_API_KEY, "Content-Type": "application/json"},
                 json={
                     "text": text,
@@ -112,7 +194,9 @@ class TTSService:
             )
             if not resp.is_success:
                 raise RuntimeError(f"ElevenLabs {resp.status_code}: {resp.text[:100]}")
-            audio_bytes = resp.content
+            payload = resp.json()
+            audio_bytes = base64.b64decode(payload["audio_base64"])
+            captions = self._captions_from_char_alignment(payload.get("alignment") or {})
 
         url = await storage_service.upload_bytes(
             data=audio_bytes,
@@ -121,7 +205,37 @@ class TTSService:
             bucket="assets",
             prefix=f"voiceovers/{job_id}",
         )
-        return {"url": url, "characters_used": len(text), "voice_id": voice_id, "model_id": "eleven_multilingual_v2"}
+        return {
+            "url": url, "characters_used": len(text), "voice_id": voice_id, "model_id": "eleven_multilingual_v2",
+            "captions": captions,
+        }
+
+    @staticmethod
+    def _captions_from_char_alignment(alignment: dict) -> list[dict]:
+        """ElevenLabs with-timestamps returns per-character start/end times — rebuild word
+        timings by splitting on whitespace, then group into caption chunks."""
+        chars = alignment.get("characters") or []
+        starts = alignment.get("character_start_times_seconds") or []
+        ends = alignment.get("character_end_times_seconds") or []
+        if not chars or len(chars) != len(starts):
+            return []
+
+        words: list[dict] = []
+        buf, w_start = "", None
+        for ch, s, e in zip(chars, starts, ends):
+            if ch.isspace():
+                if buf:
+                    words.append({"text": buf, "start": round(w_start, 3), "end": round(prev_end, 3)})
+                    buf, w_start = "", None
+                continue
+            if w_start is None:
+                w_start = s
+            buf += ch
+            prev_end = e
+        if buf:
+            words.append({"text": buf, "start": round(w_start, 3), "end": round(prev_end, 3)})
+
+        return _group_words_into_captions(words)
 
     async def _gtts(self, text: str, job_id: str, lang: str) -> dict:
         from gtts import gTTS
@@ -129,6 +243,20 @@ class TTSService:
         buf = io.BytesIO()
         tts.write_to_fp(buf)
         audio_bytes = buf.getvalue()
+
+        # gTTS has no native timestamp API — estimate caption timing proportionally
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
+        try:
+            duration = await _probe_audio_duration(tmp_path)
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+        captions = _proportional_captions(text, duration)
+
         url = await storage_service.upload_bytes(
             data=audio_bytes,
             filename=f"{job_id}_voiceover.mp3",
@@ -136,7 +264,10 @@ class TTSService:
             bucket="assets",
             prefix=f"voiceovers/{job_id}",
         )
-        return {"url": url, "characters_used": len(text), "voice_id": "gtts-th", "model_id": "google-tts"}
+        return {
+            "url": url, "characters_used": len(text), "voice_id": "gtts-th", "model_id": "google-tts",
+            "captions": captions,
+        }
 
 
 tts_service = TTSService()

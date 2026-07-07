@@ -24,6 +24,7 @@ async def save_audio(
         voice_style=body.get("voice_style"),
         characters_used=body.get("characters_used", 0),
         script_text=body.get("script_text"),
+        captions_json=body.get("captions"),
     )
     db.add(asset)
     await db.commit()
@@ -83,5 +84,6 @@ def _fmt(a: AudioAsset) -> dict:
         "voice_style": a.voice_style,
         "characters_used": a.characters_used,
         "script_text": a.script_text,
+        "captions": a.captions_json or [],
         "created_at": a.created_at.isoformat() if a.created_at else None,
     }
