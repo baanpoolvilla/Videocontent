@@ -12,6 +12,11 @@ const VOICE_STYLES = [
 const DURATIONS = [10, 15, 20, 30];
 const MAX_IMAGES = 5; // matches video_service.render_video's image_urls[:5] cap
 
+const STYLES = [
+  { id: "warm", label: "Ken Burns", sublabel: "สีสันสดใส เหมาะทั่วไป" },
+  { id: "editorial", label: "Editorial หรู", sublabel: "โทนมืดหรู + ป้ายชื่อสินค้า" },
+];
+
 type QuickAdResult = { video_url: string; script: string; voice_style: string; provider: string };
 type PickedImage = { file: File; preview: string };
 
@@ -20,6 +25,7 @@ export default function QuickAdPage() {
   const [description, setDescription] = useState("");
   const [voiceStyle, setVoiceStyle] = useState(VOICE_STYLES[0].id);
   const [durationSec, setDurationSec] = useState(15);
+  const [style, setStyle] = useState(STYLES[0].id);
 
   const [images, setImages] = useState<PickedImage[]>([]);
 
@@ -72,6 +78,7 @@ export default function QuickAdPage() {
         image_urls: imageUrls,
         voice_style: voiceStyle,
         duration_sec: durationSec,
+        style,
       });
       setResult(res.data);
     } catch (e: unknown) {
@@ -222,6 +229,31 @@ export default function QuickAdPage() {
                 outline: "none", boxSizing: "border-box",
               }}
             />
+          </div>
+
+          {/* Video style */}
+          <div style={{
+            background: "#111116", border: "1px solid rgba(255,255,255,.07)",
+            borderRadius: 14, padding: "18px 20px",
+          }}>
+            <p style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: ".06em" }}>
+              รูปแบบวิดีโอ
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
+              {STYLES.map((s) => {
+                const active = style === s.id;
+                return (
+                  <button key={s.id} onClick={() => setStyle(s.id)} style={{
+                    padding: "12px 14px", borderRadius: 10, cursor: "pointer", textAlign: "left",
+                    background: active ? "rgba(255,176,46,.1)" : "rgba(255,255,255,.03)",
+                    border: `1.5px solid ${active ? "#FFB02E" : "rgba(255,255,255,.08)"}`,
+                  }}>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: active ? "#FFB02E" : "#fff" }}>{s.label}</p>
+                    <p style={{ margin: "1px 0 0", fontSize: 10, color: "#6b7280" }}>{s.sublabel}</p>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Voice + duration */}

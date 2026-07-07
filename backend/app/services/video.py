@@ -27,33 +27,71 @@ _COLOR_GRADE = (
     "vignette=angle=PI/5:mode=forward"
 )
 
+# Darker, desaturated, higher-contrast grade for the "editorial" style (real-estate/luxury look)
+_MOODY_GRADE = (
+    "colorbalance=rs=-0.03:rm=-0.02:rh=0:gs=-0.02:gm=-0.01:gh=0:bs=0.02:bm=0.02:bh=0,"
+    "eq=saturation=0.80:contrast=1.28:brightness=-0.04,"
+    "vignette=PI/3.5"
+)
+
+_GRADES = {"warm": _COLOR_GRADE, "editorial": _MOODY_GRADE}
+
+# Merged Thai+Latin serif face for the "editorial" style headline — must be a plain .ttf/.otf,
+# not .woff2 (FFmpeg drawtext segfaults on woff2 with this build; subtitles/libass is fine with it)
+_SERIF_FONT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "fonts", "NotoSerifThai-Merged.ttf")
+
+
+def _escape_drawtext(text: str) -> str:
+    return (
+        text.replace("\\", "\\\\").replace("'", "’")
+        .replace(":", "\\:").replace("%", "\\%")
+    )
+
+
+def _editorial_headline_overlay(headline: str, subtitle: str) -> str:
+    """Bottom-left serif title card (headline + subtitle + thin accent line), fading in over 0.6s."""
+    alpha = "if(lt(t,0.6),(t/0.6),1)"
+    h = _escape_drawtext(headline)
+    parts = [f"drawbox=x=80:y=h-500:w=70:h=3:color=white@0.9:t=fill"]
+    parts.append(
+        f"drawtext=fontfile='{_SERIF_FONT}':text='{h}':fontsize=58:fontcolor=white:"
+        f"x=80:y=h-470:alpha='{alpha}'"
+    )
+    if subtitle.strip():
+        s = _escape_drawtext(subtitle)
+        parts.append(
+            f"drawtext=fontfile='{_SERIF_FONT}':text='{s}':fontsize=30:fontcolor=white@0.8:"
+            f"x=80:y=h-400:alpha='{alpha}'"
+        )
+    return ",".join(parts)
+
 # Scale+crop any image to PRE_W x PRE_H preserving aspect ratio, then Ken Burns
 _SCALE_CROP = (
     f"scale={PRE_W}:{PRE_H}:force_original_aspect_ratio=increase,"
     f"crop={PRE_W}:{PRE_H}:(iw-{PRE_W})/2:(ih-{PRE_H})/2"
 )
 
-def _kb_zoom_in(d: int) -> str:
+def _kb_zoom_in(d: int, grade: str = "warm") -> str:
     """Zoom in: wide → close-up"""
     return (
         f"{_SCALE_CROP},"
         f"zoompan=z='min(1+0.3*on/{d},1.3)':"
         f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
         f"d={d}:s={OUT_W}x{OUT_H}:fps=25,"
-        f"{_COLOR_GRADE}"
+        f"{_GRADES.get(grade, _COLOR_GRADE)}"
     )
 
-def _kb_zoom_out(d: int) -> str:
+def _kb_zoom_out(d: int, grade: str = "warm") -> str:
     """Zoom out: close-up → wide"""
     return (
         f"{_SCALE_CROP},"
         f"zoompan=z='max(1.3-0.3*on/{d},1.0)':"
         f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
         f"d={d}:s={OUT_W}x{OUT_H}:fps=25,"
-        f"{_COLOR_GRADE}"
+        f"{_GRADES.get(grade, _COLOR_GRADE)}"
     )
 
-def _kb_pan_left(d: int) -> str:
+def _kb_pan_left(d: int, grade: str = "warm") -> str:
     """Pan: left edge → right edge at fixed zoom 1.2"""
     z = 1.2
     max_x = int(PRE_W - PRE_W / z)
@@ -63,10 +101,10 @@ def _kb_pan_left(d: int) -> str:
         f"x='min(on*{max_x}/{d},{max_x})':"
         f"y='ih/2-(ih/{z}/2)':"
         f"d={d}:s={OUT_W}x{OUT_H}:fps=25,"
-        f"{_COLOR_GRADE}"
+        f"{_GRADES.get(grade, _COLOR_GRADE)}"
     )
 
-def _kb_pan_right(d: int) -> str:
+def _kb_pan_right(d: int, grade: str = "warm") -> str:
     """Pan: right edge → left edge at fixed zoom 1.2"""
     z = 1.2
     max_x = int(PRE_W - PRE_W / z)
@@ -76,7 +114,7 @@ def _kb_pan_right(d: int) -> str:
         f"x='max({max_x}-on*{max_x}/{d},0)':"
         f"y='ih/2-(ih/{z}/2)':"
         f"d={d}:s={OUT_W}x{OUT_H}:fps=25,"
-        f"{_COLOR_GRADE}"
+        f"{_GRADES.get(grade, _COLOR_GRADE)}"
     )
 
 
@@ -244,6 +282,9 @@ class VideoService:
         image_urls: list[str],
         duration_sec: int = 30,
         captions: list[dict] | None = None,
+        style: str = "warm",
+        headline: str = "",
+        subtitle: str = "",
     ) -> dict:
         with tempfile.TemporaryDirectory() as tmpdir:
             audio_path = None
@@ -257,7 +298,9 @@ class VideoService:
                     img_path = os.path.join(tmpdir, f"img_{i}.jpg")
                     await self._download_file(img_url, img_path)
                     image_paths.append(img_path)
-                video_path = await self._images_to_video(image_paths, audio_path, tmpdir, duration_sec, captions)
+                video_path = await self._images_to_video(
+                    image_paths, audio_path, tmpdir, duration_sec, captions, style, headline, subtitle,
+                )
             else:
                 video_path = await self._text_to_video(audio_path, tmpdir, duration_sec)
 
@@ -434,7 +477,7 @@ class VideoService:
 
     async def _images_to_video(
         self, image_paths: list[str], audio_path: str | None, tmpdir: str, duration_sec: int,
-        captions: list[dict] | None = None,
+        captions: list[dict] | None = None, style: str = "warm", headline: str = "", subtitle: str = "",
     ) -> str:
         output_path = os.path.join(tmpdir, "output.mp4")
         n = len(image_paths)
@@ -448,7 +491,7 @@ class VideoService:
         clip_paths = []
         for i, img_path in enumerate(image_paths):
             clip_path = os.path.join(tmpdir, f"clip_{i}.mp4")
-            vf = kb_builders[i % len(kb_builders)](d)
+            vf = kb_builders[i % len(kb_builders)](d, style)
             await self._run_ffmpeg([
                 "ffmpeg", "-y",
                 "-loop", "1", "-i", img_path,
@@ -483,14 +526,16 @@ class VideoService:
             logger.warning(f"[VIDEO] kb fade-ends failed — skipping: {e}")
 
         ass_path = build_ass_file(captions, os.path.join(tmpdir, "captions.ass")) if captions else None
+        overlay_vf = _editorial_headline_overlay(headline, subtitle) if (style == "editorial" and headline.strip()) else ""
+        vf = ",".join(p for p in [overlay_vf, subtitles_filter(ass_path) if ass_path else ""] if p)
 
         if audio_path and os.path.exists(audio_path):
-            if ass_path:
+            if vf:
                 await self._run_ffmpeg([
                     "ffmpeg", "-y",
                     "-i", merged, "-i", audio_path,
                     "-map", "0:v:0", "-map", "1:a:0",
-                    "-vf", subtitles_filter(ass_path),
+                    "-vf", vf,
                     "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
                     "-c:a", "aac", "-t", str(duration_sec),
                     "-movflags", "+faststart",
@@ -506,6 +551,14 @@ class VideoService:
                     "-movflags", "+faststart",
                     output_path,
                 ])
+        elif vf:
+            await self._run_ffmpeg([
+                "ffmpeg", "-y", "-i", merged,
+                "-vf", vf,
+                "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
+                "-an", "-movflags", "+faststart",
+                output_path,
+            ])
         else:
             await self._run_ffmpeg([
                 "ffmpeg", "-y", "-i", merged,

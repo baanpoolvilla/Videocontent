@@ -35,6 +35,7 @@ class QuickAdRequest(BaseModel):
     image_urls: list[str] = []
     voice_style: str = "หญิง (ไทย)"
     duration_sec: int = 20
+    style: str = "warm"  # "warm" (Ken Burns, no title card) or "editorial" (moody grade + serif title card)
 
 
 class QuickAdResponse(BaseModel):
@@ -80,6 +81,7 @@ async def generate_quick_ad(
         product_name, analysis_result["analysis"], duration_sec=req.duration_sec,
     )
     full_script = script_result["script"]["full_script"]
+    hook = script_result["script"]["hook"]
 
     voice_result = await tts_service.generate_voiceover(
         text=full_script, job_id=job_id, voice_style=req.voice_style,
@@ -91,6 +93,9 @@ async def generate_quick_ad(
         image_urls=image_urls,
         duration_sec=req.duration_sec,
         captions=voice_result.get("captions", []),
+        style=req.style,
+        headline=product_name,
+        subtitle=hook,
     )
 
     logger.info(f"[QUICK-AD] job={job_id} done → {render_result['url'][:80]}")
