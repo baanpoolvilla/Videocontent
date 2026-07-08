@@ -15,6 +15,7 @@ const MAX_IMAGES = 10; // matches video_service.render_video's image_urls[:10] c
 const STYLES = [
   { id: "warm", label: "Ken Burns", sublabel: "สีสันสดใส เหมาะทั่วไป" },
   { id: "editorial", label: "Editorial หรู", sublabel: "โทนมืดหรู + ป้ายชื่อสินค้า" },
+  { id: "prime", label: "Prime Location", sublabel: "โทนสว่างอบอุ่น + ชื่อสินค้าเคลื่อนไหวลื่นไหล" },
 ];
 
 type QuickAdResult = { video_url: string; script: string; voice_style: string; provider: string };
@@ -352,7 +353,7 @@ export default function QuickAdPage() {
             <p style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: ".06em" }}>
               รูปแบบวิดีโอ
             </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
               {STYLES.map((s) => {
                 const active = style === s.id;
                 return (

@@ -35,11 +35,26 @@ _MOODY_GRADE = (
     "vignette=PI/3.5"
 )
 
-_GRADES = {"warm": _COLOR_GRADE, "editorial": _MOODY_GRADE}
+# Bright, warm, airy grade for the "prime" style — sunlit real-estate look (competitor's
+# "Prime Location" template), the opposite direction from the dark/moody editorial grade.
+_PRIME_GRADE = (
+    "colorbalance=rs=0.06:rm=0.05:rh=0.03:gs=0.02:gm=0.02:gh=0.01:bs=-0.05:bm=-0.04:bh=-0.02,"
+    "eq=saturation=1.08:contrast=1.05:brightness=0.06,"
+    "vignette=PI/6"
+)
+
+_GRADES = {"warm": _COLOR_GRADE, "editorial": _MOODY_GRADE, "prime": _PRIME_GRADE}
 
 # Merged Thai+Latin serif face for the "editorial" style headline — must be a plain .ttf/.otf,
 # not .woff2 (FFmpeg drawtext segfaults on woff2 with this build; subtitles/libass is fine with it)
 _SERIF_FONT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "fonts", "NotoSerifThai-Merged.ttf")
+
+# HyperFrames (github.com/heygen-com/hyperframes) — renders the "prime" style's title card
+# via headless Chrome + GSAP for real spring/ease animation, instead of the linear-fade
+# drawtext used by the other styles. Pinned as a local dependency in the Docker image (see
+# Dockerfile) rather than invoked via npx, so renders don't hit the npm registry.
+_HYPERFRAMES_BIN = "/opt/hyperframes-runtime/node_modules/.bin/hyperframes"
+_PRIME_COMPOSITION_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "hyperframes", "prime_location")
 
 
 def _escape_drawtext(text: str) -> str:
@@ -427,6 +442,68 @@ class VideoService:
         )
         return {"url": url, "size_bytes": len(video_bytes)}
 
+    async def _bake_title_card(self, video_path: str, style: str, headline: str, subtitle: str, tmpdir: str) -> str:
+        """Burn the title card into the clip. "prime" tries the HyperFrames-rendered animated
+        card first (real spring/ease motion via headless Chrome) and falls back to the plain
+        drawtext overlay used by "editorial" if that render isn't available or fails."""
+        out_path = os.path.join(tmpdir, "with_title.mp4")
+
+        title_path = None
+        if style == "prime":
+            title_path = await self._render_prime_title_mov(headline, subtitle, tmpdir)
+
+        if title_path:
+            await self._run_ffmpeg([
+                "ffmpeg", "-y", "-i", video_path, "-i", title_path,
+                "-filter_complex",
+                "[1:v]format=yuva420p[title];[0:v][title]overlay=0:0:format=auto[outv]",
+                "-map", "[outv]",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
+                "-an", out_path,
+            ])
+        else:
+            await self._run_ffmpeg([
+                "ffmpeg", "-y", "-i", video_path,
+                "-vf", _editorial_headline_overlay(headline, subtitle),
+                "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
+                "-an", out_path,
+            ])
+        return out_path
+
+    async def _render_prime_title_mov(self, headline: str, subtitle: str, tmpdir: str) -> str | None:
+        """Render the animated title card via HyperFrames (headless Chrome + GSAP) to a
+        transparent MOV (ProRes 4444), for compositing on top of the Ken Burns clip. Returns
+        None on any failure — callers must fall back to the plain drawtext overlay, since this
+        path is new and hasn't been exercised on the production container yet.
+
+        Uses --format mov (ProRes 4444) rather than webm: confirmed by direct testing that this
+        FFmpeg build round-trips ProRes 4444 alpha correctly but silently drops VP9-in-WebM
+        alpha (decodes as fully opaque, which would have painted an opaque black box over the
+        photo instead of the intended transparent title overlay)."""
+        if not os.path.exists(_HYPERFRAMES_BIN):
+            logger.warning("[VIDEO] hyperframes binary not found — falling back to drawtext title")
+            return None
+        out_path = os.path.join(tmpdir, "prime_title.mov")
+        variables = json.dumps({"headline": headline, "subtitle": subtitle})
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                _HYPERFRAMES_BIN, "render", _PRIME_COMPOSITION_DIR,
+                "--format", "mov", "-o", out_path,
+                "--variables", variables, "--quiet",
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=90)
+            if proc.returncode != 0 or not os.path.exists(out_path):
+                logger.warning(f"[VIDEO] hyperframes render failed (code={proc.returncode}): {stderr.decode()[-500:]}")
+                return None
+            return out_path
+        except asyncio.TimeoutError:
+            logger.warning("[VIDEO] hyperframes render timed out — falling back to drawtext title")
+            return None
+        except Exception as e:
+            logger.warning(f"[VIDEO] hyperframes render errored ({e}) — falling back to drawtext title")
+            return None
+
     async def _get_duration(self, video_path: str) -> float:
         """Get video duration in seconds using ffprobe."""
         proc = await asyncio.create_subprocess_exec(
@@ -660,9 +737,11 @@ class VideoService:
         except Exception as e:
             logger.warning(f"[VIDEO] kb fade-ends failed — skipping: {e}")
 
+        if headline.strip() and style in ("editorial", "prime"):
+            merged = await self._bake_title_card(merged, style, headline, subtitle, tmpdir)
+
         ass_path = build_ass_file(captions, os.path.join(tmpdir, "captions.ass")) if captions else None
-        overlay_vf = _editorial_headline_overlay(headline, subtitle) if (style == "editorial" and headline.strip()) else ""
-        vf = ",".join(p for p in [overlay_vf, subtitles_filter(ass_path) if ass_path else ""] if p)
+        vf = subtitles_filter(ass_path) if ass_path else ""
 
         if audio_path and os.path.exists(audio_path):
             if vf:

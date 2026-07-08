@@ -60,7 +60,8 @@ class QuickAdRequest(BaseModel):
     image_urls: list[str] = []
     voice_style: str = "หญิง (ไทย)"
     duration_sec: int = 20
-    style: str = "warm"  # "warm" (Ken Burns, no title card) or "editorial" (moody grade + serif title card)
+    style: str = "warm"  # "warm" (Ken Burns, no title card), "editorial" (moody grade + serif title card),
+                          # or "prime" (bright/warm sunlit grade + HyperFrames-animated title card)
     burn_captions: bool = True
     use_pauses: bool = True  # insert short silence gaps between script beats instead of one unbroken read
     logo_url: str = ""  # optional — appended as a short outro card at the end of the clip
