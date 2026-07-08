@@ -4,6 +4,7 @@ import logging
 import os
 import tempfile
 import httpx
+from PIL import Image
 from app.services.captions import build_ass_file, subtitles_filter
 from app.services.storage import storage_service
 
@@ -313,7 +314,10 @@ class VideoService:
                 for i, img_url in enumerate(image_urls[:10]):
                     ext = os.path.splitext(img_url.split("?")[0])[1].lower() or ".jpg"
                     img_path = os.path.join(tmpdir, f"img_{i}{ext}")
-                    await self._download_file(img_url, img_path)
+                    if _is_video_file(img_path):
+                        await self._download_file(img_url, img_path)
+                    else:
+                        await self._download_image_verified(img_url, img_path)
                     image_paths.append(img_path)
                 video_path = await self._images_to_video(
                     image_paths, audio_path, tmpdir, duration_sec, captions, style, headline, subtitle,
@@ -491,6 +495,28 @@ class VideoService:
                 resp.raise_for_status()
                 with open(dest, "wb") as f:
                     f.write(resp.content)
+
+    async def _download_image_verified(self, url: str, dest: str, attempts: int = 2) -> None:
+        """Download an image and verify it decodes cleanly before handing it to FFmpeg.
+        FFmpeg's MJPEG decoder is lenient — a truncated/corrupted source file (a partial
+        download, a mislabeled non-JPEG upload) still exits 0 and silently fills the missing
+        region with decoder garbage (confirmed by reproducing it: solid-color/static blocks
+        baked into every frame of the output). PIL raises on the same file, so re-encoding
+        through it here also normalizes format/EXIF-rotation/color-mode quirks that could
+        otherwise confuse FFmpeg's image2 demuxer."""
+        last_error: Exception | None = None
+        for attempt in range(attempts):
+            await self._download_file(url, dest)
+            try:
+                img = Image.open(dest)
+                img.load()
+                img = img.convert("RGB")
+                img.save(dest, "JPEG", quality=95)
+                return
+            except Exception as e:
+                last_error = e
+                logger.warning(f"[VIDEO] image failed to decode cleanly (attempt {attempt + 1}/{attempts}): {e}")
+        raise RuntimeError(f"Downloaded image is corrupted after {attempts} attempts: {url[:80]} ({last_error})")
 
     async def _images_to_video(
         self, image_paths: list[str], audio_path: str | None, tmpdir: str, duration_sec: int,
