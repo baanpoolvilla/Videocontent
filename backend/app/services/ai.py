@@ -4,10 +4,19 @@ import re
 import logging
 import httpx
 import google.generativeai as genai
+import openai
 from PIL import Image
+from pydantic import BaseModel
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+class _ScriptSchema(BaseModel):
+    hook: str
+    body: str
+    cta: str
+    full_script: str
 
 
 def _clean_spoken_text(text: str) -> str:
@@ -115,6 +124,7 @@ class AIService:
         genai.configure(api_key=settings.GEMINI_API_KEY)
         self.model = genai.GenerativeModel("gemini-2.5-flash")
         self.model_name = "gemini-2.5-flash"
+        self.openai_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
 
     async def _generate(self, prompt: str, system: str = "", temperature: float = 0.7) -> str:
         import asyncio
@@ -394,87 +404,110 @@ CTA: {cta_style or "กระตุ้นการซื้อ"}
 ความยาว: {duration_sec} วินาที
 
 IMPORTANT: สร้าง Script ที่แตกต่างจากเวอร์ชันอื่นอย่างชัดเจน ตาม "โทนเสียงและสไตล์" ที่กำหนด
-สร้าง Script ในรูปแบบ JSON เท่านั้น ไม่ต้องมีข้อความอื่น:
-{{
-  "hook": "ประโยคเปิดที่ดึงดูดใน 3 วินาที",
-  "body": "เนื้อหาหลัก 15-20 วินาที",
-  "cta": "Call to Action 5-7 วินาที",
-  "full_script": "Script ฉบับเต็มที่พูดได้เลย"
-}}"""
+ตอบเป็นเนื้อความล้วนสำหรับแต่ละช่อง ห้ามใส่ markdown (เช่น **ตัวหนา**), หัวข้อกำกับ (เช่น "Hook:"),
+หรือคำกำกับฉาก/ภาพ/เสียงในวงเล็บ (เช่น "(ภาพ: ...)") ปนอยู่ในเนื้อความ — ทุกช่องต้องเป็นคำพูดล้วนๆ
+ที่อ่านออกเสียงได้ทันทีเท่านั้น
+hook: ประโยคเปิดที่ดึงดูดใน 3 วินาที
+body: เนื้อหาหลัก 15-20 วินาที
+cta: Call to Action 5-7 วินาที
+full_script: Script ฉบับเต็มที่พูดได้เลย"""
 
-        content = await self._generate(prompt, temperature=0.95)
-        start = content.find("{")
-        end = content.rfind("}") + 1
-        raw = content[start:end] if start != -1 and end > start else content
+        import asyncio
+        loop = asyncio.get_event_loop()
+        model_used = "gpt-4o-mini"
         try:
-            result = json.loads(raw)
-        except (json.JSONDecodeError, ValueError):
+            # Primary: OpenAI structured outputs — the response_format schema is enforced by
+            # the API itself, so this can't drift into markdown/scene-breakdown/wrong-shape
+            # responses the way asking Gemini nicely in the prompt text could (and did).
+            completion = await loop.run_in_executor(
+                None,
+                lambda: self.openai_client.beta.chat.completions.parse(
+                    model=model_used,
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format=_ScriptSchema,
+                    temperature=0.95,
+                ),
+            )
+            parsed = completion.choices[0].message.parsed
+            if parsed is None:
+                raise RuntimeError("OpenAI refused/could not parse a structured response")
+            result = parsed.model_dump()
+        except Exception as e:
+            logger.warning(f"[AI] OpenAI generate_script failed ({e}) — falling back to Gemini")
+            model_used = self.model_name
+            content = await self._generate(prompt, temperature=0.95)
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            raw = content[start:end] if start != -1 and end > start else content
             try:
-                # Gemini sometimes ignores the requested schema and returns a Python-repr-style
-                # dict (single-quoted) instead of strict JSON — ast handles that syntax fine.
-                import ast
-                result = ast.literal_eval(raw)
-                if not isinstance(result, dict):
+                result = json.loads(raw)
+            except (json.JSONDecodeError, ValueError):
+                try:
+                    # Gemini sometimes ignores the requested schema and returns a Python-repr-style
+                    # dict (single-quoted) instead of strict JSON — ast handles that syntax fine.
+                    import ast
+                    result = ast.literal_eval(raw)
+                    if not isinstance(result, dict):
+                        result = {"full_script": content}
+                except Exception:
                     result = {"full_script": content}
-            except Exception:
-                result = {"full_script": content}
 
-        # Gemini sometimes returns hook/body/cta as dicts ({"visual":...,"voice_over":...})
-        # instead of plain strings — flatten them to avoid DB type errors
-        def _to_str(val) -> str:
-            if isinstance(val, str):
-                return val
-            if isinstance(val, dict):
-                return val.get("voice_over") or val.get("visual") or val.get("text") or str(val)
-            if isinstance(val, list):
-                parts = []
-                for item in val:
-                    if isinstance(item, dict):
-                        parts.append(item.get("voice_over") or item.get("visual") or "")
-                    elif isinstance(item, str):
-                        parts.append(item)
-                return " ".join(p for p in parts if p)
-            return str(val) if val is not None else ""
+            # Gemini sometimes returns hook/body/cta as dicts ({"visual":...,"voice_over":...})
+            # instead of plain strings — flatten them to avoid DB type errors
+            def _to_str(val) -> str:
+                if isinstance(val, str):
+                    return val
+                if isinstance(val, dict):
+                    return val.get("voice_over") or val.get("visual") or val.get("text") or str(val)
+                if isinstance(val, list):
+                    parts = []
+                    for item in val:
+                        if isinstance(item, dict):
+                            parts.append(item.get("voice_over") or item.get("visual") or "")
+                        elif isinstance(item, str):
+                            parts.append(item)
+                    return " ".join(p for p in parts if p)
+                return str(val) if val is not None else ""
 
-        result["hook"]        = _to_str(result.get("hook", ""))
-        result["body"]        = _to_str(result.get("body", ""))
-        result["cta"]         = _to_str(result.get("cta", ""))
-        result["full_script"] = _to_str(result.get("full_script", ""))
+            result["hook"]        = _to_str(result.get("hook", ""))
+            result["body"]        = _to_str(result.get("body", ""))
+            result["cta"]         = _to_str(result.get("cta", ""))
+            result["full_script"] = _to_str(result.get("full_script", ""))
 
-        # Gemini sometimes ignores the requested schema entirely and returns its own scene-by-scene
-        # breakdown ({"scene_1": {"voiceover": "...", ...}, "scene_2": {...}}) instead of
-        # hook/body/cta — stitch the spoken lines back together from that shape too.
-        if not result["full_script"].strip():
-            scene_keys = sorted(
-                (k for k in result if re.match(r"^scene[_ ]?\d+$", str(k), re.IGNORECASE)),
-                key=lambda k: int(re.search(r"\d+", str(k)).group()),
-            )
-            scene_lines = []
-            for k in scene_keys:
-                scene = result[k]
-                if isinstance(scene, dict):
-                    vo = scene.get("voiceover") or scene.get("voice_over") or scene.get("text") or ""
-                    if vo:
-                        scene_lines.append(_to_str(vo))
-            if scene_lines:
-                result["full_script"] = " ".join(scene_lines)
-                if not result["hook"]:
-                    result["hook"] = scene_lines[0]
+            # Gemini sometimes ignores the requested schema entirely and returns its own
+            # scene-by-scene breakdown ({"scene_1": {"voiceover": "...", ...}, ...}) instead of
+            # hook/body/cta — stitch the spoken lines back together from that shape too.
+            if not result["full_script"].strip():
+                scene_keys = sorted(
+                    (k for k in result if re.match(r"^scene[_ ]?\d+$", str(k), re.IGNORECASE)),
+                    key=lambda k: int(re.search(r"\d+", str(k)).group()),
+                )
+                scene_lines = []
+                for k in scene_keys:
+                    scene = result[k]
+                    if isinstance(scene, dict):
+                        vo = scene.get("voiceover") or scene.get("voice_over") or scene.get("text") or ""
+                        if vo:
+                            scene_lines.append(_to_str(vo))
+                if scene_lines:
+                    result["full_script"] = " ".join(scene_lines)
+                    if not result["hook"]:
+                        result["hook"] = scene_lines[0]
 
-        # Build full_script from parts if still empty
-        if not result["full_script"].strip():
-            result["full_script"] = "\n".join(
-                p for p in [result["hook"], result["body"], result["cta"]] if p
-            )
+            # Build full_script from parts if still empty
+            if not result["full_script"].strip():
+                result["full_script"] = "\n".join(
+                    p for p in [result["hook"], result["body"], result["cta"]] if p
+                )
 
-        # Strip markdown/stage-direction labels Gemini sometimes embeds in the text itself —
+        # Strip markdown/stage-direction labels either model can still embed in the text itself —
         # this is what actually gets read aloud by TTS, so it must be pure spoken content.
-        result["hook"]        = _clean_spoken_text(result["hook"])
-        result["body"]        = _clean_spoken_text(result["body"])
-        result["cta"]         = _clean_spoken_text(result["cta"])
-        result["full_script"] = _clean_spoken_text(result["full_script"])
+        result["hook"]        = _clean_spoken_text(result.get("hook", ""))
+        result["body"]        = _clean_spoken_text(result.get("body", ""))
+        result["cta"]         = _clean_spoken_text(result.get("cta", ""))
+        result["full_script"] = _clean_spoken_text(result.get("full_script", ""))
 
-        return {"script": result, "tokens_used": 0, "model_used": self.model_name}
+        return {"script": result, "tokens_used": 0, "model_used": model_used}
 
     async def suggest_video_prompt(
         self,
