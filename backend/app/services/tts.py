@@ -2,6 +2,7 @@ import asyncio
 import base64
 import io
 import logging
+import random
 import tempfile
 import os
 import httpx
@@ -123,10 +124,13 @@ class TTSService:
         job_id: str,
         voice_style: str = "หญิง (ไทย)",
         lang: str = "th",
-        pause_sec: float = 0.9,
+        pause_range: tuple[float, float] = (0.6, 1.1),
+        cta_pause_range: tuple[float, float] = (1.2, 1.6),
     ) -> dict:
         """Generate voiceover with real silence gaps between beats — natural breathing room
-        instead of one unbroken block of narration for the whole clip."""
+        instead of one unbroken block of narration for the whole clip. Gap length is randomized
+        per-gap (not a fixed duration every time, which reads as mechanical), and the gap right
+        before the final beat (the CTA) is longer, like a real narrator pausing before the ask."""
         beats = [b.strip() for b in beats if b and b.strip()]
         if len(beats) <= 1:
             text = beats[0] if beats else ""
@@ -137,6 +141,12 @@ class TTSService:
             for i, b in enumerate(beats)
         ]
 
+        num_gaps = len(beat_results) - 1
+        gap_durations = [
+            round(random.uniform(*(cta_pause_range if i == num_gaps - 1 else pause_range)), 2)
+            for i in range(num_gaps)
+        ]
+
         with tempfile.TemporaryDirectory() as tmpdir:
             audio_paths = []
             for i, r in enumerate(beat_results):
@@ -145,20 +155,23 @@ class TTSService:
                     f.write(storage_service.download_bytes(r["url"]))
                 audio_paths.append(path)
 
-            silence_path = os.path.join(tmpdir, "silence.mp3")
-            proc = await asyncio.create_subprocess_exec(
-                "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono",
-                "-t", str(pause_sec), "-q:a", "9", silence_path,
-                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
-            )
-            await proc.communicate()
+            gap_paths = []
+            for i, dur in enumerate(gap_durations):
+                gap_path = os.path.join(tmpdir, f"gap_{i}.mp3")
+                proc = await asyncio.create_subprocess_exec(
+                    "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono",
+                    "-t", str(dur), "-q:a", "9", gap_path,
+                    stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+                )
+                await proc.communicate()
+                gap_paths.append(gap_path)
 
             concat_list_path = os.path.join(tmpdir, "concat.txt")
             with open(concat_list_path, "w", encoding="utf-8") as f:
                 for i, path in enumerate(audio_paths):
                     f.write(f"file '{path}'\n")
                     if i < len(audio_paths) - 1:
-                        f.write(f"file '{silence_path}'\n")
+                        f.write(f"file '{gap_paths[i]}'\n")
 
             final_path = os.path.join(tmpdir, "final.mp3")
             proc = await asyncio.create_subprocess_exec(
@@ -182,7 +195,7 @@ class TTSService:
                         "start": round(c["start"] + offset, 3),
                         "end": round(c["end"] + offset, 3),
                     })
-                offset += dur + (pause_sec if i < len(beat_results) - 1 else 0)
+                offset += dur + (gap_durations[i] if i < num_gaps else 0)
 
             with open(final_path, "rb") as f:
                 final_bytes = f.read()
@@ -191,7 +204,7 @@ class TTSService:
             data=final_bytes, filename=f"{job_id}_voiceover.mp3",
             content_type="audio/mpeg", bucket="assets", prefix=f"voiceovers/{job_id}",
         )
-        logger.info(f"[TTS] beats done: {len(beats)} beats, {pause_sec}s gaps, total_captions={len(all_captions)}")
+        logger.info(f"[TTS] beats done: {len(beats)} beats, gaps={gap_durations}, total_captions={len(all_captions)}")
         return {
             "url": url,
             "characters_used": sum(len(b) for b in beats),
