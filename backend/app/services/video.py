@@ -510,14 +510,21 @@ class VideoService:
             clip_path = os.path.join(tmpdir, f"clip_{i}.mp4")
             if _is_video_file(img_path):
                 # Already-moving footage — cover-crop + grade only, no Ken Burns zoompan.
-                # -stream_loop -1 covers clips shorter than their allotted slot.
-                # -r 25 + -vsync cfr forces a constant frame rate — real phone/screen-recorded
-                # footage is often variable-frame-rate, which combined with -stream_loop can
-                # produce non-monotonic timestamps that make libx264 reject the stream outright.
+                # -stream_loop splices the raw (undecoded) stream end-to-end, which can corrupt
+                # frames that reference across the splice point on real-world footage (caused the
+                # heavy noise/static artifacts seen in testing). Looping via the "loop" filter
+                # instead operates on already-decoded frames, so there's no bitstream to corrupt —
+                # only loop at all if the clip is actually shorter than its allotted slot.
+                src_dur = await self._get_duration(img_path)
+                base_vf = _video_segment_filter(style)
+                if src_dur < per_image:
+                    frame_count = max(1, int(src_dur * 25))
+                    vf = f"loop=loop=-1:size={frame_count}:start=0,{base_vf}"
+                else:
+                    vf = base_vf
                 await self._run_ffmpeg([
-                    "ffmpeg", "-y",
-                    "-stream_loop", "-1", "-i", img_path,
-                    "-vf", _video_segment_filter(style),
+                    "ffmpeg", "-y", "-i", img_path,
+                    "-vf", vf,
                     "-r", "25", "-vsync", "cfr",
                     "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
                     "-t", str(per_image), "-an",
