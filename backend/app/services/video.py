@@ -236,10 +236,10 @@ class VideoService:
                 base = os.path.join(tmpdir, "with_logo.mp4")
                 await self._run_ffmpeg([
                     "ffmpeg", "-y",
-                    "-i", merged, "-i", logo_path,
+                    "-i", merged, "-loop", "1", "-i", logo_path,
                     "-filter_complex",
                     "[1:v]scale=iw*0.15:-1,format=rgba,colorchannelmixer=aa=0.85[logo];"
-                    "[0:v][logo]overlay=W-w-30:H-h-30[v]",
+                    "[0:v][logo]overlay=W-w-30:H-h-30:shortest=1[v]",
                     "-map", "[v]", "-map", "0:a?",
                     "-c:v", "libx264", "-preset", "medium", "-crf", "17",
                     "-c:a", "copy", "-movflags", "+faststart",
@@ -302,6 +302,7 @@ class VideoService:
         style: str = "warm",
         headline: str = "",
         subtitle: str = "",
+        logo_url: str = "",
     ) -> dict:
         with tempfile.TemporaryDirectory() as tmpdir:
             audio_path = None
@@ -324,6 +325,9 @@ class VideoService:
                 )
             else:
                 video_path = await self._text_to_video(audio_path, tmpdir, duration_sec)
+
+            if logo_url.strip():
+                video_path = await self._append_logo_outro(video_path, logo_url.strip(), tmpdir)
 
             with open(video_path, "rb") as f:
                 video_bytes = f.read()
@@ -441,6 +445,71 @@ class VideoService:
         except Exception:
             pass
         return 5.0
+
+    async def _has_audio_stream(self, video_path: str) -> bool:
+        proc = await asyncio.create_subprocess_exec(
+            "ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", video_path,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await proc.communicate()
+        try:
+            data = json.loads(stdout)
+            return any(s.get("codec_type") == "audio" for s in data.get("streams", []))
+        except Exception:
+            return False
+
+    async def _append_logo_outro(self, video_path: str, logo_url: str, tmpdir: str) -> str:
+        """Append a short outro card (logo centered on black, fading in) to the end of the
+        rendered clip — a promo-style sign-off rather than a persistent corner watermark."""
+        logo_path = os.path.join(tmpdir, "outro_logo.png")
+        try:
+            await self._download_file(logo_url, logo_path)
+        except Exception as e:
+            logger.warning(f"[VIDEO] logo download failed — skipping outro: {e}")
+            return video_path
+
+        has_audio = await self._has_audio_stream(video_path)
+        outro_dur = 2.2
+        outro_path = os.path.join(tmpdir, "outro.mp4")
+        outro_inputs = [
+            "-f", "lavfi", "-i", f"color=c=black:size={OUT_W}x{OUT_H}:rate=25:duration={outro_dur}",
+            "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo",
+            "-loop", "1", "-i", logo_path,
+        ]
+        outro_filter = (
+            "[2:v]scale=iw*0.42:-1,format=rgba,fade=t=in:st=0:d=0.4:alpha=1[logo];"
+            "[0:v][logo]overlay=(W-w)/2:(H-h)/2:format=auto[outv]"
+        )
+        await self._run_ffmpeg([
+            "ffmpeg", "-y", *outro_inputs,
+            "-filter_complex", outro_filter,
+            "-map", "[outv]", "-map", "1:a",
+            "-t", str(outro_dur),
+            "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            outro_path,
+        ])
+
+        joined_path = os.path.join(tmpdir, "with_outro.mp4")
+        if has_audio:
+            await self._run_ffmpeg([
+                "ffmpeg", "-y", "-i", video_path, "-i", outro_path,
+                "-filter_complex", "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]",
+                "-map", "[v]", "-map", "[a]",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
+                "-c:a", "aac", "-movflags", "+faststart",
+                joined_path,
+            ])
+        else:
+            await self._run_ffmpeg([
+                "ffmpeg", "-y", "-i", video_path, "-i", outro_path,
+                "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[v]",
+                "-map", "[v]",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
+                "-an", "-movflags", "+faststart",
+                joined_path,
+            ])
+        return joined_path
 
     async def _xfade_clips(
         self,

@@ -29,6 +29,7 @@ export default function QuickAdPage() {
   const [burnCaptions, setBurnCaptions] = useState(true);
 
   const [images, setImages] = useState<PickedImage[]>([]);
+  const [logo, setLogo] = useState<{ file: File; preview: string } | null>(null);
 
   const [step, setStep] = useState<"" | "uploading" | "generating">("");
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
@@ -36,6 +37,7 @@ export default function QuickAdPage() {
   const [result, setResult] = useState<QuickAdResult | null>(null);
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const loading = step !== "";
 
@@ -57,13 +59,24 @@ export default function QuickAdPage() {
     });
   }
 
+  function pickLogo(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    setLogo({ file, preview: URL.createObjectURL(file) });
+  }
+
+  function removeLogo() {
+    if (logo) URL.revokeObjectURL(logo.preview);
+    setLogo(null);
+  }
+
   async function generate() {
     if (images.length === 0 || !productName.trim()) return;
     setError("");
     setResult(null);
     try {
       setStep("uploading");
-      setUploadProgress({ done: 0, total: images.length });
+      setUploadProgress({ done: 0, total: images.length + (logo ? 1 : 0) });
       const imageUrls: string[] = [];
       for (const img of images) {
         const fd = new FormData();
@@ -76,6 +89,18 @@ export default function QuickAdPage() {
         setUploadProgress((p) => ({ ...p, done: p.done + 1 }));
       }
 
+      let logoUrl = "";
+      if (logo) {
+        const fd = new FormData();
+        fd.append("file", logo.file);
+        fd.append("asset_type", "logo");
+        const upRes = await api.post("/assets/upload", fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        logoUrl = fileUrl(upRes.data.url);
+        setUploadProgress((p) => ({ ...p, done: p.done + 1 }));
+      }
+
       setStep("generating");
       const startRes = await api.post("/quick-ad/start", {
         product_name: productName.trim(),
@@ -85,6 +110,7 @@ export default function QuickAdPage() {
         duration_sec: durationSec,
         style,
         burn_captions: burnCaptions,
+        logo_url: logoUrl,
       });
       const jobId = startRes.data.job_id;
 
@@ -261,6 +287,61 @@ export default function QuickAdPage() {
                 outline: "none", boxSizing: "border-box",
               }}
             />
+          </div>
+
+          {/* Logo (optional) — shown as an outro card at the end of the clip */}
+          <div style={{
+            background: "#111116", border: "1px solid rgba(255,255,255,.07)",
+            borderRadius: 14, padding: "18px 20px",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: ".06em" }}>
+                โลโก้ (ไม่บังคับ)
+              </p>
+              <span style={{ fontSize: 10, color: "#4b5563" }}>ขึ้นท้ายคลิป</span>
+            </div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/png,image/webp,image/jpeg"
+              onChange={(e) => { pickLogo(e.target.files); e.target.value = ""; }}
+              style={{ display: "none" }}
+            />
+            {logo ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: 10, background: "#000",
+                  border: "1px solid rgba(255,255,255,.1)", display: "flex",
+                  alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0,
+                }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={logo.preview} alt="โลโก้" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+                </div>
+                <div style={{ flex: 1, fontSize: 12, color: "#9ca3af", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {logo.file.name}
+                </div>
+                <button
+                  onClick={removeLogo}
+                  style={{
+                    width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,.06)",
+                    border: "none", cursor: "pointer", display: "flex", alignItems: "center",
+                    justifyContent: "center", color: "#9ca3af", flexShrink: 0,
+                  }}
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            ) : (
+              <div
+                onClick={() => logoInputRef.current?.click()}
+                style={{
+                  cursor: "pointer", borderRadius: 10, padding: "16px 20px", textAlign: "center",
+                  border: "1.5px dashed rgba(255,255,255,.15)", background: "rgba(255,255,255,.02)",
+                }}
+              >
+                <p style={{ margin: 0, fontSize: 12, color: "#9ca3af" }}>คลิกเพื่อเลือกโลโก้ (PNG พื้นหลังโปร่งใสแนะนำ)</p>
+              </div>
+            )}
           </div>
 
           {/* Video style */}

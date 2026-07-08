@@ -63,6 +63,7 @@ class QuickAdRequest(BaseModel):
     style: str = "warm"  # "warm" (Ken Burns, no title card) or "editorial" (moody grade + serif title card)
     burn_captions: bool = True
     use_pauses: bool = True  # insert short silence gaps between script beats instead of one unbroken read
+    logo_url: str = ""  # optional — appended as a short outro card at the end of the clip
 
 
 @router.post("/start", status_code=202)
@@ -101,7 +102,7 @@ async def start_quick_ad(
 
     background_tasks.add_task(
         _run_quick_ad_job, job_id, product_name, description, image_urls,
-        req.voice_style, req.duration_sec, req.style, req.burn_captions, req.use_pauses,
+        req.voice_style, req.duration_sec, req.style, req.burn_captions, req.use_pauses, req.logo_url,
     )
     return {"job_id": job_id}
 
@@ -125,6 +126,7 @@ async def _run_quick_ad_job(
     style: str,
     burn_captions: bool = True,
     use_pauses: bool = True,
+    logo_url: str = "",
 ) -> None:
     _write_job(job_id, {"status": "processing"})
     try:
@@ -154,6 +156,7 @@ async def _run_quick_ad_job(
             style=style,
             headline=product_name,
             subtitle=hook,
+            logo_url=logo_url,
         )
 
         logger.info(f"[QUICK-AD] job={job_id} done → {render_result['url'][:80]}")
