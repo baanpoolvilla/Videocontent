@@ -21,10 +21,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import AsyncSessionLocal, get_db
 from app.core.deps import CurrentUser
 from app.models.product import Product
+from app.models.quick_ad_clip import QuickAdClip
+from app.schemas.quick_ad_clip import QuickAdClipOut, QuickAdClipUpdate
 from app.services.ai import ai_service
+from app.services.storage import storage_service
 from app.services.tts import tts_service
 from app.services.video import video_service
 
@@ -103,6 +106,7 @@ async def start_quick_ad(
     background_tasks.add_task(
         _run_quick_ad_job, job_id, product_name, description, image_urls,
         req.voice_style, req.duration_sec, req.style, req.burn_captions, req.use_pauses, req.logo_url,
+        current_user.id,
     )
     return {"job_id": job_id}
 
@@ -116,6 +120,70 @@ async def get_quick_ad_job(job_id: str):
     return job
 
 
+@router.get("/clips", response_model=list[QuickAdClipOut])
+async def list_clips(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    skip: int = 0,
+    limit: int = 100,
+):
+    """Saved clip library — every Quick Ad video that finished rendering."""
+    result = await db.execute(
+        select(QuickAdClip).order_by(QuickAdClip.created_at.desc()).offset(skip).limit(limit)
+    )
+    return result.scalars().all()
+
+
+@router.get("/clips/{clip_id}", response_model=QuickAdClipOut)
+async def get_clip(
+    clip_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result = await db.execute(select(QuickAdClip).where(QuickAdClip.id == clip_id))
+    clip = result.scalar_one_or_none()
+    if not clip:
+        raise HTTPException(404, "ไม่พบคลิปนี้")
+    return clip
+
+
+@router.patch("/clips/{clip_id}", response_model=QuickAdClipOut)
+async def update_clip(
+    clip_id: uuid.UUID,
+    body: QuickAdClipUpdate,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result = await db.execute(select(QuickAdClip).where(QuickAdClip.id == clip_id))
+    clip = result.scalar_one_or_none()
+    if not clip:
+        raise HTTPException(404, "ไม่พบคลิปนี้")
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(clip, field, value)
+    await db.commit()
+    await db.refresh(clip)
+    return clip
+
+
+@router.delete("/clips/{clip_id}", status_code=204)
+async def delete_clip(
+    clip_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result = await db.execute(select(QuickAdClip).where(QuickAdClip.id == clip_id))
+    clip = result.scalar_one_or_none()
+    if not clip:
+        raise HTTPException(404, "ไม่พบคลิปนี้")
+    try:
+        bucket, object_name = clip.video_url.strip("/").split("/", 1)
+        storage_service.client.remove_object(bucket, object_name)
+    except Exception as e:
+        logger.warning(f"[QUICK-AD] clip={clip_id} storage delete failed (removing DB row anyway): {e}")
+    await db.delete(clip)
+    await db.commit()
+
+
 async def _run_quick_ad_job(
     job_id: str,
     product_name: str,
@@ -127,6 +195,7 @@ async def _run_quick_ad_job(
     burn_captions: bool = True,
     use_pauses: bool = True,
     logo_url: str = "",
+    created_by: uuid.UUID | None = None,
 ) -> None:
     _write_job(job_id, {"status": "processing"})
     try:
@@ -167,6 +236,20 @@ async def _run_quick_ad_job(
             "voice_style": voice_style,
             "provider": voice_result.get("model_id", "edge-tts"),
         })
+
+        # Persist to the clip library — background task, so use a fresh session rather
+        # than the request-scoped one (which is long gone by the time this runs).
+        async with AsyncSessionLocal() as db:
+            db.add(QuickAdClip(
+                created_by=created_by,
+                product_name=product_name,
+                script=full_script,
+                video_url=render_result["url"],
+                voice_style=voice_style,
+                style=style,
+                duration_sec=duration_sec,
+            ))
+            await db.commit()
     except Exception as exc:
         logger.error(f"[QUICK-AD] job={job_id} failed: {exc}")
         _write_job(job_id, {"status": "failed", "error": str(exc)})

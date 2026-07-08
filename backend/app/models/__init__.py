@@ -10,9 +10,10 @@ from app.models.scheduled_post import ScheduledPost
 from app.models.asset import Asset
 from app.models.prompt_template import PromptTemplate
 from app.models.audio_asset import AudioAsset
+from app.models.quick_ad_clip import QuickAdClip
 
 __all__ = [
     "User", "BrandProfile", "Product", "Analysis", "ContentJob",
     "Script", "RenderVersion", "PlatformAccount", "ScheduledPost",
-    "Asset", "PromptTemplate", "AudioAsset",
+    "Asset", "PromptTemplate", "AudioAsset", "QuickAdClip",
 ]

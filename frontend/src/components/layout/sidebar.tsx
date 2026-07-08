@@ -30,6 +30,7 @@ const groups: Group[] = [
     items: [
       { href: "/generate",    label: "เทมเพลต / คอนเซ็ปต์", icon: Clapperboard, step: "04" },
       { href: "/quick-ad",    label: "Quick Ad",             icon: Sparkles,     step: "04a" },
+      { href: "/quick-ad-library", label: "คลังคลิป Quick Ad", icon: FolderOpen, step: "04a2" },
       { href: "/storyboard",  label: "Story Mode",           icon: Layers,       step: "04b" },
       { href: "/edit",          label: "ตัดต่อวิดีโอ AI",      icon: Film,         step: "04c" },
       { href: "/video-library", label: "คลังวิดีโอที่ตัดต่อ",  icon: VideoIcon,    step: "04d" },
