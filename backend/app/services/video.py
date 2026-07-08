@@ -511,10 +511,14 @@ class VideoService:
             if _is_video_file(img_path):
                 # Already-moving footage — cover-crop + grade only, no Ken Burns zoompan.
                 # -stream_loop -1 covers clips shorter than their allotted slot.
+                # -r 25 + -vsync cfr forces a constant frame rate — real phone/screen-recorded
+                # footage is often variable-frame-rate, which combined with -stream_loop can
+                # produce non-monotonic timestamps that make libx264 reject the stream outright.
                 await self._run_ffmpeg([
                     "ffmpeg", "-y",
                     "-stream_loop", "-1", "-i", img_path,
                     "-vf", _video_segment_filter(style),
+                    "-r", "25", "-vsync", "cfr",
                     "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
                     "-t", str(per_image), "-an",
                     clip_path,
@@ -625,7 +629,7 @@ class VideoService:
         )
         _, stderr = await proc.communicate()
         if proc.returncode != 0:
-            raise RuntimeError(f"FFmpeg failed: {stderr.decode()[-600:]}")
+            raise RuntimeError(f"FFmpeg failed: {' '.join(cmd)}\n{stderr.decode()[-600:]}")
 
 
 video_service = VideoService()
