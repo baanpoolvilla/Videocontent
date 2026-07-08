@@ -11,12 +11,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # hand-written FFmpeg drawtext expressions can express. Apache 2.0, free at any scale.
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
-    # Headless Chrome runtime libs (Puppeteer's documented Debian dependency list)
+    # Headless Chrome runtime libs (Puppeteer's documented Debian dependency list, adjusted
+    # for Debian 13 "trixie" package names — several libs got a "t64" suffix in the 2024
+    # time_t transition: asound2, atk-bridge2.0-0, atk1.0-0, cups2, glib2.0-0, gtk-3-0)
     && apt-get install -y --no-install-recommends \
-       ca-certificates fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 \
-       libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgbm1 libglib2.0-0 \
-       libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 libx11-6 libx11-xcb1 libxcb1 \
-       libxcomposite1 libxdamage1 libxext6 libxfixes1 libxrandr2 xdg-utils wget \
+       ca-certificates fonts-liberation libasound2t64 libatk-bridge2.0-0t64 libatk1.0-0t64 \
+       libcairo2 libcups2t64 libdbus-1-3 libexpat1 libfontconfig1 libgbm1 libglib2.0-0t64 \
+       libgtk-3-0t64 libnspr4 libnss3 libpango-1.0-0 libx11-6 libx11-xcb1 libxcb1 \
+       libxcomposite1 libxdamage1 libxext6 libxfixes3 libxrandr2 xdg-utils wget \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
