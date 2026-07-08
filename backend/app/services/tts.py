@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import io
 import logging
@@ -115,6 +116,89 @@ class TTSService:
         except Exception as e:
             logger.warning(f"[TTS] Edge TTS failed ({e}) — falling back to gTTS")
             return await self._gtts(text, job_id, lang)
+
+    async def generate_voiceover_beats(
+        self,
+        beats: list[str],
+        job_id: str,
+        voice_style: str = "หญิง (ไทย)",
+        lang: str = "th",
+        pause_sec: float = 0.9,
+    ) -> dict:
+        """Generate voiceover with real silence gaps between beats — natural breathing room
+        instead of one unbroken block of narration for the whole clip."""
+        beats = [b.strip() for b in beats if b and b.strip()]
+        if len(beats) <= 1:
+            text = beats[0] if beats else ""
+            return await self.generate_voiceover(text=text, job_id=job_id, voice_style=voice_style, lang=lang)
+
+        beat_results = [
+            await self.generate_voiceover(text=b, job_id=f"{job_id}_b{i}", voice_style=voice_style, lang=lang)
+            for i, b in enumerate(beats)
+        ]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_paths = []
+            for i, r in enumerate(beat_results):
+                path = os.path.join(tmpdir, f"beat_{i}.mp3")
+                with open(path, "wb") as f:
+                    f.write(storage_service.download_bytes(r["url"]))
+                audio_paths.append(path)
+
+            silence_path = os.path.join(tmpdir, "silence.mp3")
+            proc = await asyncio.create_subprocess_exec(
+                "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono",
+                "-t", str(pause_sec), "-q:a", "9", silence_path,
+                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+            )
+            await proc.communicate()
+
+            concat_list_path = os.path.join(tmpdir, "concat.txt")
+            with open(concat_list_path, "w", encoding="utf-8") as f:
+                for i, path in enumerate(audio_paths):
+                    f.write(f"file '{path}'\n")
+                    if i < len(audio_paths) - 1:
+                        f.write(f"file '{silence_path}'\n")
+
+            final_path = os.path.join(tmpdir, "final.mp3")
+            proc = await asyncio.create_subprocess_exec(
+                "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list_path,
+                "-c:a", "libmp3lame", "-q:a", "4", final_path,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                raise RuntimeError(f"Beat concat failed: {stderr.decode()[-500:]}")
+
+            # Shift each beat's caption timing by the cumulative duration of everything before it
+            # (previous beats' audio + the silence gaps already inserted between them).
+            all_captions: list[dict] = []
+            offset = 0.0
+            for i, (r, path) in enumerate(zip(beat_results, audio_paths)):
+                dur = await _probe_audio_duration(path)
+                for c in r.get("captions", []):
+                    all_captions.append({
+                        "text": c["text"],
+                        "start": round(c["start"] + offset, 3),
+                        "end": round(c["end"] + offset, 3),
+                    })
+                offset += dur + (pause_sec if i < len(beat_results) - 1 else 0)
+
+            with open(final_path, "rb") as f:
+                final_bytes = f.read()
+
+        url = await storage_service.upload_bytes(
+            data=final_bytes, filename=f"{job_id}_voiceover.mp3",
+            content_type="audio/mpeg", bucket="assets", prefix=f"voiceovers/{job_id}",
+        )
+        logger.info(f"[TTS] beats done: {len(beats)} beats, {pause_sec}s gaps, total_captions={len(all_captions)}")
+        return {
+            "url": url,
+            "characters_used": sum(len(b) for b in beats),
+            "voice_id": beat_results[0].get("voice_id", ""),
+            "model_id": beat_results[0].get("model_id", "edge-tts"),
+            "captions": all_captions,
+        }
 
     async def _edge_tts(self, text: str, job_id: str, voice_style: str) -> dict:
         import edge_tts

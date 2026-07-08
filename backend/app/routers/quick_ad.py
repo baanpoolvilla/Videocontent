@@ -62,6 +62,7 @@ class QuickAdRequest(BaseModel):
     duration_sec: int = 20
     style: str = "warm"  # "warm" (Ken Burns, no title card) or "editorial" (moody grade + serif title card)
     burn_captions: bool = True
+    use_pauses: bool = True  # insert short silence gaps between script beats instead of one unbroken read
 
 
 @router.post("/start", status_code=202)
@@ -100,7 +101,7 @@ async def start_quick_ad(
 
     background_tasks.add_task(
         _run_quick_ad_job, job_id, product_name, description, image_urls,
-        req.voice_style, req.duration_sec, req.style, req.burn_captions,
+        req.voice_style, req.duration_sec, req.style, req.burn_captions, req.use_pauses,
     )
     return {"job_id": job_id}
 
@@ -123,6 +124,7 @@ async def _run_quick_ad_job(
     duration_sec: int,
     style: str,
     burn_captions: bool = True,
+    use_pauses: bool = True,
 ) -> None:
     _write_job(job_id, {"status": "processing"})
     try:
@@ -132,10 +134,16 @@ async def _run_quick_ad_job(
         )
         full_script = script_result["script"]["full_script"]
         hook = script_result["script"]["hook"]
+        beats = script_result["script"].get("beats") or []
 
-        voice_result = await tts_service.generate_voiceover(
-            text=full_script, job_id=job_id, voice_style=voice_style,
-        )
+        if use_pauses and len(beats) > 1:
+            voice_result = await tts_service.generate_voiceover_beats(
+                beats=beats, job_id=job_id, voice_style=voice_style,
+            )
+        else:
+            voice_result = await tts_service.generate_voiceover(
+                text=full_script, job_id=job_id, voice_style=voice_style,
+            )
 
         render_result = await video_service.render_video(
             job_id=job_id,
