@@ -60,11 +60,9 @@ class QuickAdRequest(BaseModel):
     image_urls: list[str] = []
     voice_style: str = "หญิง (ไทย)"
     duration_sec: int = 20
-    style: str = "warm"  # "warm" (Ken Burns, no title card), "editorial" (moody grade + serif title card),
-                          # or "prime" (bright/warm sunlit grade + HyperFrames-animated title card)
+    style: str = "warm"  # "warm" (bright Ken Burns grade), "editorial" (moody grade), or "prime" (bright/warm sunlit grade)
     burn_captions: bool = True
     use_pauses: bool = True  # insert short silence gaps between script beats instead of one unbroken read
-    logo_url: str = ""  # optional — appended as a short outro card at the end of the clip
 
 
 @router.post("/start", status_code=202)
@@ -103,7 +101,7 @@ async def start_quick_ad(
 
     background_tasks.add_task(
         _run_quick_ad_job, job_id, product_name, description, image_urls,
-        req.voice_style, req.duration_sec, req.style, req.burn_captions, req.use_pauses, req.logo_url,
+        req.voice_style, req.duration_sec, req.style, req.burn_captions, req.use_pauses,
     )
     return {"job_id": job_id}
 
@@ -127,7 +125,6 @@ async def _run_quick_ad_job(
     style: str,
     burn_captions: bool = True,
     use_pauses: bool = True,
-    logo_url: str = "",
 ) -> None:
     _write_job(job_id, {"status": "processing"})
     try:
@@ -155,9 +152,8 @@ async def _run_quick_ad_job(
             duration_sec=duration_sec,
             captions=voice_result.get("captions", []) if burn_captions else None,
             style=style,
-            headline=product_name,
-            subtitle=hook,
-            logo_url=logo_url,
+            headline="",
+            subtitle="",
         )
 
         logger.info(f"[QUICK-AD] job={job_id} done → {render_result['url'][:80]}")
