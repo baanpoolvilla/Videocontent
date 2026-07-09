@@ -45,7 +45,16 @@ _PRIME_GRADE = (
     "vignette=PI/6"
 )
 
-_GRADES = {"warm": _COLOR_GRADE, "editorial": _MOODY_GRADE, "prime": _PRIME_GRADE}
+# Deep blacks, crushed shadows, cool desaturated tone — "Midnight Luxe" (modeled on a
+# competitor reference: dark beauty/luxury campaign look, spotlight-on-subject feel).
+# Darker and cooler than "editorial", which is moody but still mid-toned.
+_MIDNIGHT_GRADE = (
+    "colorbalance=rs=-0.06:rm=-0.04:rh=-0.02:gs=-0.02:gm=-0.01:gh=0:bs=0.05:bm=0.04:bh=0.02,"
+    "eq=saturation=0.65:contrast=1.38:brightness=-0.09:gamma=0.92,"
+    "vignette=PI/2.8"
+)
+
+_GRADES = {"warm": _COLOR_GRADE, "editorial": _MOODY_GRADE, "prime": _PRIME_GRADE, "midnight": _MIDNIGHT_GRADE}
 
 # Merged Thai+Latin serif face for the "editorial" style headline — must be a plain .ttf/.otf,
 # not .woff2 (FFmpeg drawtext segfaults on woff2 with this build; subtitles/libass is fine with it)
@@ -102,6 +111,26 @@ def _editorial_headline_overlay(headline: str, subtitle: str, hold: float = 3.0,
         parts.append(
             f"drawtext=fontfile='{_SERIF_FONT}':text='{s}':fontsize=30:fontcolor=white@0.8:"
             f"x=80:y=h-400:alpha='{alpha}'"
+        )
+    return ",".join(parts)
+
+
+def _midnight_headline_overlay(headline: str, subtitle: str, hold: float = 3.0, fade_out: float = 0.5) -> str:
+    """Centered, champagne-gold title card for "midnight" — modeled on a competitor reference
+    (dark beauty/luxury campaign: centered thin headline, muted subtitle below, no accent bar).
+    Same fade-in/hold/fade-out timing as the editorial card, different position and palette."""
+    end = hold + fade_out
+    alpha = f"if(lt(t,0.6),t/0.6,if(lt(t,{hold}),1,if(lt(t,{end}),1-(t-{hold})/{fade_out},0)))"
+    h = _escape_drawtext(headline)
+    parts = [
+        f"drawtext=fontfile='{_SERIF_FONT}':text='{h}':fontsize=60:fontcolor=0xE8C97E:"
+        f"x=(w-text_w)/2:y=h*0.62:alpha='{alpha}'"
+    ]
+    if subtitle.strip():
+        s = _escape_drawtext(subtitle)
+        parts.append(
+            f"drawtext=fontfile='{_SERIF_FONT}':text='{s}':fontsize=28:fontcolor=white@0.75:"
+            f"x=(w-text_w)/2:y=h*0.62+70:alpha='{alpha}'"
         )
     return ",".join(parts)
 
@@ -493,9 +522,13 @@ class VideoService:
                 "-an", out_path,
             ])
         else:
+            overlay = (
+                _midnight_headline_overlay(headline, subtitle) if style == "midnight"
+                else _editorial_headline_overlay(headline, subtitle)
+            )
             await self._run_ffmpeg([
                 "ffmpeg", "-y", "-i", video_path,
-                "-vf", _editorial_headline_overlay(headline, subtitle),
+                "-vf", overlay,
                 "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
                 "-an", out_path,
             ])
@@ -757,7 +790,7 @@ class VideoService:
         except Exception as e:
             logger.warning(f"[VIDEO] kb fade-ends failed — skipping: {e}")
 
-        if headline.strip() and style in ("editorial", "prime"):
+        if headline.strip() and style in ("editorial", "prime", "midnight"):
             merged = await self._bake_title_card(merged, style, headline, subtitle, tmpdir)
 
         ass_path = build_ass_file(captions, os.path.join(tmpdir, "captions.ass"), caption_style) if captions else None

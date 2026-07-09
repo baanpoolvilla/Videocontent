@@ -29,6 +29,7 @@ STYLE_DESCRIPTIONS = {
     "warm": "Bright, punchy, saturated Ken Burns grade — safe default for general products, food, everyday items.",
     "editorial": "Dark, moody, desaturated high-contrast grade with a serif title card — luxury real estate, upscale interiors, premium fashion.",
     "prime": "Bright, warm, sunlit grade with an animated title card — pool villas, resorts, daytime outdoor property showcases.",
+    "midnight": "Very dark, crushed-black, cool-toned grade with a centered champagne-gold title card — beauty/skincare, spa, premium personal care, nightlife.",
 }
 
 

@@ -17,12 +17,14 @@ const STYLES = [
   { id: "warm", label: "Ken Burns", sublabel: "สีสันสดใส เหมาะทั่วไป" },
   { id: "editorial", label: "Editorial หรู", sublabel: "โทนมืดหรู" },
   { id: "prime", label: "Prime Location", sublabel: "โทนสว่างอบอุ่น" },
+  { id: "midnight", label: "Midnight Luxe", sublabel: "โทนมืดสนิท + หัวข้อสีทอง" },
 ];
 
 const CAPTION_STYLES = [
   { id: "karaoke", label: "Karaoke", sublabel: "คำไหนพูดอยู่ ขึ้นสีทองทีละคำ" },
   { id: "classic", label: "Classic", sublabel: "ตัวอักษรขาวล้วน ไม่ไฮไลต์" },
   { id: "boxed", label: "Boxed", sublabel: "มีแถบพื้นหลัง + ไฮไลต์สีทอง" },
+  { id: "elegant", label: "Elegant", sublabel: "ฟอนต์บาง โปร่งแสง สบายตา" },
 ];
 
 type QuickAdResult = {
@@ -411,7 +413,7 @@ export default function QuickAdPage() {
             </button>
 
             {burnCaptions && (
-              <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+              <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
                 {CAPTION_STYLES.map((cs) => {
                   const active = captionStyle === cs.id;
                   return (

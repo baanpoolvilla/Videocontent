@@ -64,7 +64,8 @@ class QuickAdRequest(BaseModel):
     voice_style: str = "หญิง (ไทย)"
     duration_sec: int = 20
     style: str = "auto"  # "auto" (AI looks at the photos and picks one), or a manual override:
-    # "warm" (bright Ken Burns grade), "editorial" (moody grade), "prime" (bright/warm sunlit grade)
+    # "warm" (bright Ken Burns grade), "editorial" (moody grade), "prime" (bright/warm sunlit grade),
+    # "midnight" (dark crushed-black grade + centered gold title card)
     burn_captions: bool = True
     caption_style: str = "karaoke"  # "karaoke" (words turn gold as spoken), "classic" (plain white,
     # no highlight), or "boxed" (opaque background pill + gold highlight)
