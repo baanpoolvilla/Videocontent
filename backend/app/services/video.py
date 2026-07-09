@@ -337,6 +337,7 @@ class VideoService:
         headline: str = "",
         subtitle: str = "",
         logo_url: str = "",
+        caption_style: str = "karaoke",
     ) -> dict:
         with tempfile.TemporaryDirectory() as tmpdir:
             audio_path = None
@@ -356,6 +357,7 @@ class VideoService:
                     image_paths.append(img_path)
                 video_path = await self._images_to_video(
                     image_paths, audio_path, tmpdir, duration_sec, captions, style, headline, subtitle,
+                    caption_style,
                 )
             else:
                 video_path = await self._text_to_video(audio_path, tmpdir, duration_sec)
@@ -675,6 +677,7 @@ class VideoService:
     async def _images_to_video(
         self, image_paths: list[str], audio_path: str | None, tmpdir: str, duration_sec: int,
         captions: list[dict] | None = None, style: str = "warm", headline: str = "", subtitle: str = "",
+        caption_style: str = "karaoke",
     ) -> str:
         output_path = os.path.join(tmpdir, "output.mp4")
         n = len(image_paths)
@@ -748,7 +751,7 @@ class VideoService:
         if headline.strip() and style in ("editorial", "prime"):
             merged = await self._bake_title_card(merged, style, headline, subtitle, tmpdir)
 
-        ass_path = build_ass_file(captions, os.path.join(tmpdir, "captions.ass")) if captions else None
+        ass_path = build_ass_file(captions, os.path.join(tmpdir, "captions.ass"), caption_style) if captions else None
         vf = subtitles_filter(ass_path) if ass_path else ""
 
         if audio_path and os.path.exists(audio_path):

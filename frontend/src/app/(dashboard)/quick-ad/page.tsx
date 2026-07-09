@@ -19,6 +19,12 @@ const STYLES = [
   { id: "prime", label: "Prime Location", sublabel: "โทนสว่างอบอุ่น" },
 ];
 
+const CAPTION_STYLES = [
+  { id: "karaoke", label: "Karaoke", sublabel: "คำไหนพูดอยู่ ขึ้นสีทองทีละคำ" },
+  { id: "classic", label: "Classic", sublabel: "ตัวอักษรขาวล้วน ไม่ไฮไลต์" },
+  { id: "boxed", label: "Boxed", sublabel: "มีแถบพื้นหลัง + ไฮไลต์สีทอง" },
+];
+
 type QuickAdResult = {
   video_url: string;
   script: string;
@@ -36,6 +42,7 @@ export default function QuickAdPage() {
   const [durationSec, setDurationSec] = useState(15);
   const [style, setStyle] = useState(STYLES[0].id);
   const [burnCaptions, setBurnCaptions] = useState(true);
+  const [captionStyle, setCaptionStyle] = useState(CAPTION_STYLES[0].id);
 
   const [images, setImages] = useState<PickedImage[]>([]);
   const [logo, setLogo] = useState<{ file: File; preview: string } | null>(null);
@@ -119,6 +126,7 @@ export default function QuickAdPage() {
         duration_sec: durationSec,
         style,
         burn_captions: burnCaptions,
+        caption_style: captionStyle,
         logo_url: logoUrl,
       });
       const jobId = startRes.data.job_id;
@@ -401,6 +409,24 @@ export default function QuickAdPage() {
                 }} />
               </span>
             </button>
+
+            {burnCaptions && (
+              <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+                {CAPTION_STYLES.map((cs) => {
+                  const active = captionStyle === cs.id;
+                  return (
+                    <button key={cs.id} onClick={() => setCaptionStyle(cs.id)} style={{
+                      padding: "10px 10px", borderRadius: 10, cursor: "pointer", textAlign: "left",
+                      background: active ? "rgba(255,176,46,.1)" : "rgba(255,255,255,.03)",
+                      border: `1.5px solid ${active ? "#FFB02E" : "rgba(255,255,255,.08)"}`,
+                    }}>
+                      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: active ? "#FFB02E" : "#fff" }}>{cs.label}</p>
+                      <p style={{ margin: "1px 0 0", fontSize: 9.5, color: "#6b7280" }}>{cs.sublabel}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Voice + duration */}

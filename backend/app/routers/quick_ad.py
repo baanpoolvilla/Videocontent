@@ -66,6 +66,8 @@ class QuickAdRequest(BaseModel):
     style: str = "auto"  # "auto" (AI looks at the photos and picks one), or a manual override:
     # "warm" (bright Ken Burns grade), "editorial" (moody grade), "prime" (bright/warm sunlit grade)
     burn_captions: bool = True
+    caption_style: str = "karaoke"  # "karaoke" (words turn gold as spoken), "classic" (plain white,
+    # no highlight), or "boxed" (opaque background pill + gold highlight)
     use_pauses: bool = True  # insert short silence gaps between script beats instead of one unbroken read
     logo_url: str = ""  # optional — appended as a short full-screen card at the very end of the clip
 
@@ -106,8 +108,8 @@ async def start_quick_ad(
 
     background_tasks.add_task(
         _run_quick_ad_job, job_id, product_name, description, image_urls,
-        req.voice_style, req.duration_sec, req.style, req.burn_captions, req.use_pauses, req.logo_url,
-        current_user.id,
+        req.voice_style, req.duration_sec, req.style, req.burn_captions, req.caption_style,
+        req.use_pauses, req.logo_url, current_user.id,
     )
     return {"job_id": job_id}
 
@@ -194,6 +196,7 @@ async def _run_quick_ad_job(
     duration_sec: int,
     style: str,
     burn_captions: bool = True,
+    caption_style: str = "karaoke",
     use_pauses: bool = True,
     logo_url: str = "",
     created_by: uuid.UUID | None = None,
@@ -234,6 +237,7 @@ async def _run_quick_ad_job(
             headline=hook,
             subtitle=product_name,
             logo_url=logo_url,
+            caption_style=caption_style,
         )
 
         logger.info(f"[QUICK-AD] job={job_id} done → {render_result['url'][:80]}")

@@ -35,6 +35,10 @@ def _group_words_into_captions(words: list[dict], chunk_size: int = _CAPTION_CHU
             "text": text,
             "start": group[0]["start"],
             "end": group[-1]["end"],
+            # Per-word timing preserved (not just the group's start/end) so captions.py can
+            # render real karaoke-style word highlighting instead of the whole chunk lighting
+            # up at once.
+            "words": [{"text": w["text"], "start": w["start"], "end": w["end"]} for w in group],
         })
     return captions
 
@@ -246,14 +250,27 @@ class TTSService:
                 raise RuntimeError(f"Beat concat failed: {stderr.decode()[-500:]}")
 
             # Shift original (single-recording) caption timestamps forward by however much
-            # inserted silence now sits before them.
+            # inserted silence now sits before them (each word shifted individually — its own
+            # start decides which inserted gaps now sit before it — so karaoke timing inside a
+            # caption group that straddles a boundary still stays correct).
+            def _shift_for(t: float) -> float:
+                return sum(g for g, b in zip(gap_durations, boundary_times) if b <= t)
+
             all_captions: list[dict] = []
             for c in voice_result.get("captions", []):
-                shift = sum(g for g, b in zip(gap_durations, boundary_times) if b <= c["start"])
+                shift = _shift_for(c["start"])
                 all_captions.append({
                     "text": c["text"],
                     "start": round(c["start"] + shift, 3),
                     "end": round(c["end"] + shift, 3),
+                    "words": [
+                        {
+                            "text": w["text"],
+                            "start": round(w["start"] + _shift_for(w["start"]), 3),
+                            "end": round(w["end"] + _shift_for(w["start"]), 3),
+                        }
+                        for w in c.get("words", [])
+                    ],
                 })
 
             with open(final_path, "rb") as f:
@@ -339,6 +356,10 @@ class TTSService:
                         "text": c["text"],
                         "start": round(c["start"] + offset, 3),
                         "end": round(c["end"] + offset, 3),
+                        "words": [
+                            {"text": w["text"], "start": round(w["start"] + offset, 3), "end": round(w["end"] + offset, 3)}
+                            for w in c.get("words", [])
+                        ],
                     })
                 offset += dur + (gap_durations[i] if i < num_gaps else 0)
 
