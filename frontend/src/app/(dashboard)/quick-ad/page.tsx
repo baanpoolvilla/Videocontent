@@ -13,12 +13,20 @@ const DURATIONS = [10, 15, 20, 30, 45, 60];
 const MAX_IMAGES = 10; // matches video_service.render_video's image_urls[:10] cap
 
 const STYLES = [
+  { id: "auto", label: "Auto (AI เลือกให้)", sublabel: "ดูรูปแล้วเลือกโทนที่เหมาะเอง" },
   { id: "warm", label: "Ken Burns", sublabel: "สีสันสดใส เหมาะทั่วไป" },
   { id: "editorial", label: "Editorial หรู", sublabel: "โทนมืดหรู" },
   { id: "prime", label: "Prime Location", sublabel: "โทนสว่างอบอุ่น" },
 ];
 
-type QuickAdResult = { video_url: string; script: string; voice_style: string; provider: string };
+type QuickAdResult = {
+  video_url: string;
+  script: string;
+  voice_style: string;
+  provider: string;
+  style: string;
+  style_reasoning: string;
+};
 type PickedImage = { file: File; preview: string; kind: "image" | "video" };
 
 export default function QuickAdPage() {
@@ -128,6 +136,8 @@ export default function QuickAdPage() {
             script: job.script,
             voice_style: job.voice_style,
             provider: job.provider,
+            style: job.style,
+            style_reasoning: job.style_reasoning,
           });
           return;
         }
@@ -492,6 +502,16 @@ export default function QuickAdPage() {
                 <span>Provider</span>
                 <span style={{ color: "#9ca3af" }}>{result.provider}</span>
               </div>
+
+              {result.style && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#6b7280", marginTop: 6 }}>
+                  <span>สไตล์</span>
+                  <span style={{ color: "#9ca3af", textAlign: "right" }}>
+                    {STYLES.find((s) => s.id === result.style)?.label ?? result.style}
+                    {result.style_reasoning && ` — ${result.style_reasoning}`}
+                  </span>
+                </div>
+              )}
 
               <div style={{ marginTop: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>

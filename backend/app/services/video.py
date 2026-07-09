@@ -17,7 +17,9 @@ PRE_W, PRE_H = int(OUT_W * 1.3), int(OUT_H * 1.3)   # 1404 x 2496
 
 # Crossfade settings for AI clips
 FADE_DUR = 1.5          # seconds — max crossfade between clips
-FADE_TRANSITION = "dissolve"   # xfade transition: dissolve = true crossfade (no black flash)
+FADE_TRANSITION = "fade"   # xfade transition: fade = smooth linear crossfade, no black flash
+# NOTE: do not use "dissolve" here — despite the name it's a stochastic per-pixel dither
+# transition, not a plain crossfade, and looks like heavy noise/ghosting on detailed footage.
 FADE_ENDS = 0.5         # seconds — fade-in at start and fade-out at end
 
 # Cinematic color grade applied to every clip before compositing (CapCut/Runway approach)

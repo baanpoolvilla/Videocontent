@@ -63,7 +63,8 @@ class QuickAdRequest(BaseModel):
     image_urls: list[str] = []
     voice_style: str = "หญิง (ไทย)"
     duration_sec: int = 20
-    style: str = "warm"  # "warm" (bright Ken Burns grade), "editorial" (moody grade), or "prime" (bright/warm sunlit grade)
+    style: str = "auto"  # "auto" (AI looks at the photos and picks one), or a manual override:
+    # "warm" (bright Ken Burns grade), "editorial" (moody grade), "prime" (bright/warm sunlit grade)
     burn_captions: bool = True
     use_pauses: bool = True  # insert short silence gaps between script beats instead of one unbroken read
     logo_url: str = ""  # optional — appended as a short full-screen card at the very end of the clip
@@ -199,6 +200,13 @@ async def _run_quick_ad_job(
 ) -> None:
     _write_job(job_id, {"status": "processing"})
     try:
+        style_reasoning = ""
+        if style == "auto":
+            style_choice = await ai_service.analyze_visual_style(image_urls, product_name, description)
+            style = style_choice["style"]
+            style_reasoning = style_choice["reasoning"]
+            logger.info(f"[QUICK-AD] job={job_id} auto-picked style={style} ({style_reasoning})")
+
         analysis_result = await ai_service.analyze_product(product_name, description)
         script_result = await ai_service.generate_script(
             product_name, analysis_result["analysis"], duration_sec=duration_sec,
@@ -235,6 +243,8 @@ async def _run_quick_ad_job(
             "script": full_script,
             "voice_style": voice_style,
             "provider": voice_result.get("model_id", "edge-tts"),
+            "style": style,
+            "style_reasoning": style_reasoning,
         })
 
         # Persist to the clip library — background task, so use a fresh session rather

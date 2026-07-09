@@ -20,6 +20,18 @@ class _ScriptSchema(BaseModel):
     beats: list[str]
 
 
+class _StyleSchema(BaseModel):
+    style: str
+    reasoning: str
+
+
+STYLE_DESCRIPTIONS = {
+    "warm": "Bright, punchy, saturated Ken Burns grade — safe default for general products, food, everyday items.",
+    "editorial": "Dark, moody, desaturated high-contrast grade with a serif title card — luxury real estate, upscale interiors, premium fashion.",
+    "prime": "Bright, warm, sunlit grade with an animated title card — pool villas, resorts, daytime outdoor property showcases.",
+}
+
+
 def _clean_spoken_text(text: str) -> str:
     """Strip markdown formatting and director's stage-direction notes that Gemini sometimes
     embeds directly in hook/body/cta/full_script — this text gets read aloud by TTS, so
@@ -373,6 +385,57 @@ class AIService:
             result = {"raw": content}
 
         return {"analysis": result, "tokens_used": 0, "model_used": self.model_name}
+
+    async def analyze_visual_style(
+        self, image_urls: list[str], product_name: str, description: str = "",
+    ) -> dict:
+        """Look at the actual uploaded photos (not just the text fields) and pick the
+        best-fit Quick Ad style automatically — used when style="auto" instead of a
+        hand-picked style, so the user doesn't have to know what "editorial" even means."""
+        import asyncio
+        import base64
+
+        content: list[dict] = [{
+            "type": "text",
+            "text": (
+                f"You are an art director choosing a video ad style.\n"
+                f"PRODUCT: {product_name}\nDESCRIPTION: {description}\n\n"
+                f"Look at the attached photo(s) and pick exactly ONE style id from:\n"
+                + "\n".join(f'- "{k}": {v}' for k, v in STYLE_DESCRIPTIONS.items())
+                + "\n\nReply with the style id that best fits what's actually shown in the photos."
+            ),
+        }]
+        for url in image_urls[:3]:
+            img = await self._load_image(url)
+            if img is None:
+                continue
+            buf = io.BytesIO()
+            img.convert("RGB").save(buf, "JPEG", quality=85)
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
+
+        if len(content) == 1:
+            return {"style": "warm", "reasoning": "no images could be decoded for visual analysis"}
+
+        loop = asyncio.get_event_loop()
+        try:
+            completion = await loop.run_in_executor(
+                None,
+                lambda: self.openai_client.beta.chat.completions.parse(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "user", "content": content}],
+                    response_format=_StyleSchema,
+                    temperature=0.3,
+                ),
+            )
+            parsed = completion.choices[0].message.parsed
+            if parsed is None or parsed.style not in STYLE_DESCRIPTIONS:
+                raise RuntimeError(f"invalid style choice from model: {parsed}")
+            logger.info(f"[AI] auto-style picked '{parsed.style}' — {parsed.reasoning}")
+            return {"style": parsed.style, "reasoning": parsed.reasoning}
+        except Exception as e:
+            logger.warning(f"[AI] analyze_visual_style failed ({e}) — defaulting to 'warm'")
+            return {"style": "warm", "reasoning": f"fallback after error: {e}"}
 
     async def generate_script(
         self,
