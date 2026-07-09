@@ -18,6 +18,22 @@ _CAPTION_CHUNK_WORDS = 4
 _THAI_CHAR_RE = re.compile(r"[฀-๿]")
 
 
+def _join_caption_words(texts: list[str]) -> str:
+    """Thai has no inter-word spaces, so joining Thai words with English-style spaces reads
+    as broken/childish ("ที่ คุณ รัก ไหม" instead of "ที่คุณรักไหม") — but that's only true
+    between two Thai words. A caption chunk mixing in an English brand name needs the space
+    kept (confirmed live: an all-or-nothing rule squished "Sicily" + "Poolvilla" together into
+    "SicilyPoolvilla"), since Thai readers still expect a gap around an embedded Latin term.
+    Drop the separator only when BOTH sides of a boundary are Thai."""
+    if not texts:
+        return ""
+    out = texts[0]
+    for prev, curr in zip(texts, texts[1:]):
+        both_thai = _THAI_CHAR_RE.search(prev) and _THAI_CHAR_RE.search(curr)
+        out += curr if both_thai else f" {curr}"
+    return out
+
+
 def _group_words_into_captions(words: list[dict], chunk_size: int = _CAPTION_CHUNK_WORDS) -> list[dict]:
     """Group [{text, start, end}, ...] word timings into readable multi-word caption chunks."""
     captions = []
@@ -26,11 +42,7 @@ def _group_words_into_captions(words: list[dict], chunk_size: int = _CAPTION_CHU
         if not group:
             continue
         texts = [w["text"] for w in group]
-        # Thai script has no inter-word spaces. Edge TTS's WordBoundary events still segment on
-        # word units internally, but joining them back with English-style spaces renders as
-        # broken/childish Thai on screen ("ที่ คุณ รัก ไหม" instead of "ที่คุณรักไหม") — so
-        # concatenate directly when the chunk is Thai instead of always using " ".join(...).
-        text = "".join(texts) if any(_THAI_CHAR_RE.search(t) for t in texts) else " ".join(texts)
+        text = _join_caption_words(texts)
         captions.append({
             "text": text,
             "start": group[0]["start"],
@@ -199,12 +211,22 @@ class TTSService:
             for i in range(num_gaps)
         ]
 
+        # The proportional estimate is only a rough guess at WHERE the boundary falls — cutting
+        # there directly risks landing mid-word, or worse, inside a natural pause the voice
+        # already left at a comma/period. In that second case the segment would carry that
+        # pause's tail as trailing silence, and our own inserted gap would stack on top of it —
+        # confirmed live, a ~2s dead-air gap where the designed range was 0.6-1.6s. Snapping to
+        # the nearest real inter-word gap and cutting at the END of the word before it discards
+        # whatever natural pause was there, so the gap actually played is only the one we chose.
+        word_starts = [w["start"] for w in words]
         boundary_times = []
         cum_chars = 0
         for i in range(num_gaps):
             cum_chars += len(beats[i]) + 1  # +1 for the space joining this beat to the next
             frac = min(cum_chars / total_chars, 1.0)
-            boundary_times.append(total_start + frac * total_span)
+            estimate = total_start + frac * total_span
+            idx = min(range(len(word_starts)), key=lambda j: abs(word_starts[j] - estimate))
+            boundary_times.append(words[idx - 1]["end"] if idx > 0 else estimate)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             src_path = os.path.join(tmpdir, "full.mp3")

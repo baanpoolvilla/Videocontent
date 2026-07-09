@@ -386,6 +386,27 @@ class AIService:
 
         return {"analysis": result, "tokens_used": 0, "model_used": self.model_name}
 
+    async def check_content_safety(self, text: str) -> dict:
+        """Run text through OpenAI's Moderation API (free, separate from chat billing) before
+        it becomes a script or a rendered video. Fails open (allows through) on any API error
+        rather than blocking every job if the moderation endpoint has a hiccup — this is a
+        safety net, not the only line of defense."""
+        if not text.strip():
+            return {"flagged": False, "categories": []}
+        import asyncio
+        loop = asyncio.get_event_loop()
+        try:
+            result = await loop.run_in_executor(
+                None,
+                lambda: self.openai_client.moderations.create(model="omni-moderation-latest", input=text),
+            )
+            r = result.results[0]
+            flagged_categories = [cat for cat, val in r.categories.model_dump().items() if val]
+            return {"flagged": r.flagged, "categories": flagged_categories}
+        except Exception as e:
+            logger.warning(f"[AI] content safety check failed ({e}) — allowing through")
+            return {"flagged": False, "categories": []}
+
     async def analyze_visual_style(
         self, image_urls: list[str], product_name: str, description: str = "",
     ) -> dict:
@@ -652,7 +673,7 @@ beats: แบ่ง full_script ออกเป็นช่วงพูดสั
         user_prompt = (
             f"SCRIPT (Thai - read for mood and selling points):\n"
             f"{script[:300]}{concept_block}\n\n"
-            f"PRODUCT: {product_name} - private pool villa, Pattaya-Jomtien, Thailand\n\n"
+            f"PRODUCT: {product_name}\n\n"
             f"VISUAL STYLE: {style_rules['feel']}\n\n"
             f"CINEMATOGRAPHY:\n"
             f"- Shot: {style_rules['shot']}\n"

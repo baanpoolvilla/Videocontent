@@ -39,6 +39,7 @@ transition, camera motion, speed, color correction, and fade timing.
 
 CLIENT BRIEF: {style_prompt}
 Clip durations (seconds): {durations}
+Silent/dead-air stretches detected in the source audio (seconds, per clip): {silence_info}
 
 Return ONLY a valid JSON object — no markdown, no code fences, no explanation.
 Schema:
@@ -119,7 +120,48 @@ RULES:
 
 11. TITLE: Add only for tour or promotional styles, null otherwise.
 
-12. Return ONLY the JSON object."""
+12. SILENCE: Prefer trim_start/trim_end ranges that AVOID the detected silent/dead-air
+    stretches listed above — a segment with no dialogue/action happening is usually a boring
+    moment even if the frame looks fine. Only select inside a silent stretch if there's no
+    better option for that clip.
+
+13. Return ONLY the JSON object."""
+
+
+async def _detect_silence_ranges(path: str, noise_db: str = "-30dB", min_dur: float = 0.5) -> list[tuple[float, float]]:
+    """Run FFmpeg's silencedetect on a source clip's audio track and return [(start, end), ...]
+    ranges quiet enough to likely be dead air — fed to the editorial AI so it prefers picking
+    segments with actual dialogue/action over a silent, probably-boring stretch. Returns []
+    on any failure (e.g. the clip has no audio track) rather than raising, since this is an
+    advisory signal, not a hard requirement."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-i", path, "-af", f"silencedetect=noise={noise_db}:d={min_dur}",
+            "-f", "null", "-",
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        log = stderr.decode(errors="ignore")
+
+        ranges: list[tuple[float, float]] = []
+        start: float | None = None
+        for line in log.splitlines():
+            if "silence_start" in line:
+                try:
+                    start = float(line.rsplit(":", 1)[1].strip())
+                except (ValueError, IndexError):
+                    start = None
+            elif "silence_end" in line and start is not None:
+                try:
+                    end_str = line.split("silence_end:")[1].split("|")[0].strip()
+                    ranges.append((start, float(end_str)))
+                except (ValueError, IndexError):
+                    pass
+                start = None
+        return ranges
+    except Exception as e:
+        logger.warning(f"[EDITOR] silence detection failed for {os.path.basename(path)}: {e}")
+        return []
 
 
 async def _get_duration(path: str) -> float:
@@ -239,6 +281,15 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         d = await _get_duration(p)
         durations.append(round(d, 2))
 
+    silence_by_clip = await asyncio.gather(*(_detect_silence_ranges(p) for p in clip_paths))
+    if any(silence_by_clip):
+        silence_info = "; ".join(
+            f"clip{i}=[{', '.join(f'{s:.1f}-{e:.1f}s' for s, e in ranges)}]"
+            for i, ranges in enumerate(silence_by_clip) if ranges
+        )
+    else:
+        silence_info = "none detected"
+
     transitions_str = ", ".join(sorted(ALLOWED_TRANSITIONS))
 
     is_party = any(w in style_prompt.lower() for w in [
@@ -301,6 +352,7 @@ async def build_editorial_plan(clip_paths: list[str], style_prompt: str, clip_mo
         n=len(clip_paths),
         style_prompt=style_prompt,
         durations=", ".join(f"clip{i}={d}s" for i, d in enumerate(durations)),
+        silence_info=silence_info,
         transitions=transitions_str,
         clip_mode_instruction=clip_mode_instruction,
         clip_count_instruction=clip_count_instruction,

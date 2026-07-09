@@ -203,6 +203,15 @@ async def _run_quick_ad_job(
 ) -> None:
     _write_job(job_id, {"status": "processing"})
     try:
+        safety = await ai_service.check_content_safety(f"{product_name}\n{description}")
+        if safety["flagged"]:
+            logger.warning(f"[QUICK-AD] job={job_id} blocked by content safety check: {safety['categories']}")
+            _write_job(job_id, {
+                "status": "failed",
+                "error": f"เนื้อหาที่กรอกไม่ผ่านการตรวจสอบความปลอดภัย ({', '.join(safety['categories'])})",
+            })
+            return
+
         style_reasoning = ""
         if style == "auto":
             style_choice = await ai_service.analyze_visual_style(image_urls, product_name, description)
@@ -217,6 +226,15 @@ async def _run_quick_ad_job(
         full_script = script_result["script"]["full_script"]
         hook = script_result["script"]["hook"]
         beats = script_result["script"].get("beats") or []
+
+        script_safety = await ai_service.check_content_safety(full_script)
+        if script_safety["flagged"]:
+            logger.warning(f"[QUICK-AD] job={job_id} script blocked by content safety check: {script_safety['categories']}")
+            _write_job(job_id, {
+                "status": "failed",
+                "error": f"สคริปต์ที่ AI เขียนไม่ผ่านการตรวจสอบความปลอดภัย ({', '.join(script_safety['categories'])}) — ลองใหม่อีกครั้ง",
+            })
+            return
 
         if use_pauses and len(beats) > 1:
             voice_result = await tts_service.generate_voiceover_beats(
