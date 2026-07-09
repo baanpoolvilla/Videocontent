@@ -3,6 +3,7 @@ import base64
 import io
 import logging
 import random
+import re
 import tempfile
 import os
 import httpx
@@ -14,6 +15,8 @@ logger = logging.getLogger(__name__)
 # Max words grouped into one on-screen caption chunk (OpusClip-style short bursts)
 _CAPTION_CHUNK_WORDS = 4
 
+_THAI_CHAR_RE = re.compile(r"[฀-๿]")
+
 
 def _group_words_into_captions(words: list[dict], chunk_size: int = _CAPTION_CHUNK_WORDS) -> list[dict]:
     """Group [{text, start, end}, ...] word timings into readable multi-word caption chunks."""
@@ -22,8 +25,14 @@ def _group_words_into_captions(words: list[dict], chunk_size: int = _CAPTION_CHU
         group = words[i:i + chunk_size]
         if not group:
             continue
+        texts = [w["text"] for w in group]
+        # Thai script has no inter-word spaces. Edge TTS's WordBoundary events still segment on
+        # word units internally, but joining them back with English-style spaces renders as
+        # broken/childish Thai on screen ("ที่ คุณ รัก ไหม" instead of "ที่คุณรักไหม") — so
+        # concatenate directly when the chunk is Thai instead of always using " ".join(...).
+        text = "".join(texts) if any(_THAI_CHAR_RE.search(t) for t in texts) else " ".join(texts)
         captions.append({
-            "text": " ".join(w["text"] for w in group),
+            "text": text,
             "start": group[0]["start"],
             "end": group[-1]["end"],
         })
@@ -51,7 +60,9 @@ def _proportional_captions(text: str, total_duration: float, chunk_size: int = _
     words = text.split()
     if not words or total_duration <= 0:
         return []
-    chunks = [" ".join(words[i:i + chunk_size]) for i in range(0, len(words), chunk_size)]
+    is_thai = bool(_THAI_CHAR_RE.search(text))
+    joiner = "" if is_thai else " "
+    chunks = [joiner.join(words[i:i + chunk_size]) for i in range(0, len(words), chunk_size)]
     total_chars = sum(len(c) for c in chunks) or 1
     captions = []
     t = 0.0
@@ -130,12 +141,136 @@ class TTSService:
         """Generate voiceover with real silence gaps between beats — natural breathing room
         instead of one unbroken block of narration for the whole clip. Gap length is randomized
         per-gap (not a fixed duration every time, which reads as mechanical), and the gap right
-        before the final beat (the CTA) is longer, like a real narrator pausing before the ask."""
+        before the final beat (the CTA) is longer, like a real narrator pausing before the ask.
+
+        Synthesizes the FULL script as ONE continuous TTS call and then cuts silence gaps into
+        that single recording at beat boundaries — rather than synthesizing each beat as its own
+        isolated TTS call and splicing the results together. The old per-beat approach made every
+        voice engine treat each beat as a fresh, standalone sentence (its own start/end intonation),
+        which read as choppy/disjointed once stitched with hard digital silence. Cutting one
+        continuous natural reading instead preserves real cross-sentence prosody."""
         beats = [b.strip() for b in beats if b and b.strip()]
         if len(beats) <= 1:
             text = beats[0] if beats else ""
             return await self.generate_voiceover(text=text, job_id=job_id, voice_style=voice_style, lang=lang)
 
+        full_text = " ".join(beats)
+        voice_result = await self.generate_voiceover(text=full_text, job_id=job_id, voice_style=voice_style, lang=lang)
+        words = voice_result.get("words") or []
+
+        if not words:
+            logger.warning("[TTS] no word-level timing available — falling back to per-beat synthesis")
+            return await self._generate_voiceover_beats_legacy(
+                beats, job_id, voice_style, lang, pause_range, cta_pause_range,
+            )
+
+        # Map each beat to a cumulative word count, so its boundary lands on the word-timing
+        # entry for its own last word in the single continuous recording.
+        beat_word_counts = [len(b.split()) for b in beats]
+        if sum(beat_word_counts) != len(words):
+            logger.warning(
+                f"[TTS] beat word count ({sum(beat_word_counts)}) != TTS word count ({len(words)}) — "
+                "tokenization drifted, falling back to per-beat synthesis"
+            )
+            return await self._generate_voiceover_beats_legacy(
+                beats, job_id, voice_style, lang, pause_range, cta_pause_range,
+            )
+
+        num_gaps = len(beats) - 1
+        gap_durations = [
+            round(random.uniform(*(cta_pause_range if i == num_gaps - 1 else pause_range)), 2)
+            for i in range(num_gaps)
+        ]
+
+        boundary_times = []
+        cum_words = 0
+        for i in range(num_gaps):
+            cum_words += beat_word_counts[i]
+            boundary_times.append(words[cum_words - 1]["end"])
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src_path = os.path.join(tmpdir, "full.mp3")
+            with open(src_path, "wb") as f:
+                f.write(storage_service.download_bytes(voice_result["url"]))
+            total_dur = await _probe_audio_duration(src_path)
+
+            segment_paths = []
+            bounds = [0.0] + boundary_times + [total_dur]
+            for i in range(len(bounds) - 1):
+                seg_path = os.path.join(tmpdir, f"seg_{i}.mp3")
+                await self._run_ffmpeg_audio([
+                    "ffmpeg", "-y", "-i", src_path,
+                    "-ss", str(bounds[i]), "-to", str(bounds[i + 1]),
+                    "-c:a", "libmp3lame", "-q:a", "4", seg_path,
+                ])
+                segment_paths.append(seg_path)
+
+            gap_paths = []
+            for i, dur in enumerate(gap_durations):
+                gap_path = os.path.join(tmpdir, f"gap_{i}.mp3")
+                await self._run_ffmpeg_audio([
+                    "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono",
+                    "-t", str(dur), "-q:a", "9", gap_path,
+                ])
+                gap_paths.append(gap_path)
+
+            concat_list_path = os.path.join(tmpdir, "concat.txt")
+            with open(concat_list_path, "w", encoding="utf-8") as f:
+                for i, path in enumerate(segment_paths):
+                    f.write(f"file '{path}'\n")
+                    if i < len(gap_paths):
+                        f.write(f"file '{gap_paths[i]}'\n")
+
+            final_path = os.path.join(tmpdir, "final.mp3")
+            proc = await asyncio.create_subprocess_exec(
+                "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list_path,
+                "-c:a", "libmp3lame", "-q:a", "4", final_path,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                raise RuntimeError(f"Beat concat failed: {stderr.decode()[-500:]}")
+
+            # Shift original (single-recording) caption timestamps forward by however much
+            # inserted silence now sits before them.
+            all_captions: list[dict] = []
+            for c in voice_result.get("captions", []):
+                shift = sum(g for g, b in zip(gap_durations, boundary_times) if b <= c["start"])
+                all_captions.append({
+                    "text": c["text"],
+                    "start": round(c["start"] + shift, 3),
+                    "end": round(c["end"] + shift, 3),
+                })
+
+            with open(final_path, "rb") as f:
+                final_bytes = f.read()
+
+        url = await storage_service.upload_bytes(
+            data=final_bytes, filename=f"{job_id}_voiceover.mp3",
+            content_type="audio/mpeg", bucket="assets", prefix=f"voiceovers/{job_id}",
+        )
+        logger.info(f"[TTS] beats done (single-take): {len(beats)} beats, gaps={gap_durations}, total_captions={len(all_captions)}")
+        return {
+            "url": url,
+            "characters_used": len(full_text),
+            "voice_id": voice_result.get("voice_id", ""),
+            "model_id": voice_result.get("model_id", "edge-tts"),
+            "captions": all_captions,
+        }
+
+    async def _generate_voiceover_beats_legacy(
+        self,
+        beats: list[str],
+        job_id: str,
+        voice_style: str,
+        lang: str,
+        pause_range: tuple[float, float],
+        cta_pause_range: tuple[float, float],
+    ) -> dict:
+        """Fallback for engines with no word-level timing (e.g. gTTS): synthesize each beat as
+        its own isolated TTS call and splice with silence. Less natural than the single-take
+        path in generate_voiceover_beats (each beat gets its own fresh sentence intonation),
+        but the only option without per-word timestamps to cut a continuous recording at."""
         beat_results = [
             await self.generate_voiceover(text=b, job_id=f"{job_id}_b{i}", voice_style=voice_style, lang=lang)
             for i, b in enumerate(beats)
@@ -158,12 +293,10 @@ class TTSService:
             gap_paths = []
             for i, dur in enumerate(gap_durations):
                 gap_path = os.path.join(tmpdir, f"gap_{i}.mp3")
-                proc = await asyncio.create_subprocess_exec(
+                await self._run_ffmpeg_audio([
                     "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono",
                     "-t", str(dur), "-q:a", "9", gap_path,
-                    stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
-                )
-                await proc.communicate()
+                ])
                 gap_paths.append(gap_path)
 
             concat_list_path = os.path.join(tmpdir, "concat.txt")
@@ -183,8 +316,6 @@ class TTSService:
             if proc.returncode != 0:
                 raise RuntimeError(f"Beat concat failed: {stderr.decode()[-500:]}")
 
-            # Shift each beat's caption timing by the cumulative duration of everything before it
-            # (previous beats' audio + the silence gaps already inserted between them).
             all_captions: list[dict] = []
             offset = 0.0
             for i, (r, path) in enumerate(zip(beat_results, audio_paths)):
@@ -204,7 +335,7 @@ class TTSService:
             data=final_bytes, filename=f"{job_id}_voiceover.mp3",
             content_type="audio/mpeg", bucket="assets", prefix=f"voiceovers/{job_id}",
         )
-        logger.info(f"[TTS] beats done: {len(beats)} beats, gaps={gap_durations}, total_captions={len(all_captions)}")
+        logger.info(f"[TTS] beats done (legacy per-beat): {len(beats)} beats, gaps={gap_durations}, total_captions={len(all_captions)}")
         return {
             "url": url,
             "characters_used": sum(len(b) for b in beats),
@@ -212,6 +343,15 @@ class TTSService:
             "model_id": beat_results[0].get("model_id", "edge-tts"),
             "captions": all_captions,
         }
+
+    @staticmethod
+    async def _run_ffmpeg_audio(cmd: list[str]) -> None:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise RuntimeError(f"ffmpeg audio command failed: {stderr.decode()[-500:]}")
 
     async def _edge_tts(self, text: str, job_id: str, voice_style: str) -> dict:
         import edge_tts
@@ -274,7 +414,7 @@ class TTSService:
         logger.info(f"[TTS] Edge TTS done size={len(audio_bytes)} url={url[:60]} words={len(words)} captions={len(captions)}")
         return {
             "url": url, "characters_used": len(text), "voice_id": voice, "model_id": "edge-tts",
-            "captions": captions,
+            "captions": captions, "words": words,
         }
 
     async def _elevenlabs(self, text: str, job_id: str, voice_style: str) -> dict:

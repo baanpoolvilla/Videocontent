@@ -538,8 +538,10 @@ class VideoService:
             return False
 
     async def _append_logo_outro(self, video_path: str, logo_url: str, tmpdir: str) -> str:
-        """Append a short outro card (logo centered on black, fading in) to the end of the
-        rendered clip — a promo-style sign-off."""
+        """Fade the logo in as a watermark-style overlay on top of the clip's own final
+        seconds — no separate black card appended after. A dedicated full-screen black outro
+        (tried previously) read as a jarring dead-screen cut; this keeps the property footage
+        visible underneath and doesn't change the clip's total length at all."""
         logo_path = os.path.join(tmpdir, "outro_logo.png")
         try:
             await self._download_file(logo_url, logo_path)
@@ -548,47 +550,33 @@ class VideoService:
             return video_path
 
         has_audio = await self._has_audio_stream(video_path)
-        outro_dur = 2.2
-        outro_path = os.path.join(tmpdir, "outro.mp4")
-        outro_inputs = [
-            "-f", "lavfi", "-i", f"color=c=black:size={OUT_W}x{OUT_H}:rate=25:duration={outro_dur}",
-            "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo",
-            "-loop", "1", "-i", logo_path,
-        ]
-        outro_filter = (
-            "[2:v]scale=iw*0.42:-1,format=rgba,fade=t=in:st=0:d=0.4:alpha=1[logo];"
-            "[0:v][logo]overlay=(W-w)/2:(H-h)/2:format=auto[outv]"
-        )
-        await self._run_ffmpeg([
-            "ffmpeg", "-y", *outro_inputs,
-            "-filter_complex", outro_filter,
-            "-map", "[outv]", "-map", "1:a",
-            "-t", str(outro_dur),
-            "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
-            "-c:a", "aac",
-            outro_path,
-        ])
+        main_dur = await self._get_duration(video_path)
+        overlay_dur = min(2.2, main_dur)
+        start_t = max(0.0, main_dur - overlay_dur)
 
-        joined_path = os.path.join(tmpdir, "with_outro.mp4")
+        out_path = os.path.join(tmpdir, "with_logo.mp4")
+        # Fade-in only (no explicit fade-out needed — the clip simply ends while it's visible).
+        # scale uses eval=frame for a gentle continuous scale-up so it doesn't sit frozen.
+        filter_complex = (
+            f"[1:v]scale=w='iw*0.3*(1+0.05*(t-{start_t:.3f})/{overlay_dur:.3f})':h=-1:eval=frame,"
+            f"format=rgba,fade=t=in:st={start_t:.3f}:d=0.5:alpha=1[logo];"
+            f"[0:v][logo]overlay=(W-w)/2:(H-h)/2:format=auto[outv]"
+        )
+        cmd = [
+            "ffmpeg", "-y", "-i", video_path, "-loop", "1", "-i", logo_path,
+            "-filter_complex", filter_complex,
+            "-map", "[outv]",
+        ]
         if has_audio:
-            await self._run_ffmpeg([
-                "ffmpeg", "-y", "-i", video_path, "-i", outro_path,
-                "-filter_complex", "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]",
-                "-map", "[v]", "-map", "[a]",
-                "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
-                "-c:a", "aac", "-movflags", "+faststart",
-                joined_path,
-            ])
+            cmd += ["-map", "0:a", "-c:a", "copy"]
         else:
-            await self._run_ffmpeg([
-                "ffmpeg", "-y", "-i", video_path, "-i", outro_path,
-                "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[v]",
-                "-map", "[v]",
-                "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
-                "-an", "-movflags", "+faststart",
-                joined_path,
-            ])
-        return joined_path
+            cmd += ["-an"]
+        cmd += [
+            "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
+            "-t", f"{main_dur:.3f}", "-movflags", "+faststart", out_path,
+        ]
+        await self._run_ffmpeg(cmd)
+        return out_path
 
     async def _xfade_clips(
         self,
