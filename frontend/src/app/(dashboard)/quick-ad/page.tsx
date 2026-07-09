@@ -124,8 +124,11 @@ export default function QuickAdPage() {
       const jobId = startRes.data.job_id;
 
       // Script + TTS + FFmpeg render can take well over a minute — poll instead of
-      // one long blocking request (avoids reverse-proxy/CDN timeout limits).
-      const MAX_ATTEMPTS = 120; // ~4 minutes at 2s intervals
+      // one long blocking request (avoids reverse-proxy/CDN timeout limits). "prime" style
+      // also renders an animated title card via headless Chrome (HyperFrames), which adds
+      // real time on top — 4 minutes wasn't enough margin and gave a false "took too long"
+      // even though the job kept running server-side and finished anyway.
+      const MAX_ATTEMPTS = 240; // ~8 minutes at 2s intervals
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         await new Promise((r) => setTimeout(r, 2000));
         const jobRes = await api.get(`/quick-ad/job/${jobId}`);

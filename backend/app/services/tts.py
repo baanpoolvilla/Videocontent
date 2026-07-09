@@ -54,15 +54,29 @@ async def _probe_audio_duration(path: str) -> float:
         return 0.0
 
 
+_THAI_CAPTION_CHUNK_CHARS = 16  # ~one short on-screen burst at the caption font size/frame width
+
+
 def _proportional_captions(text: str, total_duration: float, chunk_size: int = _CAPTION_CHUNK_WORDS) -> list[dict]:
-    """Fallback timing when no native timestamp API is available (e.g. gTTS):
-    distribute caption chunks across total_duration proportional to character count."""
-    words = text.split()
-    if not words or total_duration <= 0:
+    """Fallback timing when no native timestamp API is available (e.g. gTTS, or Edge TTS
+    voices that occasionally refuse WordBoundary mode): distribute caption chunks across
+    total_duration proportional to character count."""
+    if total_duration <= 0 or not text.strip():
         return []
     is_thai = bool(_THAI_CHAR_RE.search(text))
-    joiner = "" if is_thai else " "
-    chunks = [joiner.join(words[i:i + chunk_size]) for i in range(0, len(words), chunk_size)]
+    if is_thai:
+        # text.split() can't chunk Thai at all — there are no inter-word spaces to split on,
+        # so it silently returned the ENTIRE sentence as a single "word"/chunk (confirmed live:
+        # a full clause rendered as one giant caption that overflowed the frame). Fall back to
+        # fixed-size character bursts instead, which at least reads as a normal caption length.
+        chunks = [text[i:i + _THAI_CAPTION_CHUNK_CHARS] for i in range(0, len(text), _THAI_CAPTION_CHUNK_CHARS)]
+    else:
+        words = text.split()
+        if not words:
+            return []
+        chunks = [" ".join(words[i:i + chunk_size]) for i in range(0, len(words), chunk_size)]
+    if not chunks:
+        return []
     total_chars = sum(len(c) for c in chunks) or 1
     captions = []
     t = 0.0
@@ -164,17 +178,16 @@ class TTSService:
                 beats, job_id, voice_style, lang, pause_range, cta_pause_range,
             )
 
-        # Map each beat to a cumulative word count, so its boundary lands on the word-timing
-        # entry for its own last word in the single continuous recording.
-        beat_word_counts = [len(b.split()) for b in beats]
-        if sum(beat_word_counts) != len(words):
-            logger.warning(
-                f"[TTS] beat word count ({sum(beat_word_counts)}) != TTS word count ({len(words)}) — "
-                "tokenization drifted, falling back to per-beat synthesis"
-            )
-            return await self._generate_voiceover_beats_legacy(
-                beats, job_id, voice_style, lang, pause_range, cta_pause_range,
-            )
+        # Locate each beat boundary by character-length proportion rather than word count —
+        # Edge TTS's WordBoundary events for Thai don't correspond to whitespace-delimited
+        # "words" at all (Thai has no inter-word spaces), so beat.split() undercounts by a
+        # huge margin (confirmed live: 14 vs 112) and every job silently fell back to the
+        # choppy per-beat path. Speaking rate is roughly steady for a given voice, so mapping
+        # character position -> proportional time in the continuous recording lands within a
+        # few hundred ms of the real word boundary, which is what actually matters here.
+        total_start = words[0]["start"]
+        total_span = words[-1]["end"] - total_start
+        total_chars = len(full_text) or 1
 
         num_gaps = len(beats) - 1
         gap_durations = [
@@ -183,10 +196,11 @@ class TTSService:
         ]
 
         boundary_times = []
-        cum_words = 0
+        cum_chars = 0
         for i in range(num_gaps):
-            cum_words += beat_word_counts[i]
-            boundary_times.append(words[cum_words - 1]["end"])
+            cum_chars += len(beats[i]) + 1  # +1 for the space joining this beat to the next
+            frac = min(cum_chars / total_chars, 1.0)
+            boundary_times.append(total_start + frac * total_span)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             src_path = os.path.join(tmpdir, "full.mp3")

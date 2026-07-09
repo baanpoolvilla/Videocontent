@@ -66,6 +66,23 @@ def _escape_drawtext(text: str) -> str:
     )
 
 
+def _short_headline(text: str, max_chars: int = 22) -> str:
+    """Both title-card renderers (HyperFrames' fixed-width box and the FFmpeg drawtext
+    overlay, which has no width bound at all) were designed for a short 1-4 word title —
+    the HyperFrames composition's own placeholder default is a single word ("พูลวิลลา").
+    The AI-written "hook" is a full spoken sentence meant for narration, not a title, so
+    passing it straight through overflowed the frame. Cut it down to something title-sized,
+    breaking on a space if one exists near the limit so we don't chop a word in half."""
+    text = text.strip()
+    if len(text) <= max_chars:
+        return text
+    cut = text[:max_chars]
+    last_space = cut.rfind(" ")
+    if last_space > max_chars * 0.5:
+        cut = cut[:last_space]
+    return cut.rstrip(" ,.!?") + "…"
+
+
 def _editorial_headline_overlay(headline: str, subtitle: str) -> str:
     """Bottom-left serif title card (headline + subtitle + thin accent line), fading in over 0.6s."""
     alpha = "if(lt(t,0.6),(t/0.6),1)"
@@ -449,6 +466,7 @@ class VideoService:
         card first (real spring/ease motion via headless Chrome) and falls back to the plain
         drawtext overlay used by "editorial" if that render isn't available or fails."""
         out_path = os.path.join(tmpdir, "with_title.mp4")
+        headline = _short_headline(headline)
 
         title_path = None
         if style == "prime":
