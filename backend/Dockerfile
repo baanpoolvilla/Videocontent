@@ -24,7 +24,12 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy only the HyperFrames composition assets first (rarely change) so the expensive npm
+# install + warmup render below stays cached across builds that only touch application code
+# elsewhere. Previously this ran after a blanket `COPY . .`, so ANY code change — which is
+# nearly every deploy — invalidated Docker's cache and forced a full ~200-280s reinstall +
+# re-render every single time, even though neither step actually reads the changed files.
+COPY app/assets/hyperframes app/assets/hyperframes
 
 # Install HyperFrames as a pinned local dependency (not npx — avoids a registry hit and
 # version drift on every render) and pre-warm its headless Chrome download at build time,
@@ -36,6 +41,8 @@ RUN npm init -y \
        --format mov -o /tmp/warmup.mov --quiet \
     && rm -f /tmp/warmup.mov
 WORKDIR /app
+
+COPY . .
 
 EXPOSE 8000
 

@@ -211,36 +211,50 @@ class TTSService:
             for i in range(num_gaps)
         ]
 
-        # The proportional estimate is only a rough guess at WHERE the boundary falls — cutting
-        # there directly risks landing mid-word, or worse, inside a natural pause the voice
-        # already left at a comma/period. In that second case the segment would carry that
-        # pause's tail as trailing silence, and our own inserted gap would stack on top of it —
-        # confirmed live, a ~2s dead-air gap where the designed range was 0.6-1.6s. Snapping to
-        # the nearest real inter-word gap and cutting at the END of the word before it discards
-        # whatever natural pause was there, so the gap actually played is only the one we chose.
+        # Assign each beat an exact WORD-INDEX range (not just a single cut point) so its
+        # segment can be trimmed to exactly [first_word.start, last_word.end] — discarding any
+        # natural pause on BOTH sides. Cutting at a single boundary point only trims the
+        # trailing silence of the beat before it; the natural pause before the NEXT beat's
+        # first word was still being carried into that beat's segment and stacking with our
+        # own inserted gap (confirmed live: ~2s gaps where the designed range was 0.6-1.6s).
         word_starts = [w["start"] for w in words]
-        boundary_times = []
+        boundary_indices = []
         cum_chars = 0
         for i in range(num_gaps):
             cum_chars += len(beats[i]) + 1  # +1 for the space joining this beat to the next
             frac = min(cum_chars / total_chars, 1.0)
             estimate = total_start + frac * total_span
             idx = min(range(len(word_starts)), key=lambda j: abs(word_starts[j] - estimate))
-            boundary_times.append(words[idx - 1]["end"] if idx > 0 else estimate)
+            boundary_indices.append(idx)
+
+        # range_bounds[i] : range_bounds[i+1] = the word indices belonging to beat i. Force
+        # strictly increasing bounds so no beat ever collapses to zero words if two estimates
+        # land on the same nearest word.
+        range_bounds = [0]
+        for idx in boundary_indices:
+            range_bounds.append(max(idx, range_bounds[-1] + 1))
+        range_bounds.append(max(len(words), range_bounds[-1] + 1))
+        n_segments = len(range_bounds) - 1
+
+        seg_orig_start = []
+        seg_orig_end = []
+        for i in range(n_segments):
+            start_idx = range_bounds[i]
+            end_idx = min(range_bounds[i + 1], len(words)) - 1
+            seg_orig_start.append(0.0 if i == 0 else words[start_idx]["start"])
+            seg_orig_end.append(words[end_idx]["end"])
 
         with tempfile.TemporaryDirectory() as tmpdir:
             src_path = os.path.join(tmpdir, "full.mp3")
             with open(src_path, "wb") as f:
                 f.write(storage_service.download_bytes(voice_result["url"]))
-            total_dur = await _probe_audio_duration(src_path)
 
             segment_paths = []
-            bounds = [0.0] + boundary_times + [total_dur]
-            for i in range(len(bounds) - 1):
+            for i in range(n_segments):
                 seg_path = os.path.join(tmpdir, f"seg_{i}.mp3")
                 await self._run_ffmpeg_audio([
                     "ffmpeg", "-y", "-i", src_path,
-                    "-ss", str(bounds[i]), "-to", str(bounds[i + 1]),
+                    "-ss", str(seg_orig_start[i]), "-to", str(seg_orig_end[i]),
                     "-c:a", "libmp3lame", "-q:a", "4", seg_path,
                 ])
                 segment_paths.append(seg_path)
@@ -271,26 +285,36 @@ class TTSService:
             if proc.returncode != 0:
                 raise RuntimeError(f"Beat concat failed: {stderr.decode()[-500:]}")
 
-            # Shift original (single-recording) caption timestamps forward by however much
-            # inserted silence now sits before them (each word shifted individually — its own
-            # start decides which inserted gaps now sit before it — so karaoke timing inside a
-            # caption group that straddles a boundary still stays correct).
-            def _shift_for(t: float) -> float:
-                return sum(g for g, b in zip(gap_durations, boundary_times) if b <= t)
+            # Map a timestamp in the ORIGINAL continuous recording to where it now lands in the
+            # trimmed-and-gapped final audio. A timestamp inside a kept segment shifts by that
+            # segment's cumulative offset; one that fell inside a now-discarded natural pause
+            # (between segments) clamps to the end of the segment before it, since that stretch
+            # no longer exists in the output at all.
+            seg_final_offset = []
+            offset = 0.0
+            for i in range(n_segments):
+                seg_final_offset.append(offset)
+                offset += seg_orig_end[i] - seg_orig_start[i]
+                if i < len(gap_durations):
+                    offset += gap_durations[i]
+
+            def _remap(t: float) -> float:
+                for i in range(n_segments):
+                    if seg_orig_start[i] <= t <= seg_orig_end[i]:
+                        return (t - seg_orig_start[i]) + seg_final_offset[i]
+                for i in range(n_segments - 1, -1, -1):
+                    if seg_orig_end[i] <= t:
+                        return seg_final_offset[i] + (seg_orig_end[i] - seg_orig_start[i])
+                return seg_final_offset[0]
 
             all_captions: list[dict] = []
             for c in voice_result.get("captions", []):
-                shift = _shift_for(c["start"])
                 all_captions.append({
                     "text": c["text"],
-                    "start": round(c["start"] + shift, 3),
-                    "end": round(c["end"] + shift, 3),
+                    "start": round(_remap(c["start"]), 3),
+                    "end": round(_remap(c["end"]), 3),
                     "words": [
-                        {
-                            "text": w["text"],
-                            "start": round(w["start"] + _shift_for(w["start"]), 3),
-                            "end": round(w["end"] + _shift_for(w["start"]), 3),
-                        }
+                        {"text": w["text"], "start": round(_remap(w["start"]), 3), "end": round(_remap(w["end"]), 3)}
                         for w in c.get("words", [])
                     ],
                 })

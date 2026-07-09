@@ -722,6 +722,21 @@ class VideoService:
         caption_style: str = "karaoke",
     ) -> str:
         output_path = os.path.join(tmpdir, "output.mp4")
+
+        # The AI writes the script to *target* duration_sec, but nothing guarantees the actual
+        # TTS narration comes out that length exactly — confirmed live: a script that ran ~26s
+        # got hard-cut at whatever duration_sec was, chopping the CTA off mid-sentence (the
+        # final mux below used "-t duration_sec" unconditionally). If the voiceover is longer
+        # than requested, extend the whole render to match it instead of truncating the audio —
+        # the narration is what the viewer hears in full; a slightly longer video is a much
+        # smaller problem than an ad that cuts itself off before finishing the pitch.
+        if audio_path and os.path.exists(audio_path):
+            audio_dur = await self._get_duration(audio_path)
+            if audio_dur > duration_sec:
+                logger.info(f"[VIDEO] voiceover ({audio_dur:.1f}s) longer than requested duration_sec "
+                            f"({duration_sec}s) — extending render to fit the full narration")
+                duration_sec = int(audio_dur) + 1
+
         n = len(image_paths)
         per_image = max(2.0, duration_sec / n)
         fps = 25
@@ -838,6 +853,11 @@ class VideoService:
     async def _text_to_video(self, audio_path: str | None, tmpdir: str, duration_sec: int) -> str:
         output_path = os.path.join(tmpdir, "output.mp4")
         if audio_path and os.path.exists(audio_path):
+            # Same fix as _images_to_video: -shortest would otherwise cut the audio off at
+            # duration_sec if the narration runs longer than the requested target.
+            audio_dur = await self._get_duration(audio_path)
+            if audio_dur > duration_sec:
+                duration_sec = int(audio_dur) + 1
             await self._run_ffmpeg([
                 "ffmpeg", "-y",
                 "-f", "lavfi", "-i", f"color=c=black:size={OUT_W}x{OUT_H}:rate=25:duration={duration_sec}",
