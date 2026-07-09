@@ -83,11 +83,16 @@ def _short_headline(text: str, max_chars: int = 22) -> str:
     return cut.rstrip(" ,.!?") + "…"
 
 
-def _editorial_headline_overlay(headline: str, subtitle: str) -> str:
-    """Bottom-left serif title card (headline + subtitle + thin accent line), fading in over 0.6s."""
-    alpha = "if(lt(t,0.6),(t/0.6),1)"
+def _editorial_headline_overlay(headline: str, subtitle: str, hold: float = 3.0, fade_out: float = 0.5) -> str:
+    """Bottom-left serif title card (headline + subtitle + thin accent line): fades in over
+    0.6s, holds for `hold` seconds, then fades back out — it was previously left with no end
+    at all, so it sat on screen for the entire clip instead of just the opening (confirmed via
+    the equivalent HyperFrames overlay bug: FFmpeg's default overlay/no-enable behavior doesn't
+    remove itself on its own)."""
+    end = hold + fade_out
+    alpha = f"if(lt(t,0.6),t/0.6,if(lt(t,{hold}),1,if(lt(t,{end}),1-(t-{hold})/{fade_out},0)))"
     h = _escape_drawtext(headline)
-    parts = [f"drawbox=x=80:y=h-500:w=70:h=3:color=white@0.9:t=fill"]
+    parts = [f"drawbox=x=80:y=h-500:w=70:h=3:color=white@0.9:t=fill:enable='lt(t,{end})'"]
     parts.append(
         f"drawtext=fontfile='{_SERIF_FONT}':text='{h}':fontsize=58:fontcolor=white:"
         f"x=80:y=h-470:alpha='{alpha}'"
@@ -478,7 +483,11 @@ class VideoService:
             await self._run_ffmpeg([
                 "ffmpeg", "-y", "-i", video_path, "-i", title_path,
                 "-filter_complex",
-                "[1:v]format=yuva420p[title];[0:v][title]overlay=0:0:format=auto[outv]",
+                # eof_action=pass: overlay's default ("repeat") freezes the title MOV's last
+                # frame and keeps compositing it for the rest of the clip once its own ~3s
+                # duration ends — confirmed live, the title card never actually went away.
+                # "pass" lets the base footage show through clean once the title clip ends.
+                "[1:v]format=yuva420p[title];[0:v][title]overlay=0:0:format=auto:eof_action=pass[outv]",
                 "-map", "[outv]",
                 "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
                 "-an", out_path,

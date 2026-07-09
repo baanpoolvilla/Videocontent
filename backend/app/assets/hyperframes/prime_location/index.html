@@ -68,6 +68,12 @@
       tl.to("#headline", { opacity: 1, y: 0, duration: 0.6, ease: "back.out(1.6)" }, 0.25);
       tl.to("#subtitle", { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 0.45);
 
+      // Fade back out before the composition's own 3s duration ends — the compositor
+      // overlays this on top of the main clip with eof_action=pass, so without this the
+      // title would just hard-cut away the instant this MOV ends instead of leaving cleanly.
+      tl.to(["#headline", "#subtitle"], { opacity: 0, duration: 0.4, ease: "power1.in" }, 2.6);
+      tl.to("#accent", { opacity: 0, duration: 0.4, ease: "power1.in" }, 2.6);
+
       window.__timelines["main"] = tl;
     </script>
   </body>
