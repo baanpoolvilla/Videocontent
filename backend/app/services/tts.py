@@ -12,8 +12,15 @@ from app.services.storage import storage_service
 
 logger = logging.getLogger(__name__)
 
-# Max words grouped into one on-screen caption chunk (OpusClip-style short bursts)
-_CAPTION_CHUNK_WORDS = 4
+# Caption grouping targets: aim for each on-screen chunk to last _CAPTION_TARGET_DURATION
+# seconds, growing the group word-by-word until it hits that (or the word-count safety caps)
+# rather than always grouping a fixed word count. A fixed 4-word group could be a fraction of
+# a second (short words spoken fast) or several seconds (long words, slow pacing) — confirmed
+# live: captions "flashing by" almost instantly next to others sitting on screen for ages.
+_CAPTION_CHUNK_WORDS = 4  # kept as the function's default arg name/value for compatibility
+_CAPTION_TARGET_DURATION = 1.4
+_CAPTION_MIN_WORDS = 2
+_CAPTION_MAX_WORDS = 7
 
 _THAI_CHAR_RE = re.compile(r"[฀-๿]")
 
@@ -35,12 +42,20 @@ def _join_caption_words(texts: list[str]) -> str:
 
 
 def _group_words_into_captions(words: list[dict], chunk_size: int = _CAPTION_CHUNK_WORDS) -> list[dict]:
-    """Group [{text, start, end}, ...] word timings into readable multi-word caption chunks."""
+    """Group [{text, start, end}, ...] word timings into readable on-screen caption chunks,
+    growing each group until it reaches _CAPTION_TARGET_DURATION on screen (bounded by
+    min/max word-count safety caps) instead of always grouping a fixed word count."""
     captions = []
-    for i in range(0, len(words), chunk_size):
-        group = words[i:i + chunk_size]
-        if not group:
-            continue
+    n = len(words)
+    i = 0
+    while i < n:
+        j = i
+        while j < n - 1 and (j - i + 1) < _CAPTION_MAX_WORDS:
+            dur = words[j]["end"] - words[i]["start"]
+            if dur >= _CAPTION_TARGET_DURATION and (j - i + 1) >= _CAPTION_MIN_WORDS:
+                break
+            j += 1
+        group = words[i:j + 1]
         texts = [w["text"] for w in group]
         text = _join_caption_words(texts)
         captions.append({
@@ -52,6 +67,7 @@ def _group_words_into_captions(words: list[dict], chunk_size: int = _CAPTION_CHU
             # up at once.
             "words": [{"text": w["text"], "start": w["start"], "end": w["end"]} for w in group],
         })
+        i = j + 1
     return captions
 
 
@@ -234,6 +250,27 @@ class TTSService:
         for idx in boundary_indices:
             range_bounds.append(max(idx, range_bounds[-1] + 1))
         range_bounds.append(max(len(words), range_bounds[-1] + 1))
+
+        # A beat that ends up anomalously short (a couple of words, well under a second) reads
+        # as an isolated audio blip between two designed pauses rather than actual content —
+        # confirmed live: a ~0.4s stray beat sandwiched between two normal-length gaps sounded
+        # like a stutter, and its caption would flash by almost instantly. Merge it into the
+        # following beat (or the preceding one if it's the last) instead of rendering it alone.
+        MIN_BEAT_DUR = 0.6
+        i = 0
+        while i < len(range_bounds) - 1 and len(range_bounds) > 2:
+            start_idx, end_idx = range_bounds[i], range_bounds[i + 1] - 1
+            dur = words[end_idx]["end"] - words[start_idx]["start"]
+            if dur >= MIN_BEAT_DUR:
+                i += 1
+                continue
+            if i + 2 < len(range_bounds):
+                del range_bounds[i + 1]
+                del gap_durations[i]
+            else:
+                del range_bounds[i]
+                del gap_durations[i - 1]
+            # don't advance — re-check the now-merged (larger) beat in case it's still short
         n_segments = len(range_bounds) - 1
 
         seg_orig_start = []

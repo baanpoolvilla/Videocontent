@@ -18,6 +18,7 @@ class _ScriptSchema(BaseModel):
     cta: str
     full_script: str
     beats: list[str]
+    title_card: str
 
 
 class _StyleSchema(BaseModel):
@@ -498,7 +499,9 @@ body: เนื้อหาหลัก 15-20 วินาที
 cta: Call to Action 5-7 วินาที
 full_script: Script ฉบับเต็มที่พูดได้เลย
 beats: แบ่ง full_script ออกเป็นช่วงพูดสั้นๆ 3-6 ช่วงตามลำดับ (แต่ละช่วงคือประโยคหรือกลุ่มประโยคที่ควรพูดรวดเดียว
-  แล้วเว้นจังหวะเงียบสั้นๆ ก่อนพูดช่วงถัดไป — เหมือนตัดช็อตภาพ) รวมกันแล้วต้องได้เนื้อความเดียวกับ full_script"""
+  แล้วเว้นจังหวะเงียบสั้นๆ ก่อนพูดช่วงถัดไป — เหมือนตัดช็อตภาพ) รวมกันแล้วต้องได้เนื้อความเดียวกับ full_script
+title_card: หัวข้อสั้น 2-5 คำ สำหรับโชว์เป็นตัวอักษรใหญ่บนวิดีโอ (คนละอย่างกับ hook ที่พูดออกเสียง) —
+  ต้องเป็นวลีที่จบสมบูรณ์ในตัวเองสั้นๆ กระชับ ห้ามเป็นประโยคยาวที่ดูเหมือนถูกตัดครึ่ง"""
 
         import asyncio
         loop = asyncio.get_event_loop()
@@ -610,6 +613,10 @@ beats: แบ่ง full_script ออกเป็นช่วงพูดสั
             cleaned for b in result.get("beats", [])
             if (cleaned := _clean_spoken_text(b)).strip()
         ] or ([result["full_script"]] if result["full_script"].strip() else [])
+        # title_card is a short on-screen phrase, distinct from the spoken hook — Gemini's
+        # free-text fallback path doesn't reliably populate it, so fall back to the hook
+        # (still passes through _short_headline's overflow guard in video.py either way).
+        result["title_card"] = _clean_spoken_text(result.get("title_card", "")) or result["hook"]
 
         return {"script": result, "tokens_used": 0, "model_used": model_used}
 

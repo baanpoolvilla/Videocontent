@@ -225,7 +225,7 @@ async def _run_quick_ad_job(
             product_name, analysis_result["analysis"], duration_sec=duration_sec,
         )
         full_script = script_result["script"]["full_script"]
-        hook = script_result["script"]["hook"]
+        title_card = script_result["script"].get("title_card") or script_result["script"]["hook"]
         beats = script_result["script"].get("beats") or []
 
         script_safety = await ai_service.check_content_safety(full_script)
@@ -253,7 +253,7 @@ async def _run_quick_ad_job(
             duration_sec=duration_sec,
             captions=voice_result.get("captions", []) if burn_captions else None,
             style=style,
-            headline=hook,
+            headline=title_card,
             subtitle=product_name,
             logo_url=logo_url,
             caption_style=caption_style,
