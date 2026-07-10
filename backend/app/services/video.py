@@ -54,7 +54,33 @@ _MIDNIGHT_GRADE = (
     "vignette=PI/2.8"
 )
 
-_GRADES = {"warm": _COLOR_GRADE, "editorial": _MOODY_GRADE, "prime": _PRIME_GRADE, "midnight": _MIDNIGHT_GRADE}
+# Punchy, boosted-saturation grade for "tv_shopping" — modeled on a competitor reference
+# (hot-pink shopping-channel aesthetic: loud, high-energy, everything turned up).
+_TV_SHOPPING_GRADE = (
+    "colorbalance=rs=0.10:rm=0.08:rh=0.03:gs=-0.02:gm=-0.02:gh=0:bs=-0.02:bm=0:bh=0.02,"
+    "eq=saturation=1.55:contrast=1.18:brightness=0.04,"
+    "vignette=PI/6"
+)
+
+_GRADES = {
+    "warm": _COLOR_GRADE, "editorial": _MOODY_GRADE, "prime": _PRIME_GRADE,
+    "midnight": _MIDNIGHT_GRADE, "tv_shopping": _TV_SHOPPING_GRADE,
+}
+
+# Per-beat overlay themes rendered by _render_beat_overlay_mov — font/color/background box per
+# style, modeled on the competitor reference clips the user pointed to for each business type.
+_OVERLAY_THEMES = {
+    "midnight": {
+        "font": "Georgia, 'Times New Roman', serif",
+        "color": "#E8C97E", "weight": 400, "letter_spacing": "0.03em",
+        "fontsize": 60, "bg": None,
+    },
+    "tv_shopping": {
+        "font": "'Arial Black', Arial, sans-serif",
+        "color": "#FFFFFF", "weight": 900, "letter_spacing": "0.01em",
+        "fontsize": 54, "bg": "#FF1F8F",
+    },
+}
 
 # Merged Thai+Latin serif face for the "editorial" style headline — must be a plain .ttf/.otf,
 # not .woff2 (FFmpeg drawtext segfaults on woff2 with this build; subtitles/libass is fine with it)
@@ -131,6 +157,32 @@ def _midnight_headline_overlay(headline: str, subtitle: str, hold: float = 3.0, 
         parts.append(
             f"drawtext=fontfile='{_SERIF_FONT}':text='{s}':fontsize=28:fontcolor=white@0.75:"
             f"x=(w-text_w)/2:y=h*0.62+70:alpha='{alpha}'"
+        )
+    return ",".join(parts)
+
+
+def _tv_shopping_headline_overlay(headline: str, subtitle: str, hold: float = 3.0, fade_out: float = 0.5) -> str:
+    """Hot-pink background pill behind bold white headline for "tv_shopping" — fallback used
+    when no beat_overlays are available (single-card path, same font asset as the other
+    drawtext styles since no bold sans-serif font file is bundled — the primary per-beat
+    HyperFrames path gets a real bold sans-serif from the browser's own font stack instead)."""
+    end = hold + fade_out
+    alpha = f"if(lt(t,0.6),t/0.6,if(lt(t,{hold}),1,if(lt(t,{end}),1-(t-{hold})/{fade_out},0)))"
+    h = _escape_drawtext(headline)
+    # drawbox can't reference the following drawtext's text_w, so size the pill from headline
+    # character count directly instead (rough estimate is fine for a background pill).
+    box_w = 80 + max(len(h) * 34, 200)
+    parts = [
+        f"drawbox=x=(iw-{box_w})/2:y=(ih*0.6)-20:w={box_w}:h=100:color=0xFF1F8F@1.0:t=fill:"
+        f"enable='between(t,0,{end})'",
+        f"drawtext=fontfile='{_SERIF_FONT}':text='{h}':fontsize=54:fontcolor=white:"
+        f"x=(w-text_w)/2:y=h*0.6:alpha='{alpha}'",
+    ]
+    if subtitle.strip():
+        s = _escape_drawtext(subtitle)
+        parts.append(
+            f"drawtext=fontfile='{_SERIF_FONT}':text='{s}':fontsize=28:fontcolor=white@0.85:"
+            f"x=(w-text_w)/2:y=h*0.6+90:alpha='{alpha}'"
         )
     return ",".join(parts)
 
@@ -372,6 +424,7 @@ class VideoService:
         subtitle: str = "",
         logo_url: str = "",
         caption_style: str = "karaoke",
+        beat_overlays: list[tuple[tuple[float, float], str]] | None = None,
     ) -> dict:
         with tempfile.TemporaryDirectory() as tmpdir:
             audio_path = None
@@ -391,13 +444,13 @@ class VideoService:
                     image_paths.append(img_path)
                 video_path = await self._images_to_video(
                     image_paths, audio_path, tmpdir, duration_sec, captions, style, headline, subtitle,
-                    caption_style,
+                    caption_style, beat_overlays,
                 )
             else:
                 video_path = await self._text_to_video(audio_path, tmpdir, duration_sec)
 
             if logo_url.strip():
-                video_path = await self._append_logo_outro(video_path, logo_url.strip(), tmpdir)
+                video_path = await self._append_logo_outro(video_path, logo_url.strip(), tmpdir, subtitle, style)
 
             with open(video_path, "rb") as f:
                 video_bytes = f.read()
@@ -497,16 +550,28 @@ class VideoService:
         )
         return {"url": url, "size_bytes": len(video_bytes)}
 
-    async def _bake_title_card(self, video_path: str, style: str, headline: str, subtitle: str, tmpdir: str) -> str:
+    async def _bake_title_card(
+        self, video_path: str, style: str, headline: str, subtitle: str, tmpdir: str,
+        beat_overlays: list[tuple[tuple[float, float], str]] | None = None,
+    ) -> str:
         """Burn the title card into the clip. "prime" tries the HyperFrames-rendered animated
         card first (real spring/ease motion via headless Chrome) and falls back to the plain
-        drawtext overlay used by "editorial" if that render isn't available or fails."""
+        drawtext overlay used by "editorial" if that render isn't available or fails.
+
+        "midnight" additionally supports a per-beat overlay: one design-text phrase per
+        narration beat, timed across the whole clip, instead of just a single opening card —
+        falls back to the single title card if no beat_overlays were supplied or the render
+        fails (e.g. HyperFrames unavailable or times out)."""
         out_path = os.path.join(tmpdir, "with_title.mp4")
         headline = _short_headline(headline)
 
         title_path = None
         if style == "prime":
             title_path = await self._render_prime_title_mov(headline, subtitle, tmpdir)
+        elif style in _OVERLAY_THEMES and beat_overlays:
+            total_dur = await self._get_duration(video_path)
+            cues = [(s, e, text) for (s, e), text in beat_overlays if text.strip()]
+            title_path = await self._render_beat_overlay_mov(style, cues, total_dur, tmpdir)
 
         if title_path:
             await self._run_ffmpeg([
@@ -522,10 +587,12 @@ class VideoService:
                 "-an", out_path,
             ])
         else:
-            overlay = (
-                _midnight_headline_overlay(headline, subtitle) if style == "midnight"
-                else _editorial_headline_overlay(headline, subtitle)
-            )
+            if style == "midnight":
+                overlay = _midnight_headline_overlay(headline, subtitle)
+            elif style == "tv_shopping":
+                overlay = _tv_shopping_headline_overlay(headline, subtitle)
+            else:
+                overlay = _editorial_headline_overlay(headline, subtitle)
             await self._run_ffmpeg([
                 "ffmpeg", "-y", "-i", video_path,
                 "-vf", overlay,
@@ -568,6 +635,113 @@ class VideoService:
             logger.warning(f"[VIDEO] hyperframes render errored ({e}) — falling back to drawtext title")
             return None
 
+    async def _render_beat_overlay_mov(
+        self, style: str, cues: list[tuple[float, float, str]], total_duration: float, tmpdir: str,
+    ) -> str | None:
+        """Render ONE design-text overlay per beat (not just a single opening title) across the
+        whole clip, timed to when each beat is actually spoken — matches the competitor reference
+        the user pointed to (a new on-screen phrase per narration beat, not just an intro card).
+        Theme (font/color/background box) is looked up from _OVERLAY_THEMES by style name.
+
+        HyperFrames' root `data-duration` is read once at compile time from the static HTML —
+        confirmed via the hyperframes-core skill, there is no --duration render override and no
+        way to vary it via --variables or a script. Since total clip length differs per job, this
+        generates a fresh composition file into tmpdir for every render instead of using a fixed
+        project directory like _render_prime_title_mov's prime_location.
+
+        class="clip" + data-start/data-duration gives each cue element automatic show/hide at
+        the right time for free (confirmed via hyperframes-core skill) — the GSAP timeline here
+        only adds a fade in/out polish on top of that, it isn't what makes cues appear at all."""
+        theme = _OVERLAY_THEMES.get(style)
+        if not os.path.exists(_HYPERFRAMES_BIN) or not cues or theme is None:
+            return None
+
+        import html as _html
+
+        cue_divs = []
+        tween_lines = []
+        for i, (start, end, text) in enumerate(cues):
+            dur = max(end - start, 0.15)
+            fade = min(0.3, dur * 0.3)
+            safe_text = _html.escape(text)
+            cue_divs.append(
+                f'<div class="clip cue" id="cue-{i}" data-start="{start:.3f}" '
+                f'data-duration="{dur:.3f}" data-track-index="1">{safe_text}</div>'
+            )
+            tween_lines.append(
+                f'tl.fromTo("#cue-{i}", {{opacity:0}}, {{opacity:1, duration:{fade:.3f}}}, {start:.3f});'
+            )
+            tween_lines.append(
+                f'tl.to("#cue-{i}", {{opacity:0, duration:{fade:.3f}}}, {max(start, end - fade):.3f});'
+            )
+
+        bg_css = f"background: {theme['bg']}; padding: 18px 32px; border-radius: 14px;" if theme.get("bg") else ""
+        composition_html = f"""<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+      html, body {{
+        width: 1080px; height: 1920px; overflow: hidden;
+        background: transparent;
+        font-family: {theme['font']};
+      }}
+      #root {{ position: relative; width: 100%; height: 100%; }}
+      .cue {{
+        position: absolute; left: 0; right: 0; top: 1160px;
+        text-align: center; width: fit-content; max-width: 960px; margin: 0 auto;
+        font-size: {theme['fontsize']}px; font-weight: {theme['weight']}; color: {theme['color']};
+        letter-spacing: {theme['letter_spacing']};
+        text-shadow: 0 2px 20px rgba(0,0,0,.6), 0 1px 4px rgba(0,0,0,.55);
+        opacity: 0;
+        {bg_css}
+      }}
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="{total_duration:.3f}"
+         data-width="1080" data-height="1920">
+      {chr(10).join(cue_divs)}
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {{}};
+      const tl = gsap.timeline({{ paused: true }});
+      {chr(10).join(tween_lines)}
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
+"""
+        comp_dir = os.path.join(tmpdir, "beat_overlay")
+        os.makedirs(comp_dir, exist_ok=True)
+        with open(os.path.join(comp_dir, "index.html"), "w", encoding="utf-8") as f:
+            f.write(composition_html)
+
+        out_path = os.path.join(tmpdir, "beat_overlay.mov")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                _HYPERFRAMES_BIN, "render", comp_dir,
+                "--format", "mov", "-o", out_path, "--quiet",
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            # Full-clip renders take much longer than the ~3s single title card (roughly
+            # linear in frame count on this GPU-less host) — generous timeout vs. the 90s
+            # used for the short prime title card.
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
+            if proc.returncode != 0 or not os.path.exists(out_path):
+                logger.warning(f"[VIDEO] {style} beat-overlay render failed (code={proc.returncode}): {stderr.decode()[-500:]}")
+                return None
+            return out_path
+        except asyncio.TimeoutError:
+            logger.warning(f"[VIDEO] {style} beat-overlay render timed out — falling back to single title card")
+            return None
+        except Exception as e:
+            logger.warning(f"[VIDEO] {style} beat-overlay render errored ({e}) — falling back to single title card")
+            return None
+
     async def _get_duration(self, video_path: str) -> float:
         """Get video duration in seconds using ffprobe."""
         proc = await asyncio.create_subprocess_exec(
@@ -599,11 +773,17 @@ class VideoService:
         except Exception:
             return False
 
-    async def _append_logo_outro(self, video_path: str, logo_url: str, tmpdir: str) -> str:
+    async def _append_logo_outro(
+        self, video_path: str, logo_url: str, tmpdir: str, brand_name: str = "", style: str = "warm",
+    ) -> str:
         """Fade the logo in as a watermark-style overlay on top of the clip's own final
         seconds — no separate black card appended after. A dedicated full-screen black outro
         (tried previously) read as a jarring dead-screen cut; this keeps the property footage
-        visible underneath and doesn't change the clip's total length at all."""
+        visible underneath and doesn't change the clip's total length at all.
+
+        Also fades in the brand name below the logo (matches the competitor reference's
+        end cards — "GLOW CLINIC", "BAAN DEE" — a plain logo alone read as less finished),
+        using the theme's own accent color (gold for midnight, white otherwise)."""
         logo_path = os.path.join(tmpdir, "outro_logo.png")
         try:
             await self._download_file(logo_url, logo_path)
@@ -619,15 +799,29 @@ class VideoService:
         out_path = os.path.join(tmpdir, "with_logo.mp4")
         # Fade-in only (no explicit fade-out needed — the clip simply ends while it's visible).
         # scale uses eval=frame for a gentle continuous scale-up so it doesn't sit frozen.
-        filter_complex = (
+        filter_parts = [
             f"[1:v]scale=w='iw*0.3*(1+0.05*(t-{start_t:.3f})/{overlay_dur:.3f})':h=-1:eval=frame,"
-            f"format=rgba,fade=t=in:st={start_t:.3f}:d=0.5:alpha=1[logo];"
-            f"[0:v][logo]overlay=(W-w)/2:(H-h)/2:format=auto[outv]"
-        )
+            f"format=rgba,fade=t=in:st={start_t:.3f}:d=0.5:alpha=1[logo]",
+            f"[0:v][logo]overlay=(W-w)/2:(H-h)/2:format=auto[with_logo]",
+        ]
+        last_label = "with_logo"
+        if brand_name.strip():
+            accent_color = "0xE8C97E" if style == "midnight" else "white"
+            alpha = f"if(lt(t,{start_t:.3f}),0,min((t-{start_t:.3f})/0.5,1))"
+            safe_name = _escape_drawtext(_short_headline(brand_name, max_chars=28))
+            filter_parts.append(
+                f"[with_logo]drawtext=fontfile='{_SERIF_FONT}':text='{safe_name}':fontsize=44:"
+                f"fontcolor={accent_color}:x=(w-text_w)/2:y=(h/2)+130:alpha='{alpha}'[outv]"
+            )
+            last_label = "outv"
+        else:
+            filter_parts[-1] = filter_parts[-1].replace("[with_logo]", "[outv]")
+            last_label = "outv"
+
         cmd = [
             "ffmpeg", "-y", "-i", video_path, "-loop", "1", "-i", logo_path,
-            "-filter_complex", filter_complex,
-            "-map", "[outv]",
+            "-filter_complex", ";".join(filter_parts),
+            "-map", f"[{last_label}]",
         ]
         if has_audio:
             cmd += ["-map", "0:a", "-c:a", "copy"]
@@ -720,6 +914,7 @@ class VideoService:
         self, image_paths: list[str], audio_path: str | None, tmpdir: str, duration_sec: int,
         captions: list[dict] | None = None, style: str = "warm", headline: str = "", subtitle: str = "",
         caption_style: str = "karaoke",
+        beat_overlays: list[tuple[tuple[float, float], str]] | None = None,
     ) -> str:
         output_path = os.path.join(tmpdir, "output.mp4")
 
@@ -805,8 +1000,8 @@ class VideoService:
         except Exception as e:
             logger.warning(f"[VIDEO] kb fade-ends failed — skipping: {e}")
 
-        if headline.strip() and style in ("editorial", "prime", "midnight"):
-            merged = await self._bake_title_card(merged, style, headline, subtitle, tmpdir)
+        if headline.strip() and style in ("editorial", "prime", "midnight", "tv_shopping"):
+            merged = await self._bake_title_card(merged, style, headline, subtitle, tmpdir, beat_overlays)
 
         ass_path = build_ass_file(captions, os.path.join(tmpdir, "captions.ass"), caption_style) if captions else None
         vf = subtitles_filter(ass_path) if ass_path else ""

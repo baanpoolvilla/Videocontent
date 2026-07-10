@@ -18,6 +18,7 @@ const STYLES = [
   { id: "editorial", label: "Editorial หรู", sublabel: "โทนมืดหรู" },
   { id: "prime", label: "Prime Location", sublabel: "โทนสว่างอบอุ่น" },
   { id: "midnight", label: "Midnight Luxe", sublabel: "โทนมืดสนิท + หัวข้อสีทอง" },
+  { id: "tv_shopping", label: "TV Shopping", sublabel: "ชมพูจัดจ้าน + ป้ายข้อความ" },
 ];
 
 const CAPTION_STYLES = [
