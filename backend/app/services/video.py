@@ -715,7 +715,7 @@ class VideoService:
         # scale uses eval=frame for a gentle continuous scale-up so it doesn't sit frozen.
         filter_parts = [
             f"[1:v]format=rgba,fade=t=in:st={start_t:.3f}:d=0.6:alpha=1,"
-            f"colorchannelmixer=aa=0.55[scrim]",
+            f"colorchannelmixer=aa=0.35[scrim]",
             f"[0:v][scrim]overlay=0:0:format=auto[with_scrim]",
             f"[2:v]scale=w='iw*0.3*(1+0.05*(t-{start_t:.3f})/{overlay_dur:.3f})':h=-1:eval=frame,"
             f"format=rgba,fade=t=in:st={start_t:.3f}:d=0.5:alpha=1[logo]",

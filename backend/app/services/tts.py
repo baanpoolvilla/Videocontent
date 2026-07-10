@@ -287,22 +287,28 @@ class TTSService:
             with open(src_path, "wb") as f:
                 f.write(storage_service.download_bytes(voice_result["url"]))
 
+            # Cut/generate every piece as PCM WAV, not MP3 — concatenating independently-encoded
+            # MP3 files (each with its own encoder priming/bit-reservoir delay) via the concat
+            # demuxer is a well-known source of tiny clicks/gaps right at splice points, which
+            # is exactly what kept surfacing as a "stutter" near beat boundaries across repeated
+            # test renders. WAV concatenation is sample-exact — no per-file encoding artifacts
+            # to accumulate. Only the final merged result gets encoded to MP3, once, at the end.
             segment_paths = []
             for i in range(n_segments):
-                seg_path = os.path.join(tmpdir, f"seg_{i}.mp3")
+                seg_path = os.path.join(tmpdir, f"seg_{i}.wav")
                 await self._run_ffmpeg_audio([
                     "ffmpeg", "-y", "-i", src_path,
                     "-ss", str(seg_orig_start[i]), "-to", str(seg_orig_end[i]),
-                    "-c:a", "libmp3lame", "-q:a", "4", seg_path,
+                    "-ar", "24000", "-ac", "1", "-c:a", "pcm_s16le", seg_path,
                 ])
                 segment_paths.append(seg_path)
 
             gap_paths = []
             for i, dur in enumerate(gap_durations):
-                gap_path = os.path.join(tmpdir, f"gap_{i}.mp3")
+                gap_path = os.path.join(tmpdir, f"gap_{i}.wav")
                 await self._run_ffmpeg_audio([
                     "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono",
-                    "-t", str(dur), "-q:a", "9", gap_path,
+                    "-t", str(dur), "-c:a", "pcm_s16le", gap_path,
                 ])
                 gap_paths.append(gap_path)
 
@@ -313,15 +319,25 @@ class TTSService:
                     if i < len(gap_paths):
                         f.write(f"file '{gap_paths[i]}'\n")
 
-            final_path = os.path.join(tmpdir, "final.mp3")
+            concat_wav_path = os.path.join(tmpdir, "concat.wav")
             proc = await asyncio.create_subprocess_exec(
                 "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list_path,
-                "-c:a", "libmp3lame", "-q:a", "4", final_path,
+                "-c:a", "pcm_s16le", concat_wav_path,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
             )
             _, stderr = await proc.communicate()
             if proc.returncode != 0:
                 raise RuntimeError(f"Beat concat failed: {stderr.decode()[-500:]}")
+
+            final_path = os.path.join(tmpdir, "final.mp3")
+            proc = await asyncio.create_subprocess_exec(
+                "ffmpeg", "-y", "-i", concat_wav_path,
+                "-c:a", "libmp3lame", "-q:a", "4", final_path,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                raise RuntimeError(f"Beat mp3 encode failed: {stderr.decode()[-500:]}")
 
             # Map a timestamp in the ORIGINAL continuous recording to where it now lands in the
             # trimmed-and-gapped final audio. A timestamp inside a kept segment shifts by that
@@ -419,19 +435,27 @@ class TTSService:
         ]
 
         with tempfile.TemporaryDirectory() as tmpdir:
+            # Same fix as the single-take path above: convert every piece to PCM WAV before
+            # concatenating, since joining independently-encoded MP3s via the concat demuxer
+            # can click/gap at splice points. Only the final merged result is MP3-encoded.
             audio_paths = []
             for i, r in enumerate(beat_results):
-                path = os.path.join(tmpdir, f"beat_{i}.mp3")
-                with open(path, "wb") as f:
+                raw_path = os.path.join(tmpdir, f"beat_{i}_raw.mp3")
+                with open(raw_path, "wb") as f:
                     f.write(storage_service.download_bytes(r["url"]))
-                audio_paths.append(path)
+                wav_path = os.path.join(tmpdir, f"beat_{i}.wav")
+                await self._run_ffmpeg_audio([
+                    "ffmpeg", "-y", "-i", raw_path,
+                    "-ar", "24000", "-ac", "1", "-c:a", "pcm_s16le", wav_path,
+                ])
+                audio_paths.append(wav_path)
 
             gap_paths = []
             for i, dur in enumerate(gap_durations):
-                gap_path = os.path.join(tmpdir, f"gap_{i}.mp3")
+                gap_path = os.path.join(tmpdir, f"gap_{i}.wav")
                 await self._run_ffmpeg_audio([
                     "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono",
-                    "-t", str(dur), "-q:a", "9", gap_path,
+                    "-t", str(dur), "-c:a", "pcm_s16le", gap_path,
                 ])
                 gap_paths.append(gap_path)
 
@@ -442,15 +466,25 @@ class TTSService:
                     if i < len(audio_paths) - 1:
                         f.write(f"file '{gap_paths[i]}'\n")
 
-            final_path = os.path.join(tmpdir, "final.mp3")
+            concat_wav_path = os.path.join(tmpdir, "concat.wav")
             proc = await asyncio.create_subprocess_exec(
                 "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list_path,
-                "-c:a", "libmp3lame", "-q:a", "4", final_path,
+                "-c:a", "pcm_s16le", concat_wav_path,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
             )
             _, stderr = await proc.communicate()
             if proc.returncode != 0:
                 raise RuntimeError(f"Beat concat failed: {stderr.decode()[-500:]}")
+
+            final_path = os.path.join(tmpdir, "final.mp3")
+            proc = await asyncio.create_subprocess_exec(
+                "ffmpeg", "-y", "-i", concat_wav_path,
+                "-c:a", "libmp3lame", "-q:a", "4", final_path,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                raise RuntimeError(f"Beat mp3 encode failed: {stderr.decode()[-500:]}")
 
             all_captions: list[dict] = []
             offset = 0.0
