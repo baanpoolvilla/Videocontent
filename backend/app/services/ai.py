@@ -19,7 +19,6 @@ class _ScriptSchema(BaseModel):
     full_script: str
     beats: list[str]
     title_card: str
-    beat_overlays: list[str]
 
 
 class _StyleSchema(BaseModel):
@@ -503,10 +502,7 @@ full_script: Script ฉบับเต็มที่พูดได้เลย
 beats: แบ่ง full_script ออกเป็นช่วงพูดสั้นๆ 3-6 ช่วงตามลำดับ (แต่ละช่วงคือประโยคหรือกลุ่มประโยคที่ควรพูดรวดเดียว
   แล้วเว้นจังหวะเงียบสั้นๆ ก่อนพูดช่วงถัดไป — เหมือนตัดช็อตภาพ) รวมกันแล้วต้องได้เนื้อความเดียวกับ full_script
 title_card: หัวข้อสั้น 2-5 คำ สำหรับโชว์เป็นตัวอักษรใหญ่บนวิดีโอ (คนละอย่างกับ hook ที่พูดออกเสียง) —
-  ต้องเป็นวลีที่จบสมบูรณ์ในตัวเองสั้นๆ กระชับ ห้ามเป็นประโยคยาวที่ดูเหมือนถูกตัดครึ่ง
-beat_overlays: ข้อความดีไซน์สั้นๆ 2-4 คำ หนึ่งอันต่อ 1 beat (ต้องมีจำนวนเท่ากับ beats เป๊ะ เรียงตามลำดับ)
-  โชว์บนจอคู่กับตอนที่พูดช่วงนั้นๆ — เป็นคำสรุป/จุดขายของ beat นั้น ไม่ใช่คำพูดที่ตัดมาโดยตรง
-  ตัวอย่างสไตล์: "FLAWLESS CONFIDENCE" -> "DOCTOR DESIGNED" -> "VISIBLE RESULTS" (แต่ละอันเป็นวลีอิสระ กระชับ จบในตัวเอง)"""
+  ต้องเป็นวลีที่จบสมบูรณ์ในตัวเองสั้นๆ กระชับ ห้ามเป็นประโยคยาวที่ดูเหมือนถูกตัดครึ่ง"""
 
         import asyncio
         loop = asyncio.get_event_loop()
@@ -622,20 +618,6 @@ beat_overlays: ข้อความดีไซน์สั้นๆ 2-4 คำ
         # free-text fallback path doesn't reliably populate it, so fall back to the hook
         # (still passes through _short_headline's overflow guard in video.py either way).
         result["title_card"] = _clean_spoken_text(result.get("title_card", "")) or result["hook"]
-
-        # beat_overlays must line up 1:1 with beats (the renderer times each overlay to its
-        # matching beat's start/end) — pad with a naive first-few-words fallback for any beat
-        # the model didn't give one for, rather than letting the lists drift out of sync.
-        raw_overlays = result.get("beat_overlays")
-        cleaned_overlays = (
-            [_clean_spoken_text(o) for o in raw_overlays if isinstance(o, str) and o.strip()]
-            if isinstance(raw_overlays, list) else []
-        )
-        beats = result["beats"]
-        for b in beats[len(cleaned_overlays):]:
-            words = b.split()[:3]
-            cleaned_overlays.append(" ".join(words) if words else b[:20])
-        result["beat_overlays"] = cleaned_overlays[:len(beats)]
 
         return {"script": result, "tokens_used": 0, "model_used": model_used}
 

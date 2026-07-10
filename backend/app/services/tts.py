@@ -183,7 +183,6 @@ class TTSService:
         lang: str = "th",
         pause_range: tuple[float, float] = (0.6, 1.1),
         cta_pause_range: tuple[float, float] = (1.2, 1.6),
-        beat_overlays: list[str] | None = None,
     ) -> dict:
         """Generate voiceover with real silence gaps between beats — natural breathing room
         instead of one unbroken block of narration for the whole clip. Gap length is randomized
@@ -196,15 +195,7 @@ class TTSService:
         voice engine treat each beat as a fresh, standalone sentence (its own start/end intonation),
         which read as choppy/disjointed once stitched with hard digital silence. Cutting one
         continuous natural reading instead preserves real cross-sentence prosody."""
-        # Keep beats and their overlay text paired while filtering empties, so an overlay never
-        # drifts out of sync with the beat it's supposed to be timed to.
-        if beat_overlays and len(beat_overlays) == len(beats):
-            paired = [(b.strip(), o) for b, o in zip(beats, beat_overlays) if b and b.strip()]
-            beats = [b for b, _ in paired]
-            overlays = [o for _, o in paired]
-        else:
-            beats = [b.strip() for b in beats if b and b.strip()]
-            overlays = ["" for _ in beats]
+        beats = [b.strip() for b in beats if b and b.strip()]
 
         if len(beats) <= 1:
             text = beats[0] if beats else ""
@@ -217,7 +208,7 @@ class TTSService:
         if not words:
             logger.warning("[TTS] no word-level timing available — falling back to per-beat synthesis")
             return await self._generate_voiceover_beats_legacy(
-                beats, job_id, voice_style, lang, pause_range, cta_pause_range, overlays,
+                beats, job_id, voice_style, lang, pause_range, cta_pause_range,
             )
 
         # Locate each beat boundary by character-length proportion rather than word count —
@@ -277,13 +268,9 @@ class TTSService:
             if i + 2 < len(range_bounds):
                 del range_bounds[i + 1]
                 del gap_durations[i]
-                overlays[i + 1] = (overlays[i] + " " + overlays[i + 1]).strip()
-                del overlays[i]
             else:
                 del range_bounds[i]
                 del gap_durations[i - 1]
-                overlays[i - 1] = (overlays[i - 1] + " " + overlays[i]).strip()
-                del overlays[i]
             # don't advance — re-check the now-merged (larger) beat in case it's still short
         n_segments = len(range_bounds) - 1
 
@@ -349,13 +336,6 @@ class TTSService:
                 if i < len(gap_durations):
                     offset += gap_durations[i]
 
-            # Each beat's [start, end] in the FINAL (trimmed+gapped) timeline, for pairing with
-            # beat_overlays when rendering the per-beat design-text overlay.
-            beat_times = [
-                (round(seg_final_offset[i], 3), round(seg_final_offset[i] + (seg_orig_end[i] - seg_orig_start[i]), 3))
-                for i in range(n_segments)
-            ]
-
             def _remap(t: float) -> float:
                 for i in range(n_segments):
                     if seg_orig_start[i] <= t <= seg_orig_end[i]:
@@ -391,8 +371,6 @@ class TTSService:
             "voice_id": voice_result.get("voice_id", ""),
             "model_id": voice_result.get("model_id", "edge-tts"),
             "captions": all_captions,
-            "beat_times": beat_times,
-            "beat_overlays": overlays,
         }
 
     async def _generate_voiceover_beats_legacy(
@@ -403,7 +381,6 @@ class TTSService:
         lang: str,
         pause_range: tuple[float, float],
         cta_pause_range: tuple[float, float],
-        overlays: list[str] | None = None,
     ) -> dict:
         """Fallback for engines with no word-level timing (e.g. gTTS): synthesize each beat as
         its own isolated TTS call and splice with silence. Less natural than the single-take
@@ -455,11 +432,9 @@ class TTSService:
                 raise RuntimeError(f"Beat concat failed: {stderr.decode()[-500:]}")
 
             all_captions: list[dict] = []
-            beat_times: list[tuple[float, float]] = []
             offset = 0.0
             for i, (r, path) in enumerate(zip(beat_results, audio_paths)):
                 dur = await _probe_audio_duration(path)
-                beat_times.append((round(offset, 3), round(offset + dur, 3)))
                 for c in r.get("captions", []):
                     all_captions.append({
                         "text": c["text"],
@@ -486,8 +461,6 @@ class TTSService:
             "voice_id": beat_results[0].get("voice_id", ""),
             "model_id": beat_results[0].get("model_id", "edge-tts"),
             "captions": all_captions,
-            "beat_times": beat_times,
-            "beat_overlays": overlays if overlays and len(overlays) == len(beats) else ["" for _ in beats],
         }
 
     @staticmethod

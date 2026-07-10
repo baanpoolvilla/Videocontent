@@ -228,7 +228,6 @@ async def _run_quick_ad_job(
         full_script = script_result["script"]["full_script"]
         title_card = script_result["script"].get("title_card") or script_result["script"]["hook"]
         beats = script_result["script"].get("beats") or []
-        beat_overlays = script_result["script"].get("beat_overlays") or []
 
         script_safety = await ai_service.check_content_safety(full_script)
         if script_safety["flagged"]:
@@ -241,7 +240,7 @@ async def _run_quick_ad_job(
 
         if use_pauses and len(beats) > 1:
             voice_result = await tts_service.generate_voiceover_beats(
-                beats=beats, job_id=job_id, voice_style=voice_style, beat_overlays=beat_overlays,
+                beats=beats, job_id=job_id, voice_style=voice_style,
             )
         else:
             voice_result = await tts_service.generate_voiceover(
@@ -259,7 +258,6 @@ async def _run_quick_ad_job(
             subtitle=product_name,
             logo_url=logo_url,
             caption_style=caption_style,
-            beat_overlays=list(zip(voice_result.get("beat_times", []), voice_result.get("beat_overlays", []))),
         )
 
         logger.info(f"[QUICK-AD] job={job_id} done → {render_result['url'][:80]}")
