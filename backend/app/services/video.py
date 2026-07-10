@@ -112,6 +112,21 @@ def _short_headline(text: str, max_chars: int = 22) -> str:
     return cut.rstrip(" ,.!?") + "…"
 
 
+def _dedupe_subtitle(headline: str, subtitle: str) -> str:
+    """The title card draws subtitle as a second line under headline — but the AI-written
+    title_card often just IS the product name, so subtitle (always the raw product name)
+    ends up repeating the headline verbatim (confirmed live: "SICILY POOLVILLA" directly
+    above "Sicily Poolvilla" — same text, different case). Drop the subtitle line entirely
+    when it's redundant instead of showing the same phrase twice."""
+    norm = lambda s: re.sub(r"[^\w]+", "", s).lower()
+    h, s = norm(headline), norm(subtitle)
+    if not s or not h:
+        return subtitle
+    if s == h or s in h or h in s:
+        return ""
+    return subtitle
+
+
 def _editorial_headline_overlay(headline: str, subtitle: str, hold: float = 3.0, fade_out: float = 0.5) -> str:
     """Bottom-left serif title card (headline + subtitle + thin accent line): fades in over
     0.6s, holds for `hold` seconds, then fades back out — it was previously left with no end
@@ -555,6 +570,7 @@ class VideoService:
         polish of the competitor reference it was modeled on.)"""
         out_path = os.path.join(tmpdir, "with_title.mp4")
         headline = _short_headline(headline)
+        subtitle = _dedupe_subtitle(headline, subtitle)
 
         if style == "prime":
             title_path = await self._render_prime_title_mov(headline, subtitle, tmpdir)
@@ -796,6 +812,16 @@ class VideoService:
                 logger.info(f"[VIDEO] voiceover ({audio_dur:.1f}s) longer than requested duration_sec "
                             f"({duration_sec}s) — extending render to fit the full narration")
                 duration_sec = int(audio_dur) + 1
+            elif audio_dur < duration_sec - 2:
+                # Opposite problem, same root cause: the AI writes toward a *target* length but
+                # the beat-pause TTS can come out noticeably shorter (confirmed live: requested
+                # ~39s, actual narration only 26.5s) — leaving duration_sec at the longer
+                # request stretches the Ken Burns slideshow to fill it anyway, so the clip plays
+                # 10+ seconds of dead silent video after the narration has already finished.
+                # Shrink to match the real narration instead (+1s buffer for the fade-out).
+                logger.info(f"[VIDEO] voiceover ({audio_dur:.1f}s) shorter than requested duration_sec "
+                            f"({duration_sec}s) — shrinking render so it doesn't end in dead silence")
+                duration_sec = max(int(audio_dur) + 1, 6)
 
         n = len(image_paths)
         per_image = max(2.0, duration_sec / n)
