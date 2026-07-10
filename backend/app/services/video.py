@@ -851,10 +851,16 @@ class VideoService:
             fade_dur = min(FADE_DUR, per_image * 0.15)
             await self._xfade_clips(clip_paths, durations, fade_dur, merged)
 
-        # Fade-in + fade-out for Ken Burns too
+        # Fade-in + fade-out for Ken Burns too. Timed off the MERGED clip's own real duration,
+        # not the target duration_sec — crossfade transitions between Ken Burns segments each
+        # eat into the total (every transition overlaps two clips by fade_dur), so the merged
+        # clip ends up shorter than duration_sec. Using duration_sec here put the fade-out's
+        # start point past the clip's actual end, so it never triggered at all (confirmed live:
+        # the very last frames were still at full brightness, no dimming whatsoever).
         faded_kb = os.path.join(tmpdir, "faded_kb.mp4")
         try:
-            fade_out_start = max(0.0, duration_sec - FADE_ENDS)
+            merged_dur = await self._get_duration(merged)
+            fade_out_start = max(0.0, merged_dur - FADE_ENDS)
             await self._run_ffmpeg([
                 "ffmpeg", "-y", "-i", merged,
                 "-vf", f"fade=t=in:st=0:d={FADE_ENDS},fade=t=out:st={fade_out_start:.3f}:d={FADE_ENDS}",

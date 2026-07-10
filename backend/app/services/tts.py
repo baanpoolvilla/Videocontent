@@ -385,7 +385,28 @@ class TTSService:
         """Fallback for engines with no word-level timing (e.g. gTTS): synthesize each beat as
         its own isolated TTS call and splice with silence. Less natural than the single-take
         path in generate_voiceover_beats (each beat gets its own fresh sentence intonation),
-        but the only option without per-word timestamps to cut a continuous recording at."""
+        but the only option without per-word timestamps to cut a continuous recording at.
+
+        A beat that's just a couple of words reads as an isolated audio blip once sandwiched
+        between two designed pauses (same problem the main path guards against with
+        MIN_BEAT_DUR) — this path has no per-word timing to measure actual spoken duration
+        against, so a character-count proxy is used to merge short beats before synthesis
+        instead."""
+        MIN_BEAT_CHARS = 10
+        merged_beats = list(beats)
+        i = 0
+        while i < len(merged_beats) and len(merged_beats) > 1:
+            if len(merged_beats[i]) >= MIN_BEAT_CHARS:
+                i += 1
+                continue
+            if i + 1 < len(merged_beats):
+                merged_beats[i + 1] = merged_beats[i] + " " + merged_beats[i + 1]
+                del merged_beats[i]
+            else:
+                merged_beats[i - 1] = merged_beats[i - 1] + " " + merged_beats[i]
+                del merged_beats[i]
+        beats = merged_beats
+
         beat_results = [
             await self.generate_voiceover(text=b, job_id=f"{job_id}_b{i}", voice_style=voice_style, lang=lang)
             for i, b in enumerate(beats)
@@ -478,6 +499,10 @@ class TTSService:
         voice = EDGE_STYLE_TO_VOICE.get(voice_style, "th-TH-PremwadeeNeural")
         logger.info(f"[TTS] Edge TTS voice={voice} chars={len(text)}")
 
+        # Edge TTS's default rate reads as rushed for ad narration (repeated user feedback
+        # across multiple test renders) — slow it down a bit via SSML prosody rate.
+        rate = "-12%"
+
         # boundary="WordBoundary" must be requested explicitly — the library defaults to
         # SentenceBoundary. Confirmed by live testing that some voices (e.g. th-TH-AcharaNeural)
         # reject WordBoundary mode outright (NoAudioReceived) even though the voice works fine
@@ -485,7 +510,7 @@ class TTSService:
         audio_chunks: list[bytes] = []
         words: list[dict] = []
         try:
-            communicate = edge_tts.Communicate(text, voice, boundary="WordBoundary")
+            communicate = edge_tts.Communicate(text, voice, rate=rate, boundary="WordBoundary")
             async for chunk in communicate.stream():
                 if chunk["type"] == "audio":
                     audio_chunks.append(chunk["data"])
@@ -497,7 +522,7 @@ class TTSService:
         except Exception as e:
             logger.warning(f"[TTS] Edge TTS WordBoundary mode failed for voice={voice} ({e}) — retrying without it")
             audio_chunks, words = [], []
-            communicate = edge_tts.Communicate(text, voice)
+            communicate = edge_tts.Communicate(text, voice, rate=rate)
             async for chunk in communicate.stream():
                 if chunk["type"] == "audio":
                     audio_chunks.append(chunk["data"])
