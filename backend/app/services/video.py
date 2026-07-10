@@ -77,7 +77,18 @@ _SERIF_FONT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets",
 # drawtext used by the other styles. Pinned as a local dependency in the Docker image (see
 # Dockerfile) rather than invoked via npx, so renders don't hit the npm registry.
 _HYPERFRAMES_BIN = "/opt/hyperframes-runtime/node_modules/.bin/hyperframes"
-_PRIME_COMPOSITION_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "hyperframes", "prime_location")
+_HYPERFRAMES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "hyperframes")
+
+# One HyperFrames composition per title-card style — real CSS (rounded corners, box-shadow,
+# spring/ease entrance motion via GSAP) instead of FFmpeg drawtext/drawbox, which can't do
+# any of that (confirmed live: the tv_shopping drawbox pill read as a flat, sharp-cornered
+# rectangle with no depth — "title ไม่สวยเลย"). Falls back to the plain drawtext overlay for
+# any style not in this dict, or if the render itself fails.
+_TITLE_COMPOSITION_DIRS = {
+    "prime": os.path.join(_HYPERFRAMES_DIR, "prime_location"),
+    "midnight": os.path.join(_HYPERFRAMES_DIR, "midnight_title"),
+    "tv_shopping": os.path.join(_HYPERFRAMES_DIR, "tv_shopping_title"),
+}
 
 
 _SCRIPT_BOUNDARY_RE = re.compile(r'(?<=[ก-๙])(?=[A-Za-z0-9])|(?<=[A-Za-z0-9])(?=[ก-๙])')
@@ -559,38 +570,37 @@ class VideoService:
     async def _bake_title_card(
         self, video_path: str, style: str, headline: str, subtitle: str, tmpdir: str,
     ) -> str:
-        """Burn the opening title card into the clip. "prime" tries the HyperFrames-rendered
-        animated card first (real spring/ease motion via headless Chrome) and falls back to
-        the plain drawtext overlay used by "editorial" if that render isn't available or
-        fails. "midnight"/"tv_shopping" use their own single-card drawtext styling.
+        """Burn the opening title card into the clip. Any style with a HyperFrames composition
+        (see _TITLE_COMPOSITION_DIRS) tries the real spring/ease animated card first — rounded
+        corners, box-shadow, proper pop/fade motion via headless Chrome — and falls back to the
+        plain FFmpeg drawtext/drawbox overlay if that render isn't available or fails.
 
         (A per-beat design-text-overlay variant — one phrase per narration beat, timed
         across the whole clip — was tried and reverted: it read as cluttered stacked on top
-        of the spoken-word captions, and the plain-drawtext version couldn't match the
-        polish of the competitor reference it was modeled on.)"""
+        of the spoken-word captions.)"""
         out_path = os.path.join(tmpdir, "with_title.mp4")
         headline = _short_headline(headline)
         subtitle = _dedupe_subtitle(headline, subtitle)
 
-        if style == "prime":
-            title_path = await self._render_prime_title_mov(headline, subtitle, tmpdir)
-            if title_path:
-                await self._run_ffmpeg([
-                    "ffmpeg", "-y", "-i", video_path, "-i", title_path,
-                    "-filter_complex",
-                    # eof_action=pass: overlay's default ("repeat") freezes the title MOV's
-                    # last frame and keeps compositing it for the rest of the clip once its
-                    # own ~3s duration ends — confirmed live, the title card never actually
-                    # went away. "pass" lets the base footage show through clean once the
-                    # title clip ends.
-                    "[1:v]format=yuva420p[title];[0:v][title]overlay=0:0:format=auto:eof_action=pass[outv]",
-                    "-map", "[outv]",
-                    "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
-                    "-an", out_path,
-                ])
-                return out_path
-            overlay = _editorial_headline_overlay(headline, subtitle)
-        elif style == "midnight":
+        comp_dir = _TITLE_COMPOSITION_DIRS.get(style)
+        title_path = await self._render_title_card_mov(comp_dir, headline, subtitle, tmpdir) if comp_dir else None
+        if title_path:
+            await self._run_ffmpeg([
+                "ffmpeg", "-y", "-i", video_path, "-i", title_path,
+                "-filter_complex",
+                # eof_action=pass: overlay's default ("repeat") freezes the title MOV's
+                # last frame and keeps compositing it for the rest of the clip once its
+                # own ~3.5s duration ends — confirmed live, the title card never actually
+                # went away. "pass" lets the base footage show through clean once the
+                # title clip ends.
+                "[1:v]format=yuva420p[title];[0:v][title]overlay=0:0:format=auto:eof_action=pass[outv]",
+                "-map", "[outv]",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
+                "-an", out_path,
+            ])
+            return out_path
+
+        if style == "midnight":
             overlay = _midnight_headline_overlay(headline, subtitle)
         elif style == "tv_shopping":
             overlay = _tv_shopping_headline_overlay(headline, subtitle)
@@ -605,24 +615,24 @@ class VideoService:
         ])
         return out_path
 
-    async def _render_prime_title_mov(self, headline: str, subtitle: str, tmpdir: str) -> str | None:
-        """Render the animated title card via HyperFrames (headless Chrome + GSAP) to a
+    async def _render_title_card_mov(
+        self, comp_dir: str | None, headline: str, subtitle: str, tmpdir: str,
+    ) -> str | None:
+        """Render an animated title card via HyperFrames (headless Chrome + GSAP) to a
         transparent MOV (ProRes 4444), for compositing on top of the Ken Burns clip. Returns
-        None on any failure — callers must fall back to the plain drawtext overlay, since this
-        path is new and hasn't been exercised on the production container yet.
+        None on any failure — callers must fall back to the plain drawtext overlay.
 
         Uses --format mov (ProRes 4444) rather than webm: confirmed by direct testing that this
         FFmpeg build round-trips ProRes 4444 alpha correctly but silently drops VP9-in-WebM
         alpha (decodes as fully opaque, which would have painted an opaque black box over the
         photo instead of the intended transparent title overlay)."""
-        if not os.path.exists(_HYPERFRAMES_BIN):
-            logger.warning("[VIDEO] hyperframes binary not found — falling back to drawtext title")
+        if not comp_dir or not os.path.exists(_HYPERFRAMES_BIN):
             return None
-        out_path = os.path.join(tmpdir, "prime_title.mov")
+        out_path = os.path.join(tmpdir, "title_card.mov")
         variables = json.dumps({"headline": headline, "subtitle": subtitle})
         try:
             proc = await asyncio.create_subprocess_exec(
-                _HYPERFRAMES_BIN, "render", _PRIME_COMPOSITION_DIR,
+                _HYPERFRAMES_BIN, "render", comp_dir,
                 "--format", "mov", "-o", out_path,
                 "--variables", variables, "--quiet",
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
