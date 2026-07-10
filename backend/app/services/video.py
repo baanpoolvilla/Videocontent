@@ -681,6 +681,11 @@ class VideoService:
         (tried previously) read as a jarring dead-screen cut; this keeps the property footage
         visible underneath and doesn't change the clip's total length at all.
 
+        Fades in a soft dark scrim behind the logo first — some source photos are already
+        dark/busy there (confirmed live: a dim interior shot made the logo read as barely
+        visible, almost "missing"), so legibility can't depend on the photo underneath being
+        light enough on its own.
+
         (No extra brand-name text drawn below it — the logo image itself already carries the
         brand name/URL, so adding one was pure duplication.)"""
         logo_path = os.path.join(tmpdir, "outro_logo.png")
@@ -699,14 +704,19 @@ class VideoService:
         # Fade-in only (no explicit fade-out needed — the clip simply ends while it's visible).
         # scale uses eval=frame for a gentle continuous scale-up so it doesn't sit frozen.
         filter_parts = [
-            f"[1:v]scale=w='iw*0.3*(1+0.05*(t-{start_t:.3f})/{overlay_dur:.3f})':h=-1:eval=frame,"
+            f"[1:v]format=rgba,fade=t=in:st={start_t:.3f}:d=0.6:alpha=1,"
+            f"colorchannelmixer=aa=0.55[scrim]",
+            f"[0:v][scrim]overlay=0:0:format=auto[with_scrim]",
+            f"[2:v]scale=w='iw*0.3*(1+0.05*(t-{start_t:.3f})/{overlay_dur:.3f})':h=-1:eval=frame,"
             f"format=rgba,fade=t=in:st={start_t:.3f}:d=0.5:alpha=1[logo]",
-            f"[0:v][logo]overlay=(W-w)/2:(H-h)/2:format=auto[outv]",
+            f"[with_scrim][logo]overlay=(W-w)/2:(H-h)/2:format=auto[outv]",
         ]
         last_label = "outv"
 
         cmd = [
-            "ffmpeg", "-y", "-i", video_path, "-loop", "1", "-i", logo_path,
+            "ffmpeg", "-y", "-i", video_path,
+            "-f", "lavfi", "-i", f"color=c=black:s={OUT_W}x{OUT_H}:d={main_dur:.3f}",
+            "-loop", "1", "-i", logo_path,
             "-filter_complex", ";".join(filter_parts),
             "-map", f"[{last_label}]",
         ]
