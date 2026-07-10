@@ -639,24 +639,29 @@ class VideoService:
             logger.warning(f"[VIDEO] hyperframes render errored ({e}) — falling back to drawtext title")
             return None
 
-    async def _get_duration(self, video_path: str) -> float:
-        """Get video duration in seconds using ffprobe."""
+    async def _get_duration(self, path: str) -> float:
+        """Get media duration in seconds via ffprobe's container-level format duration —
+        NOT a specific stream's codec_type, since this must work for audio-only files (the
+        voiceover .mp3) as well as video files. It used to only scan streams for
+        codec_type=="video" and silently fall through to a hardcoded 5.0 on anything else,
+        meaning every audio-duration probe in this file was always returning 5.0 regardless
+        of the real narration length (confirmed live: two jobs with completely different
+        scripts both logged the exact same "voiceover (5.0s)" — impossible for real content,
+        it was always just the fallback firing — which fed straight into the render-length
+        shrink/extend logic and produced wildly wrong clip lengths)."""
         proc = await asyncio.create_subprocess_exec(
             "ffprobe", "-v", "quiet",
             "-print_format", "json",
-            "-show_streams", video_path,
+            "-show_format", path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, _ = await proc.communicate()
         try:
             data = json.loads(stdout)
-            for stream in data.get("streams", []):
-                if stream.get("codec_type") == "video":
-                    return float(stream.get("duration", 5.0))
+            return float(data["format"]["duration"])
         except Exception:
-            pass
-        return 5.0
+            return 5.0
 
     async def _has_audio_stream(self, video_path: str) -> bool:
         proc = await asyncio.create_subprocess_exec(
