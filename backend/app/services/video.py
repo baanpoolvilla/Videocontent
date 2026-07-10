@@ -711,14 +711,20 @@ class VideoService:
         start_t = max(0.0, main_dur - overlay_dur)
 
         out_path = os.path.join(tmpdir, "with_logo.mp4")
-        # Fade-in only (no explicit fade-out needed — the clip simply ends while it's visible).
+        # Fade in, then fade back out together with the footage's own end-of-clip fade-out
+        # (same FADE_ENDS window) so the logo doesn't just hard-cut while the photo underneath
+        # is already fading to black — reported live as wanting the logo to "stay with the
+        # last image and fade out together" instead of cutting separately.
         # scale uses eval=frame for a gentle continuous scale-up so it doesn't sit frozen.
+        fade_out_st = max(start_t, main_dur - FADE_ENDS)
         filter_parts = [
             f"[1:v]format=rgba,fade=t=in:st={start_t:.3f}:d=0.6:alpha=1,"
+            f"fade=t=out:st={fade_out_st:.3f}:d={FADE_ENDS}:alpha=1,"
             f"colorchannelmixer=aa=0.35[scrim]",
             f"[0:v][scrim]overlay=0:0:format=auto[with_scrim]",
             f"[2:v]scale=w='iw*0.3*(1+0.05*(t-{start_t:.3f})/{overlay_dur:.3f})':h=-1:eval=frame,"
-            f"format=rgba,fade=t=in:st={start_t:.3f}:d=0.5:alpha=1[logo]",
+            f"format=rgba,fade=t=in:st={start_t:.3f}:d=0.5:alpha=1,"
+            f"fade=t=out:st={fade_out_st:.3f}:d={FADE_ENDS}:alpha=1[logo]",
             f"[with_scrim][logo]overlay=(W-w)/2:(H-h)/2:format=auto[outv]",
         ]
         last_label = "outv"

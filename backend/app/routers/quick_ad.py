@@ -254,8 +254,8 @@ async def _run_quick_ad_job(
             duration_sec=duration_sec,
             captions=voice_result.get("captions", []) if burn_captions else None,
             style=style,
-            headline=title_card,
-            subtitle=product_name,
+            headline=product_name,
+            subtitle=title_card,
             logo_url=logo_url,
             caption_style=caption_style,
         )

@@ -282,6 +282,32 @@ class TTSService:
             seg_orig_start.append(0.0 if i == 0 else words[start_idx]["start"])
             seg_orig_end.append(words[end_idx]["end"])
 
+        # Belt-and-suspenders re-check directly on the actual durations about to be cut — a
+        # short segment has still slipped through the merge loop above in real renders despite
+        # measuring well under MIN_BEAT_DUR (confirmed repeatedly live: an isolated ~0.1-0.4s
+        # blip between two designed pauses), even though that loop is meant to catch exactly
+        # this. Whatever upstream edge case allows that, this operates on the literal
+        # seg_orig_start/end values FFmpeg is about to cut with — nothing left to estimate.
+        i = 0
+        while i < len(seg_orig_start) and len(seg_orig_start) > 1:
+            if seg_orig_end[i] - seg_orig_start[i] >= MIN_BEAT_DUR:
+                i += 1
+                continue
+            if i + 1 < len(seg_orig_start):
+                seg_orig_start[i + 1] = seg_orig_start[i]
+                del seg_orig_end[i]
+                del seg_orig_start[i]
+                if i < len(gap_durations):
+                    del gap_durations[i]
+            else:
+                seg_orig_end[i - 1] = seg_orig_end[i]
+                del seg_orig_end[i]
+                del seg_orig_start[i]
+                if i - 1 < len(gap_durations):
+                    del gap_durations[i - 1]
+            # don't advance — re-check the merged (now larger) segment
+        n_segments = len(seg_orig_start)
+
         with tempfile.TemporaryDirectory() as tmpdir:
             src_path = os.path.join(tmpdir, "full.mp3")
             with open(src_path, "wb") as f:
